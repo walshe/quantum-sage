@@ -1,0 +1,381 @@
+# ============================================================
+# QUANTUM SAGE -- SIGNAL FILE SPECIFICATION & EXAMPLE
+# Version 1.0 -- First commit
+# ============================================================
+#
+# This file serves two purposes:
+# 1. It documents the schema, rules, and usage
+# 2. The YAML below is a working example with real data
+#
+# When creating a daily signal file, copy from the
+# "BEGIN SIGNAL DATA" marker below and save as:
+#   qs_signal_YYYY-MM-DD_HHmm.yaml
+#   e.g. qs_signal_2026-04-02_1006.yaml
+
+
+# ============================================================
+# WHY YAML INSTEAD OF EXCEL?
+# ============================================================
+#
+# For the computer (QS):
+# - Plain text file -- read instantly with zero dependencies
+#   (no Excel libraries, no spreadsheet parsing)
+# - Strict, predictable structure -- every field is in the
+#   same place every time, validation is trivial
+# - No hidden formatting surprises -- Excel carries invisible
+#   metadata, merged cells, formatting quirks that silently
+#   break automated parsing
+# - Version control friendly -- track every change in git,
+#   see exactly what changed between updates
+# - Lightweight -- ~1KB vs ~50KB+ for the same data
+#
+# For the analyst:
+# - Edit in any text editor on any device -- phone, tablet,
+#   laptop, even Notepad
+# - Comments built in -- annotate your thinking with #
+# - No formulas to accidentally break
+# - Copy/paste friendly -- duplicate yesterday's file, change
+#   the numbers, done
+# - Human readable -- anyone can open it and understand it
+#
+# For the system:
+# - QS watches a folder for new YAML files and picks them up
+# - If something goes wrong, open the file and see exactly
+#   what was fed to QS -- full auditability
+# - Excel adds complexity with no benefit when the data is
+#   just ~20 numbers and a few labels
+#
+# Bottom line: Excel is great for analysis. For a structured
+# data handoff between a human and a machine, YAML is
+# cleaner, safer, and simpler in every way.
+
+
+# ============================================================
+# FILE FORMAT
+# ============================================================
+#
+# Format:   YAML (plain text, editable in any text editor)
+# Encoding: UTF-8
+# Naming:   qs_signal_YYYY-MM-DD_HHmm.yaml
+# Example:  qs_signal_2026-04-02_1006.yaml
+#
+# One file per update. The analyst can issue multiple updates
+# per day (e.g. 10:06 levels, then 15:36 recalibration).
+
+
+# ============================================================
+# VALIDATION RULES
+# ============================================================
+#
+# QS checks every signal file before acting. If any check
+# fails, the file is rejected and QS does nothing (safe
+# default).
+#
+#  #  | Rule                | What QS checks
+# ----|---------------------|------------------------------
+#  1  | Required fields     | All non-null required fields
+#     |                     | must exist
+#  2  | Schema version      | Must be "1.0"
+#  3  | Range ordering      | range_1_down < range_2_down
+#     |                     | < range_2_up < range_1_up
+#  4  | Buy level ordering  | max_buy_1 < max_buy_2
+#     |                     | (outer is lower than inner)
+#  5  | Sell level ordering | max_sell_2 < max_sell_1
+#     |                     | (inner is lower than outer)
+#  6  | Price sanity        | All prices > 0 and within
+#     |                     | 20% of futures_last
+#  7  | Basis sanity        | basis between -100 and +200
+#  8  | Basis math          | futures_last - cash_last
+#     |                     | should approx equal basis
+#     |                     | (+-5 tolerance)
+#  9  | DVS range           | dvs between 0 and 200
+# 10  | DVS gate            | If dvs > 75, QS flags
+#     |                     | "no trade day" immediately
+# 11  | VWAP present        | vwap.value must be present
+#     |                     | and > 0
+# 12  | Invalidation logic  | void_below < futures_last
+#     |                     | < void_above
+# 13  | Enum values         | regime, direction, confidence
+#     |                     | must be valid values
+# 14  | Timestamp logic     | timestamp must be before
+#     |                     | expiry
+# 15  | Stale check         | Reject files older than
+#     |                     | 6 hours
+# 16  | VWAP freshness      | Warn if vwap.updated_at is
+#     |                     | more than 90 minutes old
+
+
+# ============================================================
+# HOW QS USES THIS FILE -- THE DECISION FLOW
+# ============================================================
+#
+#   Analyst reviews charts
+#          |
+#          v
+#   Fills in signal YAML file (levels, VWAP, DVS, bias)
+#          |
+#          v
+#   Drops file in shared folder / sends to QS
+#          |
+#          v
+#   QS validates schema --> REJECT if invalid
+#          |
+#          v
+#   DVS GATE CHECK:
+#   DVS > 75? --> NO TRADES TODAY. Stop here.
+#          |
+#          v  (DVS <= 75, proceed)
+#
+#   QS loads levels + VWAP + bias into memory
+#          |
+#          v
+#   QS watches live price feed
+#          |
+#          v
+#   THREE-ENTRY MEAN-REVERSION LOGIC:
+#
+#   Price hits MAX BUY 2 (inner buy zone):
+#     --> Entry 1 LONG (32.5% of position)
+#
+#   Price hits midpoint (avg of BUY 2 & BUY 1, +2 pts):
+#     --> Entry 2 LONG (35.0% of position)
+#
+#   Price hits MAX BUY 1 (outer buy zone):
+#     --> Entry 3 LONG (32.5% of position)
+#     --> No further averaging allowed
+#
+#   (Mirror logic for SHORT side using MAX SELL levels,
+#    midpoint offset is -2 pts on sell side)
+#
+#   EXIT LOGIC (evaluated in priority order):
+#
+#   1. Stop loss hit (40 pts from avg entry)
+#        --> Close entire position
+#   2. VWAP reached (primary take-profit)
+#        --> Close entire position
+#   3. +33 points profit reached (hard exit)
+#        --> Close entire position immediately
+#   4. +25 points profit reached (breakeven trigger)
+#        --> Move stop to breakeven (avg entry price)
+#   5. 180 minutes elapsed since first fill (time exit)
+#        --> Close at market
+#   6. Invalidation hit (void_above or void_below)
+#        --> Close everything, stop for the day
+#   7. Expiry time reached
+#        --> Close everything
+#
+#   DAILY LOCK:
+#   One winning trade closed --> no more trades today
+#
+#   OVERNIGHT EXCEPTION:
+#   If Entry 3 fills in last hour (21:00-22:00),
+#   position may be held overnight.
+#   Must close by 07:00 next morning.
+
+
+# ============================================================
+# QUICK START FOR THE ANALYST
+# ============================================================
+#
+# 1. Open yesterday's signal file
+# 2. Save a copy with today's date and time
+# 3. Update meta section (futures_last, cash_last, basis)
+# 4. Update volatility (DVS, skew)
+# 5. Update VWAP value and timestamp
+# 6. Update levels from your morning charts
+# 7. Update bias (direction, confidence, notes)
+# 8. Set invalidation levels and any event risk
+# 9. Drop the file in the shared folder
+# 10. QS picks it up and starts monitoring
+# 11. Update VWAP roughly once per hour (new file or
+#     separate channel -- TBD)
+# 12. If levels change at 15:36, issue a new file with
+#     update_seq: 2, or fill in levels_recal section
+
+
+# ============================================================
+# BEGIN SIGNAL DATA
+# ============================================================
+# Everything below this line is the actual signal data.
+# Copy from here when creating a new daily signal file.
+# ============================================================
+
+schema_version: "1.0"
+
+# ============================================================
+# SECTION 1: META
+# Basic session info
+# ============================================================
+meta:
+  date: "2026-04-02"
+  timestamp: "10:06"              # Time you fill this in
+  update_seq: 1                   # 1 = first of day
+                                  # 2 = update (e.g. 15:36)
+  contract: "ESM6"                # From IV Smile chart top-right
+                                  # (e.g. "Fut ESM6")
+  futures_last: 6578.67           # Current ES futures price
+                                  # From intraday chart top-right
+  cash_last: 6535.67              # From IV Smile right panel
+                                  # "SPX Index - Last"
+  basis: 43.00                    # From IV Smile right panel
+                                  # "Delta p.ti Fut ES-SPX"
+  execution_instrument: "ES"      # What you're trading:
+                                  # "ES", "US500.cash", or "SPX"
+
+# ============================================================
+# SECTION 2: VOLATILITY REGIME
+# ============================================================
+volatility:
+  dvs: 61.34                      # From IV Smile right panel
+                                   # green "DVS" box (left col)
+                                   # CRITICAL: if > 75, QS will
+                                   # not take any trades today
+  dvs_prior: 49.33                # From IV Smile right panel
+                                  # purple "DVS" box (right col)
+  skew: 145.45                    # From IV Smile right panel
+                                  # "SKEW Index - Close"
+  regime: "normal"                # YOUR read on vol environment:
+                                  # "compressed" = unusually quiet
+                                  # "normal"     = typical
+                                  # "elevated"   = above average
+                                  # "extreme"    = crisis-level
+
+# ============================================================
+# SECTION 3: VWAP
+# Primary take-profit target for all trades.
+# Updated manually, roughly once per hour.
+# ============================================================
+vwap:
+  value: 6555.00                  # Current VWAP value
+                                  # (in futures terms)
+  updated_at: "10:06"             # When you last checked this
+  source: "manual"                # "manual" = analyst updates
+                                  # "live_feed" = QS calculates
+                                  # (future capability)
+  # TODO: confirm whether QS should calculate VWAP
+  # from live data or rely on analyst's manual input.
+  # If QS calculates it, this field becomes a
+  # fallback/validation reference.
+
+# ============================================================
+# SECTION 4: RANGE LEVELS
+# Expected move boundaries for the session.
+# All prices in futures terms.
+#
+#   Range 1 Up    -- outer ceiling
+#   Range 2 Up    -- inner ceiling
+#       ...price trades here...
+#   Range 2 Down  -- inner floor
+#   Range 1 Down  -- outer floor
+#
+# Range 1 has a 75% re-entry rate -- if price leaves
+# Range 1, it comes back inside 3 out of 4 times.
+# ============================================================
+ranges:
+  range_1_up: 6680.25             # From IV Smile right panel
+                                  # "Range 1 up" (left col)
+  range_2_up: 6647.25             # From IV Smile right panel
+                                  # "Range 2 up" (left col)
+  range_2_down: 6542.75           # From IV Smile right panel
+                                  # "Range 2 down" (left col)
+  range_1_down: 6509.75           # From IV Smile right panel
+                                  # "Range 1 down" (left col)
+                                  # Also on Range Intraday sheet
+
+# ============================================================
+# SECTION 5: KEY LEVELS (10:06 set)
+# Entry trigger levels for the three-entry system.
+# All prices in futures terms.
+#
+# For LONG trades (mean-reversion buy):
+#   Entry 1 = MAX BUY 2 (inner, first touched)
+#   Entry 3 = MAX BUY 1 (outer, last touched)
+#   Entry 2 = midpoint of 1 and 3, + 2 points
+#
+# For SHORT trades (mean-reversion sell):
+#   Entry 1 = MAX SELL 2 (inner, first touched)
+#   Entry 3 = MAX SELL 1 (outer, last touched)
+#   Entry 2 = midpoint of 1 and 3, - 2 points
+#
+# TODO: confirm this level-to-entry mapping with
+# the analyst. This is our current assumption.
+# ============================================================
+levels:
+  level_time: "10:06"             # "10:06" or "15:36"
+  max_sell_1: 6616.00             # From intraday chart
+                                  # "10:00 MAX SELL 1" label
+                                  # (Short Entry 3 -- outer)
+  max_sell_2: 6582.00             # From intraday chart
+                                  # "10:00 MAX SELL 2" label
+                                  # (Short Entry 1 -- inner)
+  max_buy_1: null                 # From intraday chart
+                                  # "10:00 MAX BUY 1" label
+                                  # (Long Entry 3 -- outer)
+                                  # null if not shown on chart
+  max_buy_2: 6467.00              # From intraday chart
+                                  # "10:00 MAX BUY 2" label
+                                  # (Long Entry 1 -- inner)
+  call: 6590.00                   # From intraday chart
+                                  # "CALL" label, red horiz line
+  cash: 6574.00                   # From intraday chart
+                                  # "CASH" label, green horiz line
+  supporto: 6500.00               # From intraday chart
+                                  # "SUPPORTO" label, orange dotted
+  resistenza: null                # From intraday chart
+                                  # "RESISTENZA" label
+                                  # null if not shown on chart
+  additional: []
+
+# ============================================================
+# SECTION 6: 15:36 RECALIBRATION (optional)
+# If morning levels were NOT triggered by 15:36,
+# they are invalidated and replaced by these.
+# If morning levels WERE already triggered (trade is
+# active), this section does not affect the open trade.
+#
+# TODO: confirm whether afternoon levels ALWAYS
+# invalidate morning levels, or only when morning
+# levels were not triggered. Analyst flags this as
+# needing confirmation through testing.
+# ============================================================
+levels_recal:
+  level_time: null                # Set to "15:36" when ready
+  max_sell_1: null                # "15:30 MAX SELL 1" if present
+  max_sell_2: null                # "15:30 MAX SELL 2" if present
+  max_buy_1: null                 # "15:30 MAX BUY 1" if present
+  max_buy_2: null                 # "15:30 MAX BUY 2" if present
+  call: null                      # Same as 10:06 unless updated
+  cash: null                      # Same as 10:06 unless updated
+  supporto: null                  # Same as 10:06 unless updated
+  resistenza: null                # Same as 10:06 unless updated
+
+# ============================================================
+# SECTION 7: BIAS (optional analyst overlay)
+# The system is primarily rule-based (price hits level
+# --> enter). Bias is an optional filter the analyst
+# can use to add discretionary context.
+#
+# For example, if the analyst sees something on the
+# charts that makes them want to skip the short side
+# today, they set direction: "long" with high
+# confidence, and QS will only look for long entries.
+# ============================================================
+bias:
+  direction: "long"               # long / short / neutral
+  confidence: "medium"            # low / medium / high
+  notes: >
+    Expecting dip-buy into MAX BUY 2 zone (6467).
+    VWAP at 6555 is the primary target.
+    If MAX BUY 1 not shown, only two entries
+    possible on the buy side today.
+
+# ============================================================
+# SECTION 8: INVALIDATION
+# Safety rails -- when should QS stop?
+# ============================================================
+invalidation:
+  void_above: 6700.00             # Signal invalid above this
+  void_below: 6430.00             # Signal invalid below this
+  expiry: "22:00"                 # Signal expires at this time
+  notes: >
+    No major event risk identified.
