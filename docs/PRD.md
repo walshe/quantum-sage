@@ -31,10 +31,11 @@
 
 ## 1. Overview
 
-Quantum Sage (QS) is a signal engine for S&P 500
+Quantum Sage (QS) is a trading system for S&P 500
 instruments (ES futures, CFDs, or options) that
 processes discretionary analysis **initially provided
-by a human analyst** and generates tradeable signals.
+by a human analyst** and manages the full lifecycle
+from signal generation to trade execution.
 
 The system implements an **intraday mean-reversion
 strategy** built around predefined buy and sell levels,
@@ -42,11 +43,24 @@ with VWAP as the primary take-profit target. Positions
 are built through a three-entry scaling-in structure
 with tightly controlled downside risk.
 
-QS does NOT execute trades directly. Its output can be
-consumed by a human trader acting manually, or by a
-future automated execution layer. This separation means
-QS is useful from day one -- even before any broker
-integration exists.
+QS is composed of two modules:
+
+- **qs-signal-engine** -- the brain. Ingests the
+  analyst's signal file, watches live price, applies
+  trading logic, and generates tradeable signals
+  (direction, entries, stops, targets). This is the
+  Phase 1 priority.
+- **qs-trader** -- the hands. Takes tradeable signals
+  from qs-signal-engine and executes them. Initially
+  this means displaying signals for a human to act on
+  manually. Later, it connects to a broker API for
+  automated execution. This is a Phase 2 addition.
+
+Both modules live under the QS umbrella. They
+communicate through a well-defined internal interface
+(the tradeable signal), so qs-signal-engine can be
+built and validated independently before qs-trader
+is wired up.
 
 QS is NOT a fully autonomous system. In its initial
 phase, it depends on human-generated signals and
@@ -61,13 +75,19 @@ analyst.
 ### 1.2 Long-Term Vision
 
 The current architecture assumes a human analyst
-producing the signal file manually. However, the
-long-term goal is to automate the analyst's role as
-well -- replacing the manual chart reading and level
-extraction with an automated pipeline that ingests
-raw options data, computes the IV smile, derives
-DVS/ranges/levels, and generates the signal file
-programmatically.
+producing the signal file manually, with a human
+trader executing the signals.
+
+**Phase 2** adds automated execution -- qs-trader
+connects to a broker API so the human trader is no
+longer needed in the loop.
+
+**Phase 3** goes further by automating the analyst's
+role as well -- replacing the manual chart reading
+and level extraction with an automated pipeline that
+ingests raw options data, computes the IV smile,
+derives DVS/ranges/levels, and generates the signal
+file programmatically.
 
 This is why the signal file (data contract) is
 designed as a clean interface between the two halves
@@ -77,13 +97,17 @@ it still consumes the same YAML schema regardless of
 whether a human or a machine produced it.
 
 **Phase 1 (current):**
-  Human analyst --> Signal file --> QS
+  Human analyst --> Signal file --> qs-signal-engine
+  --> qs-trader (manual mode) --> Human executes
 
 **Phase 2 (future):**
-  Automated analysis --> Signal file --> QS
+  Human analyst --> Signal file --> qs-signal-engine
+  --> qs-trader (auto mode) --> Broker API
 
 **Phase 3 (future):**
-  Automated analysis --> QS --> Auto execution
+  Automated analysis --> Signal file -->
+  qs-signal-engine --> qs-trader (auto mode) -->
+  Broker API
 
 ---
 
@@ -125,10 +149,10 @@ All levels originate from the signal service's
 analysis of SPX options data. The service calculates
 levels at two key times:
 
-- **10:06** -- initial levels based on
-  overnight/morning data
-- **15:36** -- recalibrated levels at the US market
-  open (Opening Bell)
+- **Europe morning** -- initial levels
+  based on overnight/morning data
+- **Europe mid-afternoon** -- recalibrated
+  levels at the US market open (Opening Bell)
 
 Levels from the signal service may be expressed in
 either futures or cash (SPX) terms depending on the
@@ -156,7 +180,7 @@ the mean-reversion move back toward VWAP.
 │   ANALYST (Phase 1)       │
 │   or                      │
 │   AUTOMATED PIPELINE      │
-│   (Phase 2 -- future)     │
+│   (Phase 3 -- future)     │
 │                           │
 │   Reviews/computes levels │
 │   Updates VWAP            │
@@ -165,35 +189,40 @@ the mean-reversion move back toward VWAP.
               │
               │  Signal YAML file
               │  (the data contract)
-              │  -- sole input to QS
               ▼
-┌───────────────────────────┐
-│   QUANTUM SAGE             │
-│   Validates signal         │
-│   Watches live price       │
-│   Applies three-entry      │
-│     mean-reversion logic   │
-│   Generates tradeable      │
-│     signals with entry,    │
-│     stop, and VWAP target  │
-└─────────────┬─────────────┘
-              │
-              │  Tradeable signal
-              │  (direction, entries,
-              │   stop, target, size)
-              ▼
-┌───────────────────────────┐
-│  MANUAL       │  AUTO      │
-│  Trader reads │  EXECUTION │
-│  QS signal &  │  (Phase 3) │
-│  executes     │  Broker API│
-│  themselves   │  orders    │
-│               │            │
-│  Either path -- QS doesnt  │
-│  care which               │
-└─────────────┬─────────────┘
-              │
-              ▼
+┌─────────────────────────────────┐
+│         QUANTUM SAGE            │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │   qs-signal-engine        │  │
+│  │   Validates signal        │  │
+│  │   Watches live price      │  │
+│  │   Applies three-entry     │  │
+│  │     mean-reversion logic  │  │
+│  │   Generates tradeable     │  │
+│  │     signals               │  │
+│  └─────────────┬─────────────┘  │
+│                │                │
+│                │ Tradeable      │
+│                │ signal         │
+│                │ (internal      │
+│                │  interface)    │
+│                ▼                │
+│  ┌───────────────────────────┐  │
+│  │   qs-trader               │  │
+│  │                           │  │
+│  │   Phase 1: display signal │  │
+│  │     for manual execution  │  │
+│  │     (Telegram, dashboard) │  │
+│  │                           │  │
+│  │   Phase 2: auto-execute   │  │
+│  │     via broker API        │  │
+│  │     (IBKR, MT4/5, etc.)  │  │
+│  └─────────────┬─────────────┘  │
+│                │                │
+└────────────────┼────────────────┘
+                 │
+                 ▼
 ┌───────────────────────────┐
 │   BROKER / EXCHANGE        │
 │   ES futures, CFDs,        │
@@ -203,20 +232,27 @@ the mean-reversion move back toward VWAP.
 
 Key design principles:
 
+- **QS is one system with two modules.** Both
+  qs-signal-engine and qs-trader live under the
+  Quantum Sage umbrella. They are separate modules,
+  not separate projects.
 - **Clean separation of concerns.** The analyst (or
   future automated pipeline) owns the "what" (levels,
-  bias, regime). QS owns the "when" and "how" (entry
-  timing, scaling, risk management).
-- **QS is a signal engine, not an execution engine.**
-  Its output is a tradeable signal. What happens with
-  that signal -- manual or automated execution -- is
-  downstream and decoupled.
-- **The signal file is a stable interface.** Whether a
-  human or a machine produces it, QS consumes the
-  same schema.
-- **QS is useful from day one.** Even before any
-  broker integration exists, QS can output signals
-  that a human trader acts on.
+  bias, regime). qs-signal-engine owns the "when"
+  (applying logic to determine trade opportunities).
+  qs-trader owns the "how" (getting orders to market).
+- **Internal interface between modules.** The
+  tradeable signal is a well-defined data structure
+  passed from qs-signal-engine to qs-trader. This
+  allows each module to be developed and tested
+  independently.
+- **The signal file is a stable external interface.**
+  Whether a human or a machine produces it, QS
+  consumes the same schema.
+- **QS is useful from day one.** qs-signal-engine can
+  run standalone, outputting signals to a human via
+  qs-trader in manual mode. Automated execution is
+  added later without changing qs-signal-engine.
 
 ---
 
@@ -234,14 +270,17 @@ Key design principles:
 - Fills in the signal YAML file with all required
   fields
 - May issue updated signals intraday (e.g. after
-  15:36 recalibration)
+  european afternoon recalibration)
 - Sets invalidation boundaries and event risk notes
 
-> **Phase 2 note:** In the future, this role will be
+> **Phase 3 note:** In the future, this role will be
 > replaced by an automated pipeline. The signal file
 > schema remains the same -- only the producer changes.
 
-### 4.2 Quantum Sage (Signal Engine)
+### 4.2 qs-signal-engine (Phase 1 Priority)
+
+The brain of QS. Responsible for all trading logic
+and signal generation.
 
 - Validates the signal file against the schema
 - Loads levels, VWAP, and bias into memory
@@ -261,19 +300,33 @@ Key design principles:
   moves, time exits, invalidations)
 - Enforces one-winning-trade-per-day rule
 - Logs every decision for auditability
-- Does NOT execute trades directly
+- Passes tradeable signals to qs-trader via internal
+  interface
 
-### 4.3 Execution Layer (Future Phase)
+### 4.3 qs-trader (Phase 1 Manual, Phase 2 Auto)
 
-- Receives tradeable signals from QS
-- Two modes:
-  - **Manual** -- signal displayed to human trader
-  - **Automated** -- signal sent to broker API
-- Manages position lifecycle (fills, partials)
-- Enforces broker-level risk limits
+The hands of QS. Responsible for getting signals
+in front of a human or into a broker.
+
+**Phase 1 (manual mode):**
+- Receives tradeable signals from qs-signal-engine
+- Displays them for human consumption (Telegram
+  alert, dashboard, console output, etc.)
+- Receives signal updates (breakeven triggered,
+  time exit, invalidation) and displays those too
+- Human trader decides whether to act
+
+**Phase 2 (automated mode):**
+- Same internal interface from qs-signal-engine
+- Translates tradeable signals into broker API
+  orders (market, limit, stop)
+- Manages position lifecycle (fills, partials,
+  cancellations)
+- Enforces broker-level risk limits (margin, daily
+  loss cap)
 - Reports execution status back for logging
 
-### 4.4 The Developer (You)
+### 4.4 Engineer/Developer
 
 - Builds and maintains QS
 - Defines and tunes trading logic parameters
@@ -427,8 +480,8 @@ High DVS = more likely to break out and stay out.
 > Entry 3. This mapping is our assumption based on
 > the three-entry spec.
 
-Levels are calculated at 10:06 and optionally
-recalibrated at 15:36.
+Levels are calculated at european mornings and optionally
+recalibrated at european mid afternoon.
 
 ### 6.5 SKEW Index
 
@@ -697,11 +750,21 @@ performance does not guarantee future results.
   adjustment
 - **SPX options** -- possible but not primary use case
 
-### 9.2 Broker / Execution Layer
+### 9.2 Broker / Execution (qs-trader)
 
-> **TBD -- Future Phase.** Not needed for QS v1
-> (signal engine only). Options include IBKR,
-> MetaTrader 4/5, TradeStation, NinjaTrader.
+> **Phase 1:** qs-trader operates in manual mode --
+> displays signals for human execution. No broker
+> connection needed.
+>
+> **Phase 2:** qs-trader connects to a broker API.
+> Options include:
+> - Interactive Brokers (IBKR) API -- most common
+>   for ES futures
+> - MetaTrader 4/5 -- common for CFDs
+> - TradeStation, NinjaTrader, or others
+>
+> Broker choice shapes qs-trader internals but does
+> not affect qs-signal-engine.
 
 ### 9.3 Currency
 
@@ -762,20 +825,33 @@ as needing confirmation or testing:
 - Latency requirements -- sub-second or 1-5 second
   polling?
 
-### Broker Integration (Future Phase)
+### Broker Integration (qs-trader Phase 2)
 
-- Which broker API?
+- Which broker API will qs-trader connect to?
 - Paper trading / sandbox for testing?
 - Order types -- market, limit, stop?
-- NOT needed for QS v1
+- NOT needed for Phase 1 -- qs-trader starts in
+  manual mode (display only)
 
-### Signal Output Format
+### Tradeable Signal Format (Internal Interface)
 
-- What does a QS tradeable signal look like?
-- How is it delivered? Telegram? Dashboard? JSON?
+- What data structure does qs-signal-engine pass
+  to qs-trader?
+- Minimum fields: direction, 3 entry prices + %,
+  stop, target (VWAP), hard exit (+33), breakeven
+  trigger (+25), time exit, reasoning
 - How are updates communicated? ("move stop to
   breakeven", "signal cancelled", "time exit
   triggered")
+- Should this be an in-memory interface, a message
+  queue, or a file?
+
+### qs-trader Output Format
+
+- How does qs-trader display signals to the human
+  in Phase 1? Telegram? Dashboard? Console?
+- What information does the trader need to see?
+- How are signal updates shown in real time?
 
 ### Multiple Instruments
 
@@ -797,8 +873,11 @@ as needing confirmation or testing:
   (starting capital, daily risk %, stop distance,
   profit targets, entry allocations, size
   adaptation rules)
+- Config is shared by both qs-signal-engine (for
+  sizing in signals) and qs-trader (for broker-level
+  risk limits in Phase 2)
 
-### Automating the Analyst (Phase 2)
+### Automating the Analyst (Phase 3)
 
 - What raw data source would replicate the signal
   service?
@@ -816,7 +895,7 @@ as needing confirmation or testing:
 ### 11.1 High-Level Components
 
 ```
-         INPUTS                 QS CORE
+         INPUTS
 ┌──────────────┐  ┌──────────────┐
 │  Signal       │  │  Price Feed   │
 │  Ingestion    │  │  Service      │
@@ -825,55 +904,54 @@ as needing confirmation or testing:
        │                 │
        ▼                 ▼
 ┌────────────────────────────────┐
-│       QS SIGNAL ENGINE         │
+│     QUANTUM SAGE               │
 │                                │
-│  ┌───────────┐ ┌────────────┐  │
-│  │ Signal    │ │ DVS Gate   │  │
-│  │ Validator │ │ (> 75 =    │  │
-│  │           │ │  no trade) │  │
-│  └───────────┘ └────────────┘  │
-│                                │
-│  ┌───────────┐ ┌────────────┐  │
-│  │ Level     │ │ Three-Entry│  │
-│  │ Monitor   │ │ Engine     │  │
-│  │ (price vs │ │ (scaling,  │  │
-│  │  levels)  │ │  midpoint) │  │
-│  └───────────┘ └─────┬──────┘  │
-│                      │         │
-│  ┌───────────┐ ┌─────┴──────┐  │
-│  │ Risk Mgr  │ │ Exit Logic │  │
-│  │ (sizing,  │ │ (VWAP, +33,│  │
-│  │  daily    │ │  +25 BE,   │  │
-│  │  limits)  │ │  180 min)  │  │
-│  └───────────┘ └────────────┘  │
-│                                │
-│  ┌───────────┐                 │
-│  │ Audit Log │                 │
-│  └───────────┘                 │
-│                                │
-└───────────────┬────────────────┘
+│  ┌──────────────────────────┐  │
+│  │  qs-signal-engine        │  │
+│  │                          │  │
+│  │  ┌─────────┐ ┌────────┐ │  │
+│  │  │ Signal  │ │ DVS    │ │  │
+│  │  │ Valid.  │ │ Gate   │ │  │
+│  │  └─────────┘ └────────┘ │  │
+│  │                          │  │
+│  │  ┌─────────┐ ┌────────┐ │  │
+│  │  │ Level   │ │ 3-Entry│ │  │
+│  │  │ Monitor │ │ Engine │ │  │
+│  │  └─────────┘ └───┬────┘ │  │
+│  │                   │      │  │
+│  │  ┌─────────┐ ┌───┴────┐ │  │
+│  │  │ Risk    │ │ Exit   │ │  │
+│  │  │ Manager │ │ Logic  │ │  │
+│  │  └─────────┘ └────────┘ │  │
+│  │                          │  │
+│  │  ┌─────────┐            │  │
+│  │  │ Audit   │            │  │
+│  │  │ Logger  │            │  │
+│  │  └─────────┘            │  │
+│  └────────────┬─────────────┘  │
+│               │                │
+│               │ Tradeable      │
+│               │ signal         │
+│               │ (internal      │
+│               │  interface)    │
+│               ▼                │
+│  ┌──────────────────────────┐  │
+│  │  qs-trader               │  │
+│  │                          │  │
+│  │  Phase 1: Manual output  │  │
+│  │  (Telegram, dashboard)   │  │
+│  │                          │  │
+│  │  Phase 2: Broker API     │  │
+│  │  (IBKR, MT4/5, etc.)   │  │
+│  └────────────┬─────────────┘  │
+│               │                │
+└───────────────┼────────────────┘
                 │
-    OUTPUTS     ▼
-       ┌─────────────────┐
-       │ TRADEABLE SIGNAL│
-       │ direction       │
-       │ 3 entries + %   │
-       │ stop (40 pts)   │
-       │ target (VWAP)   │
-       │ hard exit (+33) │
-       │ BE trigger (+25)│
-       │ time exit (180m)│
-       │ reasoning       │
-       └────────┬────────┘
-                │
-     ┌──────────┼──────────┐
-     ▼                     ▼
-┌──────────┐       ┌──────────┐
-│ MANUAL   │       │ AUTO     │
-│ Telegram │       │ EXECUTE  │
-│ dashboard│       │ (Future) │
-│ Human    │       │ Broker   │
-└──────────┘       └──────────┘
+                ▼
+       ┌──────────────┐
+       │ BROKER /     │
+       │ EXCHANGE     │
+       └──────────────┘
 ```
 
 ### 11.2 Two Config Inputs
@@ -883,6 +961,7 @@ QS has two separate configuration inputs:
 **Signal File (changes daily/intraday):**
 - Levels, VWAP, DVS, ranges, bias
 - Produced by the analyst
+- Consumed by qs-signal-engine
 
 **QS Config File (changes rarely):**
 - Starting capital, daily risk %, stop distance
@@ -892,6 +971,9 @@ QS has two separate configuration inputs:
 - Time exit (180 minutes)
 - Size adaptation rules (50% / 25% after losses)
 - Soft/hard daily loss limits
+- Consumed by both qs-signal-engine (for sizing
+  calculations in signals) and qs-trader (for
+  broker-level risk enforcement)
 
 > **TODO:** Design the QS config schema.
 
@@ -904,7 +986,8 @@ QS has two separate configuration inputs:
 >   real-time dashboards)
 >
 > Broker API compatibility is NOT a constraint for
-> v1 since QS is a signal engine only.
+> Phase 1 since qs-trader starts in manual mode.
+> Choose the best stack for qs-signal-engine first.
 
 ### 11.4 Deployment
 
@@ -917,6 +1000,13 @@ QS has two separate configuration inputs:
 
 | Term       | Definition                          |
 |------------|-------------------------------------|
+| QS         | Quantum Sage -- the overall system  |
+| qs-signal- | QS module: the brain. Ingests       |
+| engine     | signals, watches price, generates   |
+|            | tradeable signals                   |
+| qs-trader  | QS module: the hands. Displays      |
+|            | signals (manual) or executes them   |
+|            | via broker API (auto)               |
 | DVS        | Directional Volatility Score        |
 | ES         | E-mini S&P 500 futures              |
 | SPX        | S&P 500 cash index                  |
