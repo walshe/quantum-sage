@@ -2,7 +2,7 @@
 
 > **Status:** DRAFT v1.0
 > **Last updated:** April 2, 2026
-> **Authors:** Filippod Baldan/Emmett Walsh
+> **Authors:** Filippd Baldan/Emmett Walsh
 > **Stage:** Early design -- many decisions are provisional
 > and subject to change.
 > **Source docs:** analyst's signal service screenshots,
@@ -445,7 +445,7 @@ deviating to the MAX BUY or MAX SELL zones.
 VWAP is currently entered manually by the analyst
 and updated roughly once per hour.
 
-> **TODO:** Determine whether QS should calculate
+> **TODO FB:** Determine whether QS should calculate
 > VWAP from the live price feed (more accurate, no
 > manual updates needed) or continue relying on the
 > analyst's manual input. If QS calculates it, the
@@ -477,14 +477,14 @@ High DVS = more likely to break out and stay out.
 | SUPPORTO   | Support pivot      | Options-derived    |
 | RESISTENZA | Resistance pivot   | Options-derived    |
 
-> **TODO:** Confirm with analyst that MAX BUY 2 /
+> **TODO FB:** Confirm with analyst that MAX BUY 2 /
 > MAX BUY 1 map to Long Entry 1 / Entry 3
 > respectively (inner first, outer last). Same for
 > MAX SELL 2 / MAX SELL 1 mapping to Short Entry 1 /
 > Entry 3. This mapping is our assumption based on
 > the three-entry spec.
 > 
-> **TODO:** What exactly are the CALL and CASH levels on 
+> **TODO FB:** What exactly are the CALL and CASH levels on 
 > your intraday chart, and do they play any role in the 
 > trading logic or are they just visual references?
 
@@ -557,7 +557,7 @@ The position is built in three entries:
 > from those two levels. It does not appear in the
 > YAML.
 
-> **TODO (offset direction):** For a long trade,
+> **TODO FB (offset direction):** For a long trade,
 > adding +2 to the midpoint makes it *higher*
 > (closer to Entry 1, further from Entry 3). This
 > means Entry 2 is biased toward getting filled
@@ -584,7 +584,7 @@ analyst's chart), qs-signal-engine cannot calculate
 the midpoint and cannot build the full three-entry
 structure.
 
-> **TODO (critical):** Define fallback behavior when
+> **TODO FB (critical):** Define fallback behavior when
 > a level is missing. Options include:
 > - **Skip the trade entirely** -- safest, no entry
 >   if the full three-level structure can't be built
@@ -611,7 +611,7 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
 - Stop: 40 points below average entry price
 - Target: VWAP
 
-> **TODO:** Confirm this example with the analyst.
+> **TODO FB:** Confirm this example with the analyst.
 > Verify the level-to-entry mapping.
 
 ### 7.5 Exit Strategy
@@ -645,11 +645,11 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
   target within 180 minutes from the first filled
   entry, exit at market
 
-> **TODO:** Confirm whether the 180-minute timer
+> **TODO FB:** Confirm whether the 180-minute timer
 > starts from the first fill or the final fill.
 > Analyst's doc flags this as needing confirmation.
 
-> **TODO:** Analyst mentions a possible additional
+> **TODO FB:** Analyst mentions a possible additional
 > management step around +20 points. To be confirmed
 > in testing.
 
@@ -674,7 +674,7 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
 - Once afternoon levels are published, untriggered
   morning levels are invalidated and replaced
 
-> **TODO:** Analyst flags this rule as needing
+> **TODO FB:** Analyst flags this rule as needing
 > confirmation through testing before treating as
 > final.
 
@@ -735,7 +735,7 @@ reached through slippage, gap risk, overnight holds
 gone wrong, or broker-level failures. Under normal
 logic it is unreachable.
 
-> **TODO (confirm with analyst):** Is this "one and
+> **TODO FB (confirm with analyst):** Is this "one and
 > done" behavior intentional? If so, the PRD should
 > state it explicitly as a design choice. If the
 > analyst expects multiple trade attempts per day,
@@ -851,30 +851,30 @@ implications TBD.
 These items are explicitly flagged by the analyst
 as needing confirmation or testing:
 
-- **TODO:** Whether afternoon levels always
+- **TODO FB:** Whether afternoon levels always
   invalidate morning levels, or only when morning
   levels were not triggered (Section 7.8)
-- **TODO:** Whether the 180-minute timer starts from
+- **TODO FB:** Whether the 180-minute timer starts from
   the first fill or the final fill (Section 7.5)
-- **TODO:** Whether an additional management step
+- **TODO FB:** Whether an additional management step
   should be added around +20 points profit
   (Section 7.5)
-- **TODO:** Study of multiple exit targets (analyst's
+- **TODO FB:** Study of multiple exit targets (analyst's
   future enhancement -- currently single target
   mode using VWAP)
 
 ### Level Mapping
 
-- **TODO:** Confirm that MAX BUY 2 / MAX BUY 1 map
+- **TODO FB:** Confirm that MAX BUY 2 / MAX BUY 1 map
   to Long Entry 1 / Entry 3 respectively (inner
   level first touched, outer level last). Same for
   MAX SELL side. (Section 6.4)
-- **TODO:** Verify the long entry example calculation
+- **TODO FB:** Verify the long entry example calculation
   with the analyst (Section 7.4)
 
 ### Entry 2 Offset Direction
 
-- **TODO (from review):** The +2 offset on the buy
+- **TODO FB (from review):** The +2 offset on the buy
   side midpoint makes Entry 2 higher (closer to
   Entry 1), not deeper into the dip. Is this
   intentional? Or should it be -2 for buys and +2
@@ -882,7 +882,7 @@ as needing confirmation or testing:
 
 ### Missing Level Fallback
 
-- **TODO (critical):** What should qs-signal-engine
+- **TODO FB (critical):** What should qs-signal-engine
   do when one of the two source levels is null?
   (e.g. max_buy_1 not shown on chart). Options:
   skip trade, two-entry mode, or analyst provides
@@ -891,7 +891,7 @@ as needing confirmation or testing:
 
 ### One Trade Per Day Implication
 
-- **TODO (confirm with analyst):** The risk math
+- **TODO FB (confirm with analyst):** The risk math
   means one losing trade = soft daily stop reached.
   Combined with daily lock after one winning trade,
   this makes QS effectively a "one trade per day"
@@ -899,14 +899,14 @@ as needing confirmation or testing:
 
 ### VWAP
 
-- **TODO:** Should QS calculate VWAP from the live
+- **TODO FB:** Should QS calculate VWAP from the live
   price feed, or rely on analyst's manual updates?
   If live, the signal file VWAP becomes a
   fallback/validation reference. (Section 6.2)
 
 ### Signal Delivery
 
-- All TBD by Emmett - How does the analyst deliver the signal file?
+- All TODO by Emmett - How does the analyst deliver the signal file?
 - Options: shared folder, git push, Telegram bot,
   direct upload
 - Does QS poll for new files or get notified?
@@ -964,7 +964,7 @@ as needing confirmation or testing:
 - The risk/capital parameters (Section 8) should
   live in a separate QS config file, not the signal
   YAML
-- **TODO:** Design the QS config schema
+- **TODO EW:** Design the QS config schema
   (starting capital, daily risk %, stop distance,
   profit targets, entry allocations, size
   adaptation rules)
@@ -1070,7 +1070,7 @@ QS has two separate configuration inputs:
   calculations in signals) and qs-trader (for
   broker-level risk enforcement)
 
-> **TODO:** Design the QS config schema. EMMETT
+> **TODO EMMETT:** Design the QS config schema. EMMETT
 
 ### 11.3 Technology Stack
 
@@ -1091,7 +1091,7 @@ QS has two separate configuration inputs:
 
 > **TODO (key architectural decision):** Should QS
 > run as an independent standalone process, or be
-> implemented natively inside a trading platform?
+> implemented natively inside a/each trading platform?
 
 **Option A: Standalone process (Python/TypeScript)**
 
@@ -1141,8 +1141,8 @@ Cons:
 4. Signal file (YAML) remains the same regardless/
    of which platform consumes it
 
-> **TODO (blocking):** What platform does the
-> analyst actually trade on? This answer determines
+> **TODO FB (blocking):** What platform does the
+> analyst actually trade on? This answer MIGHT determine
 > which port to build first.
 
 > **TODO:** For platforms with limited file I/O
