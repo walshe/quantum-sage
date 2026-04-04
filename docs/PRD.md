@@ -2,7 +2,7 @@
 
 > **Status:** DRAFT v1.0
 > **Last updated:** April 2, 2026
-> **Authors:** [Your name], with design assistance from Claude
+> **Authors:** Filippod Baldan/Emmett Walsh
 > **Stage:** Early design -- many decisions are provisional
 > and subject to change.
 > **Source docs:** analyst's signal service screenshots,
@@ -149,9 +149,9 @@ All levels originate from the signal service's
 analysis of SPX options data. The service calculates
 levels at two key times:
 
-- **Europe morning** -- initial levels
+- **Europe morning ** -- initial levels
   based on overnight/morning data
-- **Europe mid-afternoon** -- recalibrated
+- **Europe mid-afternoon ** -- recalibrated
   levels at the US market open (Opening Bell)
 
 Levels from the signal service may be expressed in
@@ -258,7 +258,7 @@ Key design principles:
 
 ## 4. Roles and Responsibilities
 
-### 4.1 The Analyst (Phase 1 -- Human)
+### 4.1 The Analyst (Phase 1 -- Human (FB))
 
 - Reviews IV smile charts, options positioning, and
   intraday execution charts
@@ -270,7 +270,7 @@ Key design principles:
 - Fills in the signal YAML file with all required
   fields
 - May issue updated signals intraday (e.g. after
-  european afternoon recalibration)
+  15:36 recalibration)
 - Sets invalidation boundaries and event risk notes
 
 > **Phase 3 note:** In the future, this role will be
@@ -326,7 +326,7 @@ in front of a human or into a broker.
   loss cap)
 - Reports execution status back for logging
 
-### 4.4 Engineer/Developer
+### 4.4 Engineer/Developer (EW)
 
 - Builds and maintains QS
 - Defines and tunes trading logic parameters
@@ -391,6 +391,11 @@ overlay since the system is primarily rule-based.
   range_1_up)
 - All prices positive and within 20% of futures_last
 - Basis math: futures_last - cash_last ≈ basis
+  (±5 tolerance -- wide enough to handle the
+  analyst reading futures and cash prices at
+  slightly different times, tight enough to catch
+  fat-finger errors like 143 instead of 43. May
+  tighten to ±2 or ±3 after observing real data.)
 - DVS within 0-200 range
 - DVS gate: if DVS > 75, QS should flag "no trade
   day" immediately
@@ -419,8 +424,7 @@ A measure of expected directional volatility.
 
 > **NOTE:** The analyst's system spec explicitly
 > states: "If DVS is above 75%, no trades are
-> allowed." This is stricter than our earlier
-> framework which had DVS 75-100 as "breakout-ready."
+> allowed." 
 > The system is purely mean-reversion, so high vol
 > environments are avoided entirely.
 
@@ -468,8 +472,8 @@ High DVS = more likely to break out and stay out.
 | MAX SELL 2 | Resistance (inner) | Short Entry 1      |
 | MAX BUY 2  | Support (inner)    | Long Entry 1       |
 | MAX BUY 1  | Support (outer)    | Long Entry 3       |
-| CALL       | Reference          | Call wall strike    |
-| CASH       | Reference          | Cash ref level     |
+| CALL       | Reference  ??      | Call wall strike    |
+| CASH       | Reference  ??      | Cash ref level     |
 | SUPPORTO   | Support pivot      | Options-derived    |
 | RESISTENZA | Resistance pivot   | Options-derived    |
 
@@ -479,9 +483,13 @@ High DVS = more likely to break out and stay out.
 > MAX SELL 2 / MAX SELL 1 mapping to Short Entry 1 /
 > Entry 3. This mapping is our assumption based on
 > the three-entry spec.
+> 
+> **TODO:** What exactly are the CALL and CASH levels on 
+> your intraday chart, and do they play any role in the 
+> trading logic or are they just visual references?
 
-Levels are calculated at european mornings and optionally
-recalibrated at european mid afternoon.
+Levels are calculated at European morning and optionally
+recalibrated at European mid afternoon.
 
 ### 6.5 SKEW Index
 
@@ -543,6 +551,21 @@ The position is built in three entries:
 - Buy side: midpoint + 2 points
 - Sell side: midpoint - 2 points
 
+> **IMPORTANT:** Only Entry 1 and Entry 3 come from
+> the signal file (as MAX BUY/SELL levels). Entry 2
+> is **calculated by qs-signal-engine** at runtime
+> from those two levels. It does not appear in the
+> YAML.
+
+> **TODO (offset direction):** For a long trade,
+> adding +2 to the midpoint makes it *higher*
+> (closer to Entry 1, further from Entry 3). This
+> means Entry 2 is biased toward getting filled
+> rather than toward maximum depth into the dip.
+> Confirm with analyst: is this intentional, or
+> should the offset go the other direction (-2 for
+> buys, +2 for sells) to scale in deeper?
+
 **Entry offsets** (BuyEntryOffsetPoints /
 SellEntryOffsetPoints) allow the system to enter
 slightly before the exact level is reached:
@@ -552,6 +575,30 @@ slightly before the exact level is reached:
 
 **No additional averaging** is allowed beyond the
 third entry.
+
+### 7.3.1 Missing Level Fallback
+
+If one of the two source levels is null in the
+signal file (e.g. max_buy_1 is not shown on the
+analyst's chart), qs-signal-engine cannot calculate
+the midpoint and cannot build the full three-entry
+structure.
+
+> **TODO (critical):** Define fallback behavior when
+> a level is missing. Options include:
+> - **Skip the trade entirely** -- safest, no entry
+>   if the full three-level structure can't be built
+> - **Two-entry mode** -- enter at the available
+>   level (Entry 1) and skip Entry 2 and Entry 3,
+>   with adjusted allocation (e.g. 50% / 50% or
+>   100% single entry)
+> - **Analyst override** -- analyst provides an
+>   explicit substitute level in the signal file's
+>   `additional` field
+>
+> This must be resolved before qs-signal-engine can
+> handle real-world signal files where levels are
+> sometimes absent.
 
 ### 7.4 Long Entry Example
 
@@ -577,6 +624,11 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
 - If the position reaches +33 points from average
   entry, close immediately
 - Even if VWAP has not been reached yet
+- This is an **emergency profit cap**, not the
+  primary target. In normal operation, VWAP will be
+  hit first (step 4 in priority order). The +33
+  exit only fires if VWAP is unusually far from
+  entry and price runs hard before reaching it.
 
 **Breakeven trigger: +25 points**
 - If a single-entry or averaged position goes more
@@ -617,9 +669,8 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
 
 ### 7.8 Morning vs Afternoon Levels
 
-- If not triggered, morning levels (10:06) remain
+- If not triggered, morning levels remain
   valid until the afternoon levels are released
-  (15:36)
 - Once afternoon levels are published, untriggered
   morning levels are invalidated and replaced
 
@@ -665,6 +716,32 @@ QS should evaluate in this order:
   threshold
 - If the soft daily stop (EUR 400) is reached,
   trading stops for the day under normal conditions
+
+### 8.1.1 Effective "One Trade Per Day" Implication
+
+The combination of these rules means that under
+normal operation, **QS effectively takes one trade
+per day:**
+
+- If the trade wins --> daily lock (Section 7.6)
+  prevents further trades
+- If the trade loses at the 40-point stop --> the
+  loss equals the soft daily stop (EUR 400), so
+  trading stops
+
+This makes the EUR 4,000 hard daily stop an
+**emergency backstop only** -- it would only be
+reached through slippage, gap risk, overnight holds
+gone wrong, or broker-level failures. Under normal
+logic it is unreachable.
+
+> **TODO (confirm with analyst):** Is this "one and
+> done" behavior intentional? If so, the PRD should
+> state it explicitly as a design choice. If the
+> analyst expects multiple trade attempts per day,
+> then either the soft daily stop needs to be higher
+> than the per-trade risk, or the per-trade size
+> needs to be a fraction of the soft daily stop.
 
 > **NOTE:** These are QS configuration parameters,
 > NOT part of the signal file. They live in a
@@ -731,13 +808,6 @@ QS should evaluate in this order:
 - Conflicting update_seq -- always use latest
 - Session boundaries must be respected
 
-### 8.8 Disclaimer
-
-QS is an experimental system. Nothing in this document
-constitutes financial advice. Trading futures, CFDs,
-and options involves substantial risk of loss. Past
-performance does not guarantee future results.
-
 ---
 
 ## 9. Instruments and Execution
@@ -802,6 +872,31 @@ as needing confirmation or testing:
 - **TODO:** Verify the long entry example calculation
   with the analyst (Section 7.4)
 
+### Entry 2 Offset Direction
+
+- **TODO (from review):** The +2 offset on the buy
+  side midpoint makes Entry 2 higher (closer to
+  Entry 1), not deeper into the dip. Is this
+  intentional? Or should it be -2 for buys and +2
+  for sells to scale in deeper? (Section 7.3)
+
+### Missing Level Fallback
+
+- **TODO (critical):** What should qs-signal-engine
+  do when one of the two source levels is null?
+  (e.g. max_buy_1 not shown on chart). Options:
+  skip trade, two-entry mode, or analyst provides
+  substitute level. No fallback logic is currently
+  defined. (Section 7.3.1)
+
+### One Trade Per Day Implication
+
+- **TODO (confirm with analyst):** The risk math
+  means one losing trade = soft daily stop reached.
+  Combined with daily lock after one winning trade,
+  this makes QS effectively a "one trade per day"
+  system. Is this intentional? (Section 8.1.1)
+
 ### VWAP
 
 - **TODO:** Should QS calculate VWAP from the live
@@ -811,7 +906,7 @@ as needing confirmation or testing:
 
 ### Signal Delivery
 
-- How does the analyst deliver the signal file?
+- All TBD by Emmett - How does the analyst deliver the signal file?
 - Options: shared folder, git push, Telegram bot,
   direct upload
 - Does QS poll for new files or get notified?
@@ -833,7 +928,7 @@ as needing confirmation or testing:
 - NOT needed for Phase 1 -- qs-trader starts in
   manual mode (display only)
 
-### Tradeable Signal Format (Internal Interface)
+### Tradeable Signal Format (Internal Interface) - TBD by Emmett
 
 - What data structure does qs-signal-engine pass
   to qs-trader?
@@ -864,7 +959,7 @@ as needing confirmation or testing:
 - Can the analyst provide historical signal data?
 - How will we validate QS logic before going live?
 
-### QS Configuration File
+### QS Configuration File (EMMETT TODO)
 
 - The risk/capital parameters (Section 8) should
   live in a separate QS config file, not the signal
@@ -975,7 +1070,7 @@ QS has two separate configuration inputs:
   calculations in signals) and qs-trader (for
   broker-level risk enforcement)
 
-> **TODO:** Design the QS config schema.
+> **TODO:** Design the QS config schema. EMMETT
 
 ### 11.3 Technology Stack
 
@@ -1038,8 +1133,7 @@ QS has two separate configuration inputs:
 ## 13. Appendices
 
 ### Appendix A: Signal File Example
-
-See `qs_signal_2026-04-02_1006.yaml` for an
+See [qs_signal_2026-04-02_1006.yaml](./research/sample-signal-files/qs_signal_2026-04-02_1006.yaml) for an
 annotated example with inline comments showing
 where each value originates on the analyst's
 charts.
