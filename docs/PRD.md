@@ -1084,6 +1084,73 @@ QS has two separate configuration inputs:
 > Phase 1 since qs-trader starts in manual mode.
 > Choose the best stack for qs-signal-engine first.
 
+
+### 11.4 Platform Strategy
+
+### 11.x Platform Strategy
+
+> **TODO (key architectural decision):** Should QS
+> run as an independent standalone process, or be
+> implemented natively inside a trading platform?
+
+**Option A: Standalone process (Python/TypeScript)**
+
+Pros:
+- Full control over the stack
+- Broker/platform agnostic
+- Easier to test and debug
+- Natural fit for the two-module architecture
+
+Cons:
+- Must self-manage a live price feed (single point
+  of failure, reconnection handling, stale data
+  risk)
+- Must build broker connectivity from scratch
+- More infrastructure to maintain
+
+**Option B: Native platform implementation
+(MQL5, Pine Script, etc.)**
+
+Pros:
+- Price feed is built in and reliable -- someone
+  else's problem
+- Order execution is built in
+- Backtesting tools come free
+- AI-assisted porting (e.g. Opus) makes
+  reimplementing for multiple platforms feasible
+
+Cons:
+- Locked to platform's language and constraints
+- Pine Script is limited for file ingestion and
+  complex state management
+- MQL5 is more capable but ties you to MetaTrader
+- Porting to a new platform means a rewrite
+  (though AI makes this manageable)
+
+**Proposed approach:**
+
+1. Write the canonical qs-signal-engine logic once
+   in Python as the reference implementation and
+   test harness (validation, backtesting, rule
+   confirmation)
+2. Port qs-signal-engine to the analyst's actual
+   trading platform (MQL5, Pine, or other) using
+   AI-assisted translation
+3. qs-trader comes "free" inside the platform
+   (native order execution, position management)
+4. Signal file (YAML) remains the same regardless/
+   of which platform consumes it
+
+> **TODO (blocking):** What platform does the
+> analyst actually trade on? This answer determines
+> which port to build first.
+
+> **TODO:** For platforms with limited file I/O
+> (e.g. Pine Script), how does the signal file get
+> ingested? Options include manual input, webhook,
+> or a bridge service that reads the YAML and
+> pushes values to the platform via API.
+
 ### 11.4 Deployment
 
 > **TBD** -- Local machine, cloud VPS, or

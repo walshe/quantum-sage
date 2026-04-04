@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/Emmett/dev/quantum-sage -not -path */.git/* -not -path */__pycache__/* -not -path */.idea/* -type f)"
+    ]
+  }
+}
