@@ -1,4 +1,4 @@
-# Quantum Sage -- Product Requirements Document
+# Trident: Quantum Sage Strategy -- Product Requirements Document
 
 > **Status:** DRAFT v1.0
 > **Last updated:** April 2, 2026
@@ -31,23 +31,23 @@
 
 ## 1. Overview
 
-Quantum Sage (QS) is a trading system for S&P 500
+Trident is the first trading strategy under the Quantum Sage (QS) umbrella. It is a trading system for S&P 500
 instruments (ES futures, CFDs, or options) that
 processes discretionary analysis **initially provided
 by a human analyst** and manages the full lifecycle
 from signal generation to trade execution.
 
-The system implements an **intraday mean-reversion
-strategy** built around predefined buy and sell levels,
+The Trident strategy implements an **intraday mean-reversion
+system** built around predefined buy and sell levels,
 with VWAP as the primary take-profit target. Positions
 are built through a three-entry scaling-in structure
 with tightly controlled downside risk.
 
-QS is composed of two modules:
+Trident is composed of two modules:
 
 - **qs-signal-engine** -- the brain. Ingests the
   analyst's signal file, watches live price, applies
-  trading logic, and generates tradeable signals
+  the Trident mean-reversion logic, and generates tradeable signals
   (direction, entries, stops, targets). This is the
   Phase 1 priority.
 - **qs-trader** -- the hands. Takes tradeable signals
@@ -56,13 +56,13 @@ QS is composed of two modules:
   manually. Later, it connects to a broker API for
   automated execution. This is a Phase 2 addition.
 
-Both modules live under the QS umbrella. They
+Both modules live under the Quantum Sage umbrella. They
 communicate through a well-defined internal interface
 (the tradeable signal), so qs-signal-engine can be
 built and validated independently before qs-trader
 is wired up.
 
-QS is NOT a fully autonomous system. In its initial
+Trident is NOT a fully autonomous system. In its initial
 phase, it depends on human-generated signals and
 operates within strict boundaries defined by the
 analyst.
@@ -141,7 +141,7 @@ From this data, the signal service produces:
 
 The analyst reviews these outputs, applies
 discretionary judgment, and produces a signal file
-for QS.
+for Trident.
 
 ### 2.2 Origin of Levels
 
@@ -191,16 +191,18 @@ the mean-reversion move back toward VWAP.
               │  (the data contract)
               ▼
 ┌─────────────────────────────────┐
-│         QUANTUM SAGE            │
+│     QUANTUM SAGE (Trident)      │
 │                                 │
 │  ┌───────────────────────────┐  │
 │  │   qs-signal-engine        │  │
 │  │   Validates signal        │  │
 │  │   Watches live price      │  │
-│  │   Applies three-entry     │  │
-│  │     mean-reversion logic  │  │
+│  │   Applies Trident three-  │  │
+│  │     entry mean-reversion  │  │
+│  │     logic                 │  │
 │  │   Generates tradeable     │  │
 │  │     signals               │  │
+│  │   (Trident implementation)│  │
 │  └─────────────┬─────────────┘  │
 │                │                │
 │                │ Tradeable      │
@@ -232,14 +234,13 @@ the mean-reversion move back toward VWAP.
 
 Key design principles:
 
-- **QS is one system with two modules.** Both
+- **Trident is a Quantum Sage strategy.** Both
   qs-signal-engine and qs-trader live under the
-  Quantum Sage umbrella. They are separate modules,
-  not separate projects.
+  Quantum Sage (QS) umbrella.
 - **Clean separation of concerns.** The analyst (or
   future automated pipeline) owns the "what" (levels,
   bias, regime). qs-signal-engine owns the "when"
-  (applying logic to determine trade opportunities).
+  (applying Trident logic to determine trade opportunities).
   qs-trader owns the "how" (getting orders to market).
 - **Internal interface between modules.** The
   tradeable signal is a well-defined data structure
@@ -247,9 +248,9 @@ Key design principles:
   allows each module to be developed and tested
   independently.
 - **The signal file is a stable external interface.**
-  Whether a human or a machine produces it, QS
-  consumes the same schema.
-- **QS is useful from day one.** qs-signal-engine can
+  Whether a human or a machine produces it, the
+  Trident engine consumes the same schema.
+- **Trident is useful from day one.** qs-signal-engine can
   run standalone, outputting signals to a human via
   qs-trader in manual mode. Automated execution is
   added later without changing qs-signal-engine.
@@ -279,7 +280,7 @@ Key design principles:
 
 ### 4.2 qs-signal-engine (Phase 1 Priority)
 
-The brain of QS. Responsible for all trading logic
+The brain of the Trident strategy. Responsible for all trading logic
 and signal generation.
 
 - Validates the signal file against the schema
@@ -305,7 +306,7 @@ and signal generation.
 
 ### 4.3 qs-trader (Phase 1 Manual, Phase 2 Auto)
 
-The hands of QS. Responsible for getting signals
+The hands of Trident. Responsible for getting signals
 in front of a human or into a broker.
 
 **Phase 1 (manual mode):**
@@ -328,7 +329,7 @@ in front of a human or into a broker.
 
 ### 4.4 Engineer/Developer (EW)
 
-- Builds and maintains QS
+- Builds and maintains Trident
 - Defines and tunes trading logic parameters
 - Integrates with price feed for live data
 - Monitors system health and performance
@@ -397,7 +398,7 @@ overlay since the system is primarily rule-based.
   fat-finger errors like 143 instead of 43. May
   tighten to ±2 or ±3 after observing real data.)
 - DVS within 0-200 range
-- DVS gate: if DVS > 75, QS should flag "no trade
+- DVS gate: if DVS > 75, Trident should flag "no trade
   day" immediately
 - VWAP present and reasonable
 - Enum fields valid
@@ -412,7 +413,7 @@ overlay since the system is primarily rule-based.
 
 A measure of expected directional volatility.
 
-| DVS       | Regime     | QS Action              |
+| DVS       | Regime     | Trident Action         |
 |-----------|------------|------------------------|
 | Below 50  | Low vol    | Ideal for this system. |
 |           |            | Mean-reversion favored.|
@@ -435,7 +436,7 @@ are deteriorating.
 
 ### 6.2 VWAP
 
-**The primary take-profit target for all trades.**
+**The primary take-profit target for all Trident trades.**
 
 VWAP (Volume Weighted Average Price) represents the
 average price weighted by volume. In a mean-reversion
@@ -445,10 +446,10 @@ deviating to the MAX BUY or MAX SELL zones.
 VWAP is currently entered manually by the analyst
 and updated roughly once per hour.
 
-> **TODO FB:** Determine whether QS should calculate
+> **TODO FB:** Determine whether Trident should calculate
 > VWAP from the live price feed (more accurate, no
 > manual updates needed) or continue relying on the
-> analyst's manual input. If QS calculates it, the
+> analyst's manual input. If Trident calculates it, the
 > signal file field becomes a fallback/validation
 > reference.
 
@@ -680,7 +681,7 @@ Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
 
 ### 7.9 System Logic Priority
 
-QS should evaluate in this order:
+Trident should evaluate in this order:
 
 1. Risk limit checks (daily loss, DVS gate)
 2. Trade eligibility checks (daily lock, session
@@ -720,7 +721,7 @@ QS should evaluate in this order:
 ### 8.1.1 Effective "One Trade Per Day" Implication
 
 The combination of these rules means that under
-normal operation, **QS effectively takes one trade
+normal operation, **Trident effectively takes one trade
 per day:**
 
 - If the trade wins --> daily lock (Section 7.6)
@@ -743,7 +744,7 @@ logic it is unreachable.
 > than the per-trade risk, or the per-trade size
 > needs to be a fraction of the soft daily stop.
 
-> **NOTE:** These are QS configuration parameters,
+> **NOTE:** These are Trident configuration parameters,
 > NOT part of the signal file. They live in a
 > separate QS config file that rarely changes.
 
@@ -783,21 +784,21 @@ logic it is unreachable.
 
 ### 8.5 Financial Risk Warnings
 
-- QS generates signals that lead to real-money
+- Trident generates signals that lead to real-money
   trades. Every bug is a potential financial loss.
 - Paper trading phase is mandatory before live
   deployment.
-- Daily loss limits must be enforced at both the QS
+- Daily loss limits must be enforced at both the Trident
   level AND at the broker level.
 - Invalidation logic must be bulletproof.
 
 ### 8.6 Technical Risk
 
-- Price feed outage -- QS must detect and halt
+- Price feed outage -- Trident must detect and halt
 - Signal file corruption -- validation catches this
 - Clock drift -- timestamps matter for 180-min
   timer and signal expiry
-- Network issues -- QS should not assume permanent
+- Network issues -- Trident should not assume permanent
   connectivity
 
 ### 8.7 Operational Risk
@@ -823,7 +824,7 @@ logic it is unreachable.
 ### 9.2 Broker / Execution (qs-trader)
 
 > **Phase 1:** qs-trader operates in manual mode --
-> displays signals for human execution. No broker
+> displays Trident signals for human execution. No broker
 > connection needed.
 >
 > **Phase 2:** qs-trader connects to a broker API.
@@ -894,12 +895,12 @@ as needing confirmation or testing:
 - **TODO FB (confirm with analyst):** The risk math
   means one losing trade = soft daily stop reached.
   Combined with daily lock after one winning trade,
-  this makes QS effectively a "one trade per day"
+  this makes Trident effectively a "one trade per day"
   system. Is this intentional? (Section 8.1.1)
 
 ### VWAP
 
-- **TODO FB:** Should QS calculate VWAP from the live
+- **TODO FB:** Should Trident calculate VWAP from the live
   price feed, or rely on analyst's manual updates?
   If live, the signal file VWAP becomes a
   fallback/validation reference. (Section 6.2)
@@ -950,14 +951,14 @@ as needing confirmation or testing:
 
 ### Multiple Instruments
 
-- Will QS monitor ES, NQ, and DAX simultaneously?
+- Will Trident monitor ES, NQ, and DAX simultaneously?
   (The Range Intraday sheet showed all three)
 - Or ES only to start?
 
 ### Backtesting
 
 - Can the analyst provide historical signal data?
-- How will we validate QS logic before going live?
+- How will we validate Trident logic before going live?
 
 ### QS Configuration File (EMMETT TODO)
 
@@ -1051,7 +1052,7 @@ as needing confirmation or testing:
 
 ### 11.2 Two Config Inputs
 
-QS has two separate configuration inputs:
+The Trident strategy has two separate configuration inputs:
 
 **Signal File (changes daily/intraday):**
 - Levels, VWAP, DVS, ranges, bias
@@ -1089,8 +1090,8 @@ QS has two separate configuration inputs:
 
 ### 11.x Platform Strategy
 
-> **TODO (key architectural decision):** Should QS
-> run as an independent standalone process, or be
+> **TODO (key architectural decision):** Should the Trident
+> strategy run as an independent standalone process, or be
 > implemented natively inside a/each trading platform?
 
 **Option A: Standalone process (Python/TypeScript)**
@@ -1163,9 +1164,11 @@ Cons:
 | Term       | Definition                          |
 |------------|-------------------------------------|
 | QS         | Quantum Sage -- the overall system  |
+| Trident    | The first mean-reversion strategy   |
+|            | under the QS umbrella               |
 | qs-signal- | QS module: the brain. Ingests       |
 | engine     | signals, watches price, generates   |
-|            | tradeable signals                   |
+|            | tradeable signals for Trident       |
 | qs-trader  | QS module: the hands. Displays      |
 |            | signals (manual) or executes them   |
 |            | via broker API (auto)               |
@@ -1200,7 +1203,7 @@ Cons:
 ## 13. Appendices
 
 ### Appendix A: Signal File Example
-See [qs_signal_2026-04-02_1006.yaml](./research/sample-signal-files/qs_signal_2026-04-02_1006.yaml) for an
+See [qs_signal_2026-04-02_1006.yaml](research/sample-signal-files/qs_signal_2026-04-02_1006.yaml) for an
 annotated example with inline comments showing
 where each value originates on the analyst's
 charts.
@@ -1240,6 +1243,8 @@ daily. Recent range: 40-75 points.
 | Breakeven trigger    | +25 pts|
 | Hard profit exit     | +33 pts|
 | Time exit            | 180 min|
+
+These parameters are part of the Trident strategy configuration.
 
 ### Appendix E: Position Size Adaptation
 
