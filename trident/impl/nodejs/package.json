@@ -1,0 +1,26 @@
+{
+  "name": "trident",
+  "version": "0.1.0",
+  "description": "Trident strategy — qs-signal-engine POC",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --experimental-vm-modules dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "js-yaml": "^4.1.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}

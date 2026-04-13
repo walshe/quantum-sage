@@ -1,0 +1,46 @@
+# ============================================================
+# QUANTUM SAGE -- SYSTEM CONFIGURATION
+# This file rarely changes. It holds capital parameters,
+# Trident strategy parameters, and size adaptation rules.
+# NOT to be confused with the daily signal file.
+# ============================================================
+
+capital:
+  starting_capital_eur: 80000
+  daily_risk_pct: 0.5          # 0.5% of capital = EUR 400 soft stop
+  soft_daily_stop_eur: 400
+  hard_daily_stop_eur: 800
+
+trident:
+  # Entry allocation splits (must sum to 100)
+  entry_1_allocation_pct: 32.5
+  entry_2_allocation_pct: 35.0
+  entry_3_allocation_pct: 32.5
+
+  # Midpoint offset: shifts Entry 2 slightly toward Entry 1
+  # to favour fill probability over a few points of profit.
+  # +2 for longs (worse entry, higher fill chance)
+  # -2 for shorts (worse entry, higher fill chance)
+  midpoint_offset_buy: 2
+  midpoint_offset_sell: -2
+
+  # Risk / exit parameters (all in points)
+  stop_loss_points: 40
+  breakeven_trigger_points: 25
+  hard_profit_exit_points: 33
+  time_exit_minutes: 180
+
+  # DVS gate -- no trades if DVS exceeds this
+  dvs_gate: 75
+
+size_adaptation:
+  after_one_loss_day: 0.5    # 50% of normal size
+  after_two_loss_days: 0.25  # 25% of normal size
+
+signal:
+  # Directory QS watches for new signal YAML files
+  watch_dir: "./signals"
+  # Reject signal files older than this many hours
+  stale_threshold_hours: 6
+  # Warn if VWAP has not been updated within this many minutes
+  vwap_staleness_warn_minutes: 90

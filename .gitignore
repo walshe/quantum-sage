@@ -13,3 +13,13 @@ Icon?
 .Spotlight-V100
 .Trashes
 config.xml
+
+# Node
+node_modules/
+dist/
+
+# Signals (daily files, not committed)
+trident/impl/nodejs/signals/
+
+# Logs
+trident/impl/nodejs/logs/

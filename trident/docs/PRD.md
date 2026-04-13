@@ -1,4 +1,6 @@
-# Quantum Sage -- Product Requirements Document
+![Trident Logo](../trident.png)
+
+# Trident -- Product Requirements Document
 
 > **Status:** DRAFT v1.1
 > **Last updated:** April 7, 2026
@@ -43,7 +45,7 @@ analysis from a human analyst (or, in the future,
 an automated pipeline) and generate tradeable
 signals.
 
-**Trident** is the first strategy implemented under
+**_Trident_** is the first strategy implemented under
 the Quantum Sage umbrella. It is an intraday
 **mean-reversion strategy** for S&P 500 instruments
 (ES futures, CFDs, or options), built around

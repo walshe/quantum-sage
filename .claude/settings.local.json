@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /Users/Emmett/dev/quantum-sage -not -path */.git/* -not -path */__pycache__/* -not -path */.idea/* -type f)"
+      "Bash(find /Users/Emmett/dev/quantum-sage -not -path */.git/* -not -path */__pycache__/* -not -path */.idea/* -type f)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(LOG_LEVEL=debug npx tsx:*)"
     ]
   }
 }
