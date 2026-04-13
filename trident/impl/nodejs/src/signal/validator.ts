@@ -33,11 +33,12 @@ export function validateSignal(
   }
 
   // Rule 2: required top-level sections
-  for (const section of ['meta', 'volatility', 'vwap', 'ranges', 'levels', 'invalidation']) {
-    if (!(signal as unknown as Record<string, unknown>)[section]) {
-      errors.push(`Missing required section: ${section}`);
-    }
-  }
+  if (!signal.meta)         errors.push('Missing required section: meta');
+  if (!signal.volatility)   errors.push('Missing required section: volatility');
+  if (!signal.vwap)         errors.push('Missing required section: vwap');
+  if (!signal.ranges)       errors.push('Missing required section: ranges');
+  if (!signal.levels)       errors.push('Missing required section: levels');
+  if (!signal.invalidation) errors.push('Missing required section: invalidation');
 
   if (errors.length > 0) return { valid: false, errors, warnings };
 

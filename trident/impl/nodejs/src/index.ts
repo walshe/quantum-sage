@@ -16,7 +16,7 @@ import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
 import { TridentEngine } from './strategy/TridentEngine.js';
 
-const args = process.argv.slice(2);
+const args = process.argv.slice(2); // process.argv[0] — the path to the node executable ,process.argv[1] — the path to the script being run
 const configPath = argValue(args, '--config') ?? './config.yaml';
 const useMock = args.includes('--mock');
 const signalPath = argValue(args, '--signal'); // load a specific signal file directly
@@ -67,6 +67,9 @@ if (useMock) {
     { price: 6555.00, delayMs: 800 },  // VWAP hit → close
   ]);
 
+  // This is the critical wiring line — every price tick from the feed drives the
+  // engine's entire decision loop: entry triggers, exit conditions, breakeven,
+  // invalidation checks. Without this, the engine never reacts to market prices.
   feed.subscribe(price => engine.onPriceUpdate(price));
   await feed.connect();
 
