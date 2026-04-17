@@ -6,7 +6,7 @@
  *
  * Prerequisites:
  *   1. In the cTrader Open API portal, add this exact redirect URI to your app:
- *        http://localhost:3000/api/ctrader/callback
+ *        http://127.0.0.1:3000/api/ctrader/callback
  *   2. Add your app credentials to .env (copy .env.example to get started):
  *        CTRADER_CLIENT_ID=your_client_id
  *        CTRADER_CLIENT_SECRET=your_client_secret
@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { exec } from 'child_process';
 import { URL } from 'url';
 
-const REDIRECT_URI = 'http://localhost:3000/api/ctrader/callback';
+const REDIRECT_URI = 'http://127.0.0.1:3000/api/ctrader/callback';
 const AUTH_BASE    = 'https://id.ctrader.com/my/settings/openapi/grantingaccess/';
 const TOKEN_URL    = 'https://openapi.ctrader.com/apps/token';
 const ENV_FILE     = '.env';
@@ -83,8 +83,8 @@ function waitForAuthCode(): Promise<string> {
       res.on('finish', () => server.close(() => resolve(code)));
     });
 
-    server.listen(3000, () =>
-      console.log('Listening for cTrader callback on http://localhost:3000 ...')
+    server.listen(3000, '127.0.0.1', () =>
+      console.log('Listening for cTrader callback on http://127.0.0.1:3000 ...')
     );
 
     server.on('error', reject);

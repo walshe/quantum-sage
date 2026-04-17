@@ -83,18 +83,18 @@ const REFRESH_BUFFER_SECS = 300; // 5 minutes
 // but we just use the numbers directly since we're on the JSON port.
 
 const PT = {
-  HEARTBEAT:             0,    // ping — sent every 10s to keep connection alive
+  HEARTBEAT:            51,    // ping — sent every 10s to keep connection alive (payloadType 51 in current protocol)
   APP_AUTH_REQ:       2100,    // step 1: prove this app is registered with cTrader
   APP_AUTH_RES:       2101,
   ACCOUNT_AUTH_REQ:   2102,    // step 3: authorise a specific trading account
   ACCOUNT_AUTH_RES:   2103,
   NEW_ORDER_REQ:      2104,    // not used here — for order execution (future)
-  SYMBOL_LIST_REQ:    2115,    // step 4: get the list of tradeable instruments
-  SYMBOL_LIST_RES:    2116,
-  SUBSCRIBE_SPOTS_REQ: 2119,   // step 5: start receiving bid/ask ticks
-  SUBSCRIBE_SPOTS_RES: 2120,
-  UNSUBSCRIBE_SPOTS_REQ: 2121, // sent on disconnect to clean up server-side
-  SPOT_EVENT:         2126,    // incoming tick: { bid?, ask?, timestamp? }
+  SYMBOL_LIST_REQ:    2114,    // step 4: get the list of tradeable instruments
+  SYMBOL_LIST_RES:    2115,
+  SUBSCRIBE_SPOTS_REQ: 2127,   // step 5: start receiving bid/ask ticks
+  SUBSCRIBE_SPOTS_RES: 2128,
+  UNSUBSCRIBE_SPOTS_REQ: 2129, // sent on disconnect to clean up server-side
+  SPOT_EVENT:         2131,    // incoming tick: { bid?, ask?, timestamp? }
   GET_ACCOUNTS_REQ:   2149,    // step 2: list accounts linked to this access token
   GET_ACCOUNTS_RES:   2150,
   ERROR_RES:          2142,    // any API-level error
@@ -353,7 +353,7 @@ export class CTraderPriceFeed implements PriceFeed {
       // ── Step 2 response: we have the account list ──────────────────────
       case PT.GET_ACCOUNTS_RES: {
         const accounts = (msg.payload?.ctidTraderAccount ?? []) as CTraderAccount[];
-        log.info('Account list received', { count: accounts.length, rawPayloadKeys: Object.keys(msg.payload ?? {}) });
+        log.debug('Account list received', { count: accounts.length });
 
         // Use the configured account ID if given; otherwise take the first live
         // account (FB's real money account). Falls back to accounts[0] if there's
@@ -363,12 +363,7 @@ export class CTraderPriceFeed implements PriceFeed {
           : accounts.find(a => a.isLive) ?? accounts[0];
 
         if (!account) {
-          settle(new Error(
-            `No matching cTrader account found. ` +
-            `Payload keys: ${Object.keys(msg.payload ?? {}).join(', ')}. ` +
-            `Accounts parsed: ${accounts.length}. ` +
-            `Raw payload: ${JSON.stringify(msg.payload)}`
-          ));
+          settle(new Error('No matching cTrader account found for the provided access token'));
           return;
         }
 
@@ -388,63 +383,58 @@ export class CTraderPriceFeed implements PriceFeed {
 
       // ── Step 3 response: account is authorised ─────────────────────────
       case PT.ACCOUNT_AUTH_RES: {
-        // If the caller supplied a symbolId directly, skip the symbol list lookup.
-        if (this.cfg.symbolId !== undefined) {
-          this.symbolId = this.cfg.symbolId;
-          log.info('Skipping symbol lookup — using configured symbolId', { symbolId: this.symbolId });
-          this.send({
-            payloadType: PT.SUBSCRIBE_SPOTS_REQ,
-            payload: {
-              ctidTraderAccountId:      this.accountId,
-              symbolId:                 [this.symbolId],
-              subscribeToSpotTimestamp: true,
-            },
-          });
-        } else {
-          log.debug('Account auth OK — fetching symbol list');
-          // Step 4: get the full list of tradeable instruments for this account.
-          // We need the integer symbolId — the name alone isn't enough for subscriptions.
-          this.send({
-            payloadType: PT.SYMBOL_LIST_REQ,
-            payload: { ctidTraderAccountId: this.accountId },
-          });
-        }
+        // SYMBOL_LIST_REQ (2115) is rejected by the demo endpoint regardless of
+        // timing. If a symbolId is configured, skip straight to subscription after
+        // a short settle delay. Otherwise fall back to the symbol list request
+        // (works on some broker configurations).
+        setTimeout(() => {
+          if (this.cfg.symbolId !== undefined) {
+            this.symbolId = this.cfg.symbolId;
+            log.info('Using configured symbolId — subscribing to spots', { symbolId: this.symbolId });
+            this.sendSubscribeSpotsReq();
+          } else {
+            log.debug('Requesting symbol list');
+            this.send({
+              payloadType: PT.SYMBOL_LIST_REQ,
+              payload: { ctidTraderAccountId: this.accountId },
+            });
+          }
+        }, 2000);
         break;
       }
 
       // ── Step 4 response: we have the symbol list ───────────────────────
       case PT.SYMBOL_LIST_RES: {
-        const symbols = (msg.payload?.symbol ?? []) as CTraderSymbol[];
-        const target = this.cfg.symbolName.toUpperCase();
+        // If a symbolId was supplied directly in config, use it — no name lookup needed.
+        // We still had to wait for this response to ensure the broker is fully ready.
+        if (this.cfg.symbolId !== undefined) {
+          this.symbolId = this.cfg.symbolId;
+          log.info('Symbol list received — using configured symbolId', { symbolId: this.symbolId });
+        } else {
+          const symbols = (msg.payload?.symbol ?? []) as CTraderSymbol[];
+          const target = this.cfg.symbolName.toUpperCase();
 
-        // Try exact match first, then prefix (e.g. "US500" matches "US500.cash")
-        const found = symbols.find(
-          s => s.symbolName.toUpperCase() === target ||
-               s.symbolName.toUpperCase().startsWith(target)
-        );
+          // Try exact match first, then prefix (e.g. "US500" matches "US500.cash")
+          const found = symbols.find(
+            s => s.symbolName.toUpperCase() === target ||
+                 s.symbolName.toUpperCase().startsWith(target)
+          );
 
-        if (!found) {
-          // Print the first 20 names so you can see what the broker actually calls it
-          const names = symbols.slice(0, 20).map(s => s.symbolName).join(', ');
-          settle(new Error(
-            `Symbol "${this.cfg.symbolName}" not found in account's symbol list. ` +
-            `First 20 available: ${names}`
-          ));
-          return;
+          if (!found) {
+            const names = symbols.slice(0, 20).map(s => s.symbolName).join(', ');
+            settle(new Error(
+              `Symbol "${this.cfg.symbolName}" not found in account's symbol list. ` +
+              `First 20 available: ${names}`
+            ));
+            return;
+          }
+
+          this.symbolId = found.symbolId;
+          log.info('Symbol resolved', { symbolName: found.symbolName, symbolId: this.symbolId });
         }
 
-        this.symbolId = found.symbolId;
-        log.info('Symbol resolved', { symbolName: found.symbolName, symbolId: this.symbolId });
-
-        // Step 5: subscribe to the live bid/ask stream for this symbol
-        this.send({
-          payloadType: PT.SUBSCRIBE_SPOTS_REQ,
-          payload: {
-            ctidTraderAccountId:      this.accountId,
-            symbolId:                 [this.symbolId], // API expects an array
-            subscribeToSpotTimestamp: true,
-          },
-        });
+        // Step 5: broker is fully initialised — safe to subscribe to spots now
+        this.sendSubscribeSpotsReq();
         break;
       }
 
@@ -467,8 +457,9 @@ export class CTraderPriceFeed implements PriceFeed {
 
       // ── Server heartbeat ───────────────────────────────────────────────
       case PT.HEARTBEAT: {
-        // The server also sends heartbeats. We don't need to reply — our own
-        // outbound heartbeat timer handles the keep-alive in both directions.
+        // Echo the heartbeat back immediately — the server closes the connection
+        // if it doesn't receive a response within ~30 seconds.
+        this.send({ payloadType: PT.HEARTBEAT });
         break;
       }
 
@@ -586,6 +577,17 @@ export class CTraderPriceFeed implements PriceFeed {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  private sendSubscribeSpotsReq(): void {
+    this.send({
+      payloadType: PT.SUBSCRIBE_SPOTS_REQ,
+      payload: {
+        ctidTraderAccountId:      this.accountId,
+        symbolId:                 [this.symbolId],
+        subscribeToSpotTimestamp: false,
+      },
+    });
+  }
 
   private send(msg: Omit<CTraderMessage, 'clientMsgId'>): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {

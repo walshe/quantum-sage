@@ -94,7 +94,7 @@ let liveFeed: CTraderPriceFeed | null = null;
 
 if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOKEN) {
   const symbolName = env.CTRADER_SYMBOL ?? 'US500';
-  liveFeed = new CTraderPriceFeed({
+  const feedConfig = {
     clientId:     env.CTRADER_CLIENT_ID,
     clientSecret: env.CTRADER_CLIENT_SECRET,
     accessToken:  env.CTRADER_ACCESS_TOKEN,
@@ -105,21 +105,42 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
     tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
     symbolId:       env.CTRADER_SYMBOL_ID ? Number(env.CTRADER_SYMBOL_ID) : undefined,
     noHeartbeat:    env.CTRADER_NO_HEARTBEAT === 'true',
-    onTokenRefresh: ({ accessToken, refreshToken, expiresAt }) => {
-      // Write the refreshed tokens back to .env so the next restart picks them up.
-      // We do a targeted in-place update rather than a full rewrite.
-      writeEnvKey('CTRADER_ACCESS_TOKEN',   accessToken);
-      writeEnvKey('CTRADER_REFRESH_TOKEN',  refreshToken);
+    onTokenRefresh: ({ accessToken, refreshToken, expiresAt }: { accessToken: string; refreshToken: string; expiresAt: number }) => {
+      writeEnvKey('CTRADER_ACCESS_TOKEN',     accessToken);
+      writeEnvKey('CTRADER_REFRESH_TOKEN',    refreshToken);
       writeEnvKey('CTRADER_TOKEN_EXPIRES_AT', String(expiresAt));
       console.log('Refreshed tokens written to .env');
     },
-  });
+  };
+  liveFeed = new CTraderPriceFeed(feedConfig);
 
   liveFeed.subscribe(price => engine.onPriceUpdate(price));
 
-  console.log(`Connecting to cTrader (symbol: ${symbolName})...`);
-  await liveFeed.connect();
-  console.log('cTrader price feed connected.\n');
+  // Connect with automatic reconnect. The demo server closes idle connections
+  // after ~60s; the live server may disconnect on network blips. We reconnect
+  // indefinitely with a short delay so the engine stays live.
+  const connectWithRetry = async () => {
+    while (true) {
+      try {
+        console.log(`Connecting to cTrader (symbol: ${symbolName})...`);
+        await liveFeed!.connect();
+        console.log('cTrader price feed connected.\n');
+        return; // success — hand off to the running process
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // "closed before ready" means the server dropped us before the handshake
+        // completed (idle timeout, bad symbolId, etc.) — retry after a short pause.
+        console.error(`cTrader connection failed: ${msg}`);
+        console.log('Retrying in 5 seconds...');
+        await new Promise(r => setTimeout(r, 5000));
+        // Re-create the feed so internal state (ws, counters) is fresh
+        liveFeed = new CTraderPriceFeed(feedConfig);
+        liveFeed.subscribe(price => engine.onPriceUpdate(price));
+      }
+    }
+  };
+
+  await connectWithRetry();
 } else {
   console.log('No cTrader credentials found in environment — price feed inactive.');
   console.log('Run `npm run auth:ctrader` to set up credentials, or use --mock for a demo.\n');
