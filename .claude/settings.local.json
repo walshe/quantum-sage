@@ -6,7 +6,20 @@
       "Bash(npm test:*)",
       "Bash(npx tsx:*)",
       "Bash(npm uninstall:*)",
-      "Bash(LOG_LEVEL=debug npx tsx:*)"
+      "Bash(LOG_LEVEL=debug npx tsx:*)",
+      "WebFetch(domain:help.ctrader.com)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"require\\('dotenv'\\)\")",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://api.github.com/repos/spotware/openapi-proto-messages/contents/proto/OpenApiMessages.proto\")",
+      "Bash(curl -s \"https://api.github.com/repos/spotware/openapi-proto-messages\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/spotware/openapi-proto-messages/main/proto/OpenApiMessages.proto\")",
+      "Bash(curl -s \"https://api.github.com/repos/spotware/openapi-proto-messages/contents\")",
+      "Bash(curl -s \"https://api.github.com/repos/spotware/openapi-proto-messages/branches\")",
+      "Bash(curl *)",
+      "Bash(find src *)",
+      "Bash(wc *)"
     ]
   }
 }

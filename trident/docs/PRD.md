@@ -370,6 +370,8 @@ in front of a human or into a trading platform.
 - **Encoding:** UTF-8
 - **Schema version:** 1.0
 - **Naming:** `qs_signal_YYYY-MM-DD_HHmm.yaml`
+  - Date format is ISO 8601: **year-month-day** (e.g. `2026-04-17`, not `17-04-2026`)
+  - Time is 24-hour HHmm (e.g. `1006` = 10:06 am)
 - **Delivery:** TBD
 
 ### 5.2 Why YAML over Excel
