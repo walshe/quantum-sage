@@ -5,7 +5,9 @@ export type BiasConfidence = 'low' | 'medium' | 'high';
 export type VwapSource = 'manual' | 'live_feed';
 
 export interface SignalMeta {
+  /** ISO 8601 date: YYYY-MM-DD (year-month-day). e.g. "2026-04-17", NOT "17-04-2026" */
   date: string;
+  /** 24-hour time: HH:MM. e.g. "10:06" or "15:36" */
   timestamp: string;
   update_seq: number;
   contract: string;
