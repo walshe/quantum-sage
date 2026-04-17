@@ -10,9 +10,12 @@
  */
 
 import { resolve } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import 'dotenv/config';
 import { loadConfig } from './config/loader.js';
 import { watchSignalDir, loadSignalFile } from './signal/loader.js';
 import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
+import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
 import { TridentEngine } from './strategy/TridentEngine.js';
 
@@ -80,10 +83,47 @@ if (useMock) {
 }
 
 // -------------------------------------------------------------------
-// Live mode: watch the configured signals directory
+// Live mode: connect cTrader price feed + watch the signals directory
 // -------------------------------------------------------------------
 const signalDir = resolve(config.signal.watch_dir);
 console.log(`Watching for signals in: ${signalDir}\n`);
+
+// Wire up the real price feed if cTrader credentials are present in the environment
+const env = process.env;
+let liveFeed: CTraderPriceFeed | null = null;
+
+if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOKEN) {
+  const symbolName = env.CTRADER_SYMBOL ?? 'US500';
+  liveFeed = new CTraderPriceFeed({
+    clientId:     env.CTRADER_CLIENT_ID,
+    clientSecret: env.CTRADER_CLIENT_SECRET,
+    accessToken:  env.CTRADER_ACCESS_TOKEN,
+    symbolName,
+    accountId:    env.CTRADER_ACCOUNT_ID ? Number(env.CTRADER_ACCOUNT_ID) : undefined,
+    wsUrl:          env.CTRADER_WS_URL,
+    refreshToken:   env.CTRADER_REFRESH_TOKEN,
+    tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
+    symbolId:       env.CTRADER_SYMBOL_ID ? Number(env.CTRADER_SYMBOL_ID) : undefined,
+    noHeartbeat:    env.CTRADER_NO_HEARTBEAT === 'true',
+    onTokenRefresh: ({ accessToken, refreshToken, expiresAt }) => {
+      // Write the refreshed tokens back to .env so the next restart picks them up.
+      // We do a targeted in-place update rather than a full rewrite.
+      writeEnvKey('CTRADER_ACCESS_TOKEN',   accessToken);
+      writeEnvKey('CTRADER_REFRESH_TOKEN',  refreshToken);
+      writeEnvKey('CTRADER_TOKEN_EXPIRES_AT', String(expiresAt));
+      console.log('Refreshed tokens written to .env');
+    },
+  });
+
+  liveFeed.subscribe(price => engine.onPriceUpdate(price));
+
+  console.log(`Connecting to cTrader (symbol: ${symbolName})...`);
+  await liveFeed.connect();
+  console.log('cTrader price feed connected.\n');
+} else {
+  console.log('No cTrader credentials found in environment — price feed inactive.');
+  console.log('Run `npm run auth:ctrader` to set up credentials, or use --mock for a demo.\n');
+}
 
 // Load a specific signal file immediately if provided
 if (signalPath) {
@@ -99,11 +139,26 @@ const stopWatching = watchSignalDir(signalDir, async (signal, filePath) => {
 process.on('SIGINT', () => {
   console.log('\nShutting down...');
   stopWatching();
-  process.exit(0);
+  liveFeed?.disconnect().finally(() => process.exit(0)) ?? process.exit(0);
 });
 
 // Helper
 function argValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   return idx !== -1 ? args[idx + 1] : undefined;
+}
+
+// Updates a single key in .env without touching other lines.
+function writeEnvKey(key: string, value: string): void {
+  const envFile = '.env';
+  const existing = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
+  const lines = existing.split('\n');
+  const idx = lines.findIndex(l => l.startsWith(`${key}=`) || l.startsWith(`${key} =`));
+  const newLine = `${key}=${value}`;
+  if (idx !== -1) {
+    lines[idx] = newLine;
+  } else {
+    lines.push(newLine);
+  }
+  writeFileSync(envFile, lines.join('\n'), 'utf8');
 }

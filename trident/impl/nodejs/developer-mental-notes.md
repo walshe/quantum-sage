@@ -107,6 +107,58 @@ simulate specific price scenarios without a live feed.
 > **Mental model:** the mock is a recorded script. Give it a sequence of prices
 > and it plays them back at whatever speed you want.
 
+### `CTraderPriceFeed.ts`
+The real price feed. Connects to the cTrader Open API over a WebSocket
+(`wss://live1.p.ctrader.com:5036`) using the JSON protocol (port 5036 — no
+protobuf dependency needed).
+
+**Config it needs** (all read from `.env` via `index.ts`):
+- `clientId` / `clientSecret` — your cTrader app credentials
+- `accessToken` — obtained once via `npm run auth:ctrader`, stored in `.env`
+- `symbolName` — e.g. `"US500"` — the instrument to subscribe to
+- `accountId` (optional) — if omitted, picks the first live account automatically
+
+**What `connect()` does** — drives a five-step handshake over the open socket,
+then resolves:
+1. **App auth** — sends client ID + secret (`payloadType 2100`). Proves this is
+   a registered cTrader application.
+2. **Get account list** — exchanges the access token for a list of trading
+   accounts (`payloadType 2149`). Resolves the `ctidTraderAccountId` the engine
+   will trade on.
+3. **Account auth** — authorises the chosen account for this session
+   (`payloadType 2102`).
+4. **Symbol list** — fetches every symbol available on the account
+   (`payloadType 2115`) and finds the `symbolId` that matches `symbolName`. If
+   the name doesn't match anything exactly, it tries a prefix match. If still
+   nothing, `connect()` rejects with an error listing the first 20 available
+   symbols — useful for figuring out what FB's broker calls the instrument.
+5. **Subscribe spots** — subscribes to the real-time bid/ask stream for that
+   symbol (`payloadType 2119`). Once the confirmation arrives, `connect()`
+   resolves and ticks start flowing.
+
+**Prices**: cTrader sends bid and ask as integers (actual price × 100,000).
+The feed divides by 100,000 and delivers the mid-price `(bid + ask) / 2`
+rounded to 2 decimal places. Bid and ask can also arrive in separate events
+(partial updates), so the feed holds on to the last seen value of each side and
+only fires the subscriber once both are known.
+
+**Keep-alive**: sends a heartbeat (`payloadType 0`) every 10 seconds as required
+by the API. Stopped on `disconnect()`.
+
+**`disconnect()`** — sends an unsubscribe message to cancel the spot stream
+cleanly, then closes the WebSocket.
+
+**`index.ts` wiring**: the feed is only created if `CTRADER_CLIENT_ID`,
+`CTRADER_CLIENT_SECRET`, and `CTRADER_ACCESS_TOKEN` are all present in the
+environment. If any are missing, the engine starts without a price feed and
+prints a reminder to run `auth:ctrader`. The optional `CTRADER_SYMBOL` env var
+controls the symbol name (default: `US500`).
+
+> **Mental model:** the feed does the whole cTrader ceremony so the engine
+> doesn't have to know anything about WebSockets or OAuth. Once `connect()`
+> resolves, it's just a stream of numbers — identical to the mock from the
+> engine's point of view.
+
 ---
 
 ## Notifier — `src/notifier/`

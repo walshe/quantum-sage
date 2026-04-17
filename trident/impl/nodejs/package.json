@@ -9,16 +9,20 @@
     "start": "node --experimental-vm-modules dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "auth:ctrader": "tsx scripts/ctrader-auth.ts"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
+    "dotenv": "^17.4.2",
     "js-yaml": "^4.1.0",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.4.0"
