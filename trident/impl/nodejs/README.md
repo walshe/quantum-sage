@@ -18,6 +18,17 @@ No other tools required.
 
 ---
 
+## Operating assumptions
+
+**One process per Pepperstone / cTrader account.** The engine does not coordinate with other instances. Running two processes against the same account — on the same machine or across machines — causes two known problems:
+
+1. **cTrader token rotation race.** The feed refreshes its OAuth token periodically and writes the new access + refresh token to `.env`. If a second instance holds the old refresh token, it is invalidated server-side the moment the first instance rotates, and the second instance's feed starts failing.
+2. **Duplicate advisory notifications.** Each process watches the signals directory and runs its own `TridentEngine`. Every `ENTRY_TRIGGERED` / `POSITION_CLOSED` event fires per-process, and the two engines' views can diverge on tick-timing-sensitive transitions (breakeven, entry fills).
+
+If you need a second console view (e.g., you and a collaborator), run a single engine and fan out its notifications (`MultiNotifier`, Telegram, etc.) rather than running a second process. See [FAQ](./FAQ.md) for detail.
+
+---
+
 ## Dev environment setup
 
 ```bash

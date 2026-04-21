@@ -52,23 +52,32 @@ export class ConsoleNotifier implements Notifier {
         break;
       }
 
-      case 'ENTRY_TRIGGERED':
+      case 'ENTRY_TRIGGERED': {
+        const dir = event.direction.toUpperCase();
+        const verb = event.entryNumber === 1 ? 'Open' : 'Scale into';
         console.log(
-          `${ts} [ENTRY ${event.entryNumber}]   ${event.direction.toUpperCase()} @ ${fmt(event.price)} (${event.allocationPct}%)\n` +
-            `             Avg entry: ${fmt(event.avgEntry)} | Stop: ${fmt(event.currentStop)} | Fills remaining: ${event.fillsRemaining}`
+          `${ts} [ENTRY ${event.entryNumber}]   ${dir} @ ${fmt(event.price)} (${event.allocationPct}%)\n` +
+            `             Avg entry: ${fmt(event.avgEntry)} | Stop: ${fmt(event.currentStop)} | Fills remaining: ${event.fillsRemaining}\n` +
+            `             >>> ACTION: ${verb} ${dir} at broker (${event.allocationPct}% size). Set stop @ ${fmt(event.currentStop)}.`
         );
         break;
+      }
 
       case 'BREAKEVEN_TRIGGERED':
-        console.log(`${ts} [BREAKEVEN] Stop moved to ${fmt(event.newStop)} (avg entry)`);
+        console.log(
+          `${ts} [BREAKEVEN] Stop moved to ${fmt(event.newStop)} (avg entry)\n` +
+            `             >>> ACTION: Move stop at broker to ${fmt(event.newStop)}. Cancel any unfilled entry orders.`
+        );
         break;
 
       case 'POSITION_CLOSED': {
         const sign = event.pnlPoints >= 0 ? '+' : '';
         const label = event.pnlPoints >= 0 ? 'WIN ' : 'LOSS';
+        const dir = event.direction.toUpperCase();
         console.log(
-          `${ts} [CLOSED ${label}] ${event.direction.toUpperCase()} closed @ ${fmt(event.closePrice)} — ` +
-            `${sign}${event.pnlPoints.toFixed(2)} pts (${event.reason})`
+          `${ts} [CLOSED ${label}] ${dir} closed @ ${fmt(event.closePrice)} — ` +
+            `${sign}${event.pnlPoints.toFixed(2)} pts (${event.reason})\n` +
+            `             >>> ACTION: Close ${dir} position at broker now (reason: ${event.reason}).`
         );
         break;
       }

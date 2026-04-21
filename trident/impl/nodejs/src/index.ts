@@ -26,7 +26,10 @@ const signalPath = argValue(args, '--signal'); // load a specific signal file di
 
 const config = loadConfig(resolve(configPath));
 const notifier = new ConsoleNotifier(/* showPriceTicks = */ false);
-const engine = new TridentEngine(config, notifier);
+// Mock runs are ephemeral demos — don't pollute (or restore from) the live snapshot.
+const engine = new TridentEngine(config, notifier, {
+  snapshotPath: useMock ? null : 'logs/engine-state.json',
+});
 
 console.log('Trident qs-signal-engine starting...');
 console.log(`Config: ${resolve(configPath)}`);

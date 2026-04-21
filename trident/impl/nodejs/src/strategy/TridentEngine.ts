@@ -13,6 +13,7 @@ import {
 } from './calculator.js';
 import { validateSignal } from '../signal/validator.js';
 import { getLogger } from '../logger.js';
+import { buildSnapshot, clearSnapshot, loadSnapshot, saveSnapshot } from './persistence.js';
 
 const log = getLogger('TridentEngine');
 
@@ -32,20 +33,80 @@ export class TridentEngine {
 
   private state: PositionState = 'idle';
   private currentSignal: SignalFile | null = null;
+  private signalFilePath: string | null = null;
   private activeLevels: ActiveLevels | null = null;
   private tradeSetup: EntryLevel[] | null = null;
   private position: ActivePosition | null = null;
   private dailyLocked = false;
   private timeExitTimer: ReturnType<typeof setTimeout> | null = null;
+  private snapshotPath: string | null;
 
-  constructor(config: QSConfig, notifier: Notifier) {
+  constructor(config: QSConfig, notifier: Notifier, opts: { snapshotPath?: string | null } = {}) {
     this.config = config;
     this.notifier = notifier;
+    this.snapshotPath = opts.snapshotPath === undefined ? 'logs/engine-state.json' : opts.snapshotPath;
     log.info('Engine initialised', {
       dvs_gate: config.trident.dvs_gate,
       stop_loss_points: config.trident.stop_loss_points,
       time_exit_minutes: config.trident.time_exit_minutes,
+      snapshotPath: this.snapshotPath ?? '<disabled>',
     });
+
+    if (this.snapshotPath) {
+      this.hydrateFromSnapshot(this.snapshotPath);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Snapshot hydration
+  // ---------------------------------------------------------------------------
+
+  private hydrateFromSnapshot(path: string): void {
+    const restored = loadSnapshot(path);
+    if (!restored) return;
+
+    this.state = restored.state;
+    this.currentSignal = restored.currentSignal;
+    this.signalFilePath = restored.signalFilePath;
+    this.activeLevels = restored.activeLevels;
+    this.tradeSetup = restored.tradeSetup;
+    this.position = restored.position;
+    this.dailyLocked = restored.dailyLocked;
+
+    if (this.position && this.state === 'in_trade') {
+      const elapsedMs = Date.now() - this.position.lastFillTime.getTime();
+      const limitMs = this.config.trident.time_exit_minutes * 60 * 1000;
+      const remaining = limitMs - elapsedMs;
+      if (remaining > 0) {
+        log.info('Rehydrating time-exit timer', {
+          remainingMinutes: (remaining / 60000).toFixed(1),
+        });
+        this.scheduleTimeExit(remaining);
+      } else {
+        // Deadline already passed while we were down. The first onPriceUpdate
+        // will detect this and close as time_exit (see enforceTimeExitDeadline).
+        log.warn('Time-exit deadline already elapsed during downtime — will close on next price tick', {
+          overshotMinutes: (-remaining / 60000).toFixed(1),
+        });
+      }
+    }
+  }
+
+  private persist(): void {
+    if (!this.snapshotPath) return;
+    try {
+      saveSnapshot(this.snapshotPath, buildSnapshot({
+        state: this.state,
+        dailyLocked: this.dailyLocked,
+        currentSignal: this.currentSignal,
+        signalFilePath: this.signalFilePath,
+        activeLevels: this.activeLevels,
+        tradeSetup: this.tradeSetup,
+        position: this.position,
+      }));
+    } catch (err) {
+      log.error('Failed to persist engine snapshot', { error: (err as Error).message });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -87,6 +148,7 @@ export class TridentEngine {
       log.warn('DVS gate triggered — no trades today', { dvs, gate });
       await this.notifier.notify({ type: 'DVS_GATE_BLOCKED', dvs, gate });
       this.state = 'blocked';
+      this.persist();
       return;
     }
     log.info('DVS gate passed', { dvs, gate, margin: (gate - dvs).toFixed(2) });
@@ -104,6 +166,7 @@ export class TridentEngine {
     }
 
     this.currentSignal = signal;
+    this.signalFilePath = filePath;
 
     const levels = resolveActiveLevels(signal);
     this.activeLevels = levels;
@@ -130,6 +193,19 @@ export class TridentEngine {
     if (!this.currentSignal || !this.tradeSetup) return;
 
     log.debug('Price tick', { price, state: this.state });
+
+    // Time-exit safety net. The scheduled timer handles the normal case, but
+    // after a crash/restart the deadline may have passed while we were down.
+    // This check catches that (and any other timer miss) on the next tick.
+    if (
+      this.state === 'in_trade' &&
+      this.position &&
+      Date.now() - this.position.lastFillTime.getTime() >= this.config.trident.time_exit_minutes * 60 * 1000
+    ) {
+      log.warn('Time-exit deadline detected on price tick', { price });
+      await this.closePosition(price, 'time_exit');
+      return;
+    }
 
     // Invalidation check (always runs, even before entry)
     const { void_above, void_below, expiry } = this.currentSignal.invalidation;
@@ -194,6 +270,7 @@ export class TridentEngine {
         reason: 'Required levels are missing — need both MAX BUY 1+2 or both MAX SELL 1+2',
       });
       this.state = 'idle';
+      this.persist();
       return;
     }
 
@@ -231,6 +308,8 @@ export class TridentEngine {
       stopPoints: this.config.trident.stop_loss_points,
       vwap: signal.vwap.value,
     });
+
+    this.persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -354,6 +433,8 @@ export class TridentEngine {
       currentStop: this.position.currentStop,
       fillsRemaining: this.position.pendingEntries.length,
     });
+
+    this.persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -417,6 +498,8 @@ export class TridentEngine {
         type: 'BREAKEVEN_TRIGGERED',
         newStop: avgEntry,
       });
+
+      this.persist();
     }
   }
 
@@ -465,8 +548,10 @@ export class TridentEngine {
     this.position = null;
     this.tradeSetup = null;
     this.currentSignal = null;
+    this.signalFilePath = null;
     this.activeLevels = null;
     this.state = 'closed';
+    this.persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -478,6 +563,7 @@ export class TridentEngine {
     this.state = 'closed';
     log.info('Daily lock applied', { reason });
     await this.notifier.notify({ type: 'DAILY_LOCK', reason });
+    this.persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -485,9 +571,14 @@ export class TridentEngine {
   // ---------------------------------------------------------------------------
 
   private resetTimeExitTimer(): void {
-    this.cancelTimeExitTimer();
     const ms = this.config.trident.time_exit_minutes * 60 * 1000;
     log.debug('Time exit timer reset', { minutes: this.config.trident.time_exit_minutes });
+    this.scheduleTimeExit(ms);
+  }
+
+  /** Schedule a time-exit firing `ms` from now, replacing any existing timer. */
+  private scheduleTimeExit(ms: number): void {
+    this.cancelTimeExitTimer();
     this.timeExitTimer = setTimeout(async () => {
       if (this.state !== 'in_trade' || !this.position) return;
       log.warn('Time exit triggered', { minutes: this.config.trident.time_exit_minutes });
@@ -495,7 +586,7 @@ export class TridentEngine {
       if (latestPrice !== null) {
         await this.closePosition(latestPrice, 'time_exit');
       }
-    }, ms);
+    }, Math.max(0, ms));
   }
 
   private cancelTimeExitTimer(): void {
@@ -541,11 +632,15 @@ export class TridentEngine {
     this.cancelTimeExitTimer();
     this.state = 'idle';
     this.currentSignal = null;
+    this.signalFilePath = null;
     this.activeLevels = null;
     this.tradeSetup = null;
     this.position = null;
     this.dailyLocked = false;
     log.info('Engine reset for new trading day');
+    if (this.snapshotPath) {
+      clearSnapshot(this.snapshotPath);
+    }
   }
 }
 

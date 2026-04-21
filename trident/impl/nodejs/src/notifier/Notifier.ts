@@ -49,3 +49,14 @@ export type NotificationEvent =
 export interface Notifier {
   notify(event: NotificationEvent): Promise<void>;
 }
+
+/**
+ * True for events that require the analyst to place, adjust, or close an
+ * order at the broker. False for informational events. Phase 1 is advisory,
+ * so this flag is how the engine distinguishes "FYI" from "do something now".
+ */
+export function isActionRequired(event: NotificationEvent): boolean {
+  return event.type === 'ENTRY_TRIGGERED'
+      || event.type === 'BREAKEVEN_TRIGGERED'
+      || event.type === 'POSITION_CLOSED';
+}
