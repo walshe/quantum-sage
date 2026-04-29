@@ -424,6 +424,7 @@ async function uploadScreenshots(evt) {
       `AI extraction coming soon — populate the form manually for now.`,
       'ok',
     );
+    openFormModal();
   } catch (err) {
     setSubmitStatus(`Upload failed: ${err.message}`, 'err');
   } finally {
@@ -435,6 +436,54 @@ function setSubmitStatus(text, kind) {
   const el = $('#submit-status');
   el.textContent = text;
   el.className = kind || '';
+}
+
+// ---------------------------------------------------------------------------
+// Form modal: clicking New / Update / Pre-fill mutates the form values and
+// then opens the form-dialog. The form's own Submit button still fires
+// submitForm() which in turn opens the confirm-dialog on top.
+// ---------------------------------------------------------------------------
+function openFormModal() {
+  const dlg = $('#form-dialog');
+  if (!dlg.open) dlg.showModal();
+}
+function closeFormModal() {
+  const dlg = $('#form-dialog');
+  if (dlg.open) dlg.close();
+}
+
+// ---------------------------------------------------------------------------
+// Status dialog: read-only "what is the engine doing right now" view.
+// Fetches the loaded signal from /signals/latest so values are fresh.
+// ---------------------------------------------------------------------------
+async function showStatusDialog() {
+  const dlg = $('#status-dialog');
+  const body = $('#status-dialog-body');
+  body.innerHTML = '';
+  body.append(buildEngineStateSection(null));
+
+  // Best-effort fetch; if no signal, show a placeholder.
+  let loadedSignal = null;
+  try {
+    const res = await fetch('/signals/latest');
+    if (res.ok) {
+      const data = await res.json();
+      loadedSignal = data.signal ?? null;
+    }
+  } catch { /* leave loadedSignal null */ }
+
+  if (loadedSignal) {
+    const sec = buildSummarySection(loadedSignal);
+    sec.querySelector('h3').textContent = tx('Currently loaded signal');
+    body.append(sec);
+  } else {
+    const sec = el('section', { class: 'confirm-section' });
+    sec.append(el('h3', { text: tx('Currently loaded signal') }));
+    sec.append(el('div', { class: 'confirm-headline', text: tx('No signal loaded today.') }));
+    body.append(sec);
+  }
+
+  if (!dlg.open) dlg.showModal();
 }
 
 function collectForm() {
@@ -489,7 +538,8 @@ async function submitForm(evt) {
     setSubmitStatus('', '');
     return;
   }
-  await postSignal(signal);
+  const ok = await postSignal(signal);
+  if (ok) closeFormModal();
 }
 
 async function postSignal(signal) {
@@ -509,7 +559,7 @@ async function postSignal(signal) {
         li.textContent = err;
         ul.append(li);
       }
-      return;
+      return false;
     }
     state.pendingSubmitName = body.filename;
     setSubmitStatus(`Submitted ${body.filename} — waiting for engine…`, '');
@@ -519,9 +569,11 @@ async function postSignal(signal) {
       li.style.color = 'var(--warn)';
       $('#form-errors').append(li);
     }
+    return true;
   } catch (err) {
     setSubmitStatus(`Submit error: ${err.message}`, 'err');
     console.error(err);
+    return false;
   }
 }
 
@@ -571,7 +623,10 @@ function fmtNum(n) {
   return Number.isFinite(x) ? x.toFixed(2) : String(n);
 }
 
-function buildEngineStateSection(signal) {
+// Build the "Engine state right now" section. If `signalAboutToSubmit` is
+// non-null, append the synthesised "what will happen" headline (used by the
+// confirm dialog). When called from the read-only Status dialog, pass null.
+function buildEngineStateSection(signalAboutToSubmit) {
   const sec = el('section', { class: 'confirm-section' });
   sec.append(el('h3', { text: tx('Engine state right now') }));
 
@@ -600,10 +655,12 @@ function buildEngineStateSection(signal) {
   }
   sec.append(grid);
 
-  const headline = synthesiseAction(signal);
-  const h = el('div', { class: `confirm-headline is-${headline.tone}`, text: headline.text });
-  h.style.marginTop = '0.5rem';
-  sec.append(h);
+  if (signalAboutToSubmit) {
+    const headline = synthesiseAction(signalAboutToSubmit);
+    const h = el('div', { class: `confirm-headline is-${headline.tone}`, text: headline.text });
+    h.style.marginTop = '0.5rem';
+    sec.append(h);
+  }
 
   return sec;
 }
@@ -775,11 +832,25 @@ function hhmmToMin(s) {
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
   $('#signal-form').addEventListener('submit', submitForm);
-  $('#btn-new').addEventListener('click', resetForNewSignal);
-  $('#btn-update').addEventListener('click', bumpUpdateSeq);
-  $('#btn-prefill').addEventListener('click', prefillFromLatest);
+
+  // Top-strip action buttons each mutate the form then open the modal.
+  $('#btn-status').addEventListener('click', () => { showStatusDialog().catch(console.error); });
+  $('#btn-new').addEventListener('click', () => { resetForNewSignal(); openFormModal(); });
+  $('#btn-update').addEventListener('click', () => { bumpUpdateSeq(); openFormModal(); });
+  $('#btn-prefill').addEventListener('click', async () => {
+    await prefillFromLatest();
+    openFormModal();
+  });
   $('#btn-import-screenshots').addEventListener('click', openScreenshotPicker);
   $('#screenshot-input').addEventListener('change', uploadScreenshots);
+
+  // Form modal close (X button).
+  $('#btn-form-close').addEventListener('click', closeFormModal);
+
+  // Status dialog close (X + bottom Close button).
+  $('#btn-status-close').addEventListener('click', () => $('#status-dialog').close());
+  $('#btn-status-ok').addEventListener('click', () => $('#status-dialog').close());
+
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
   applyLang(currentLang);
@@ -793,6 +864,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   connectWs();
-  // Best-effort pre-fill on first load; silent on 204.
+  // Best-effort silent pre-fill on first load — populates the (closed) form
+  // modal so opening "Pre-fill from latest" or "Update during session" shows
+  // values immediately.
   prefillFromLatest().catch(() => {});
 });

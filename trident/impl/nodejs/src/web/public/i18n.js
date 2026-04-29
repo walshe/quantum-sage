@@ -22,6 +22,7 @@ window.TRIDENT_I18N = {
     'locked': 'bloccato (lock)',
 
     // ---------- Top buttons ----------
+    'Status': 'Stato',
     'New signal': 'Nuovo segnale',
     'Update during session': 'Aggiorna in sessione',
     'Pre-fill from latest': "Precompila dall'ultimo",
@@ -101,26 +102,30 @@ window.TRIDENT_I18N = {
     'Clear': 'Pulisci',
     "Events stream in as the engine fires them — signal load, setup, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.":
       "Gli eventi compaiono in tempo reale mentre il motore li genera — caricamento segnale, setup, ingressi, breakeven, chiusura, lock giornaliero. I tick di prezzo non vengono mostrati. Gli eventi precedenti alla connessione del browser non vengono recuperati.",
+    "Wipe the log pane in this browser tab. Does not affect the engine, the signals/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events.":
+      "Pulisce il pannello dei log in questo tab del browser. Non influisce sul motore, sulla cartella signals/ o sugli altri tab connessi — è un reset puramente locale della vista. Utile quando il log diventa rumoroso e vuoi una finestra pulita sugli eventi successivi.",
 
     // ---------- Tooltips ----------
-    "WebSocket connection between this browser and the engine process. Connected = engine is running and live events will stream in. Reconnecting = connection dropped; the tab retries with backoff automatically. Disconnected = engine process is down or unreachable.":
-      "Connessione WebSocket tra il browser e il processo del motore. Connesso = motore in esecuzione, gli eventi arriveranno in tempo reale. Riconnessione = connessione caduta; il tab ritenta automaticamente. Disconnesso = motore non attivo o irraggiungibile.",
-    "Trading engine state machine. idle = no signal loaded. watching = signal loaded, waiting for Entry 1 to trigger. in_trade = at least one entry has filled. closed = trade finished for today. locked = daily lock active (one winning trade done) or DVS gate blocking trades.":
-      "Macchina a stati del motore. inattivo = nessun segnale caricato. in osservazione = segnale caricato, in attesa del trigger di Entry 1. in trade = almeno un ingresso eseguito. chiuso = trade del giorno terminato. bloccato = lock giornaliero attivo (un trade vincente già chiuso) o gate DVS che blocca i trade.",
-    "Latest ES/US500 futures price the engine has seen from the broker feed. Updates at most twice a second to keep the tab responsive. Dashes mean no ticks yet (engine just started or feed disconnected).":
-      "Ultimo prezzo ES/US500 ricevuto dal feed del broker. Aggiornato al massimo due volte al secondo per non rallentare il tab. I trattini indicano che non sono ancora arrivati tick (motore appena avviato o feed disconnesso).",
-    "Filename and key fields of the signal YAML the engine is currently operating on. Shows 'None loaded' until one arrives. Updates when a new signal is picked up from the signals/ folder or submitted through this form.":
-      "Nome del file e campi principali del segnale YAML attualmente in uso dal motore. Mostra 'Nessuno caricato' finché non ne arriva uno. Si aggiorna quando un nuovo segnale viene preso dalla cartella signals/ o inviato tramite questo form.",
-    "Every signal file loaded or rejected since this browser tab connected. Count rises with each SIGNAL or INVALID event. Click to expand the list and see timestamps + filenames. Resets when you reload the page — does not persist across tabs.":
-      "Ogni file segnale caricato o rifiutato da quando questo tab è connesso. Il contatore sale a ogni evento SIGNAL o INVALID. Clicca per espandere la lista con timestamp e nome file. Si azzera al ricaricamento della pagina — non persiste tra i tab.",
-    "Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart). Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit. You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability. (AI extraction is not wired up yet — for now the upload just stores the images.)":
-      "Carica uno o più screenshot dei grafici dell'analista (IV Smile / tabella LIVELLI / grafico SPX intraday). Trident li passerà a un modello AI di visione che estrae livelli, range, DVS, VWAP e basis, poi precompila questo form per la revisione. Avrai sempre la possibilità di verificare ogni valore prima di inviarlo al motore. I file vengono salvati sul server per tracciabilità. (L'estrazione AI non è ancora collegata — per ora il caricamento salva solo le immagini.)",
-    "Clear the form to start a brand-new morning signal from scratch. Resets every field, sets update_seq back to 1, and fills today's date. Use this once per trading day when FB sends the first signal of the session.":
-      "Svuota il form per iniziare un nuovo segnale del mattino da zero. Resetta tutti i campi, riporta update_seq a 1 e imposta la data di oggi. Usalo una volta al giorno quando FB invia il primo segnale della sessione.",
-    "Keep the current values but bump update_seq by 1 so this submission is treated as an intra-day recalibration of an already-loaded signal (e.g. afternoon level refresh). Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state.":
-      "Mantiene i valori correnti ma incrementa update_seq di 1, così l'invio viene trattato come una ricalibrazione intra-day di un segnale già caricato (es. aggiornamento livelli pomeridiano). Modifica solo i campi cambiati e invia — il motore sostituisce i nuovi livelli senza resettare lo stato del trade.",
-    "Load today's most recent signal YAML from the signals/ folder into the form. Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running. Does not submit — you still need to click Submit signal to push changes.":
-      "Carica nel form l'ultimo segnale YAML di oggi dalla cartella signals/. Utile se hai ricaricato la pagina o vuoi ispezionare / modificare ciò che il motore sta eseguendo. Non invia — devi comunque cliccare Invia segnale per applicare le modifiche.",
+    "WebSocket connection between this browser and the engine process.\n\n• Connected — engine is running, live events streaming\n• Reconnecting — connection dropped; tab retries with backoff\n• Disconnected — engine process is down or unreachable":
+      "Connessione WebSocket tra il browser e il processo del motore.\n\n• Connesso — motore in esecuzione, eventi in tempo reale\n• Riconnessione — connessione caduta; il tab ritenta con backoff\n• Disconnesso — processo motore non attivo o irraggiungibile",
+    "Trading engine state machine.\n\n• idle — no signal loaded\n• watching — signal loaded, waiting for Entry 1\n• in_trade — at least one entry has filled\n• closed — trade finished for today\n• locked — daily lock active (one winning trade done) or DVS gate blocking trades":
+      "Macchina a stati del motore.\n\n• inattivo — nessun segnale caricato\n• in osservazione — segnale caricato, in attesa di Entry 1\n• in trade — almeno un ingresso eseguito\n• chiuso — trade del giorno terminato\n• bloccato — lock giornaliero attivo (un trade vincente già chiuso) o gate DVS che blocca i trade",
+    "Latest ES/US500 futures price the engine has seen from the broker feed.\n\nUpdates at most twice a second to keep the tab responsive.\n\nDashes mean no ticks yet (engine just started or feed disconnected).":
+      "Ultimo prezzo ES/US500 ricevuto dal feed del broker.\n\nAggiornato al massimo due volte al secondo per non rallentare il tab.\n\nI trattini indicano che non sono ancora arrivati tick (motore appena avviato o feed disconnesso).",
+    "Filename and key fields of the signal YAML the engine is currently operating on.\n\nShows 'None loaded' until one arrives.\n\nUpdates when a new signal is picked up from the signals/ folder or submitted through this form.":
+      "Nome del file e campi principali del segnale YAML attualmente in uso dal motore.\n\nMostra 'Nessuno caricato' finché non ne arriva uno.\n\nSi aggiorna quando un nuovo segnale viene preso dalla cartella signals/ o inviato tramite questo form.",
+    "Every signal file loaded or rejected since this browser tab connected.\n\nCount rises with each SIGNAL or INVALID event.\n\nClick to expand the list and see timestamps + filenames.\n\nResets when you reload the page — does not persist across tabs.":
+      "Ogni file segnale caricato o rifiutato da quando questo tab è connesso.\n\nIl contatore sale a ogni evento SIGNAL o INVALID.\n\nClicca per espandere la lista con timestamp e nome file.\n\nSi azzera al ricaricamento della pagina — non persiste tra i tab.",
+    "Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).\n\nTrident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.\n\nYou'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.\n\n(AI extraction is not wired up yet — for now the upload just stores the images.)":
+      "Carica uno o più screenshot dei grafici dell'analista (IV Smile / tabella LIVELLI / grafico SPX intraday).\n\nTrident li passerà a un modello AI di visione che estrae livelli, range, DVS, VWAP e basis, poi precompila questo form per la revisione.\n\nAvrai sempre la possibilità di verificare ogni valore prima di inviarlo al motore. I file vengono salvati sul server per tracciabilità.\n\n(L'estrazione AI non è ancora collegata — per ora il caricamento salva solo le immagini.)",
+    "Open a read-only view of what the engine is currently doing.\n\nShows: connection, state machine, daily lock, currently loaded signal (full values), and any open position.\n\nUseful while the form modal is closed.":
+      "Apre una vista in sola lettura di ciò che il motore sta facendo in questo momento.\n\nMostra: connessione, macchina a stati, lock giornaliero, segnale attualmente caricato (valori completi) e l'eventuale posizione aperta.\n\nUtile quando il form è chiuso.",
+    "Clear the form to start a brand-new morning signal from scratch.\n\nResets every field, sets update_seq back to 1, and fills today's date.\n\nUse this once per trading day when FB sends the first signal of the session.":
+      "Svuota il form per iniziare un nuovo segnale del mattino da zero.\n\nResetta tutti i campi, riporta update_seq a 1 e imposta la data di oggi.\n\nUsalo una volta al giorno quando FB invia il primo segnale della sessione.",
+    "Keep the current values but bump update_seq by 1.\n\nThe submission is treated as an intra-day recalibration of an already-loaded signal (e.g. afternoon level refresh).\n\nEdit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state.":
+      "Mantiene i valori correnti ma incrementa update_seq di 1.\n\nL'invio viene trattato come una ricalibrazione intra-day di un segnale già caricato (es. aggiornamento livelli pomeridiano).\n\nModifica solo i campi cambiati e invia — il motore sostituisce i nuovi livelli senza resettare lo stato del trade.",
+    "Load today's most recent signal YAML from the signals/ folder into the form.\n\nUseful if the page was reloaded or you want to inspect / tweak what the engine is currently running.\n\nDoes not submit — you still need to click Submit signal to push changes.":
+      "Carica nel form l'ultimo segnale YAML di oggi dalla cartella signals/.\n\nUtile se hai ricaricato la pagina o vuoi ispezionare / modificare ciò che il motore sta eseguendo.\n\nNon invia — devi comunque cliccare Invia segnale per applicare le modifiche.",
     "Trading date for this signal (YYYY-MM-DD). The engine rejects signals whose date isn't today.":
       "Data di trading di questo segnale (YYYY-MM-DD). Il motore rifiuta segnali con data diversa da oggi.",
     "Signal creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects signals older than ~6 hours.":
@@ -137,14 +142,14 @@ window.TRIDENT_I18N = {
       "Spread ES–SPX: futures_last − cash_last. Range recente: 40–75 punti. Validazione: deve corrispondere alla differenza calcolata entro ±5.",
     "Which instrument the trade will actually be executed on. US500.cash = Pepperstone CFD.":
       "Strumento su cui verrà effettivamente eseguito il trade. US500.cash = CFD Pepperstone.",
-    "Directional Volatility Score (0–200). Above 75 → DVS GATE blocks all trades for the day. 50–75 = normal. Below 50 = ideal mean-reversion conditions.":
-      "Directional Volatility Score (0–200). Sopra 75 → DVS GATE blocca tutti i trade del giorno. 50–75 = normale. Sotto 50 = condizioni ideali per mean-reversion.",
+    "Directional Volatility Score (0–200).\n\n• > 75 — DVS GATE blocks all trades today\n• 50–75 — normal range\n• < 50 — ideal mean-reversion conditions":
+      "Directional Volatility Score (0–200).\n\n• > 75 — DVS GATE blocca tutti i trade oggi\n• 50–75 — range normale\n• < 50 — condizioni ideali per mean-reversion",
     "Yesterday's DVS. If today is lower than prior, volatility is compressing — conditions improving for mean-reversion. If higher, deteriorating.":
       "DVS di ieri. Se oggi è più basso, la volatilità si sta comprimendo — condizioni in miglioramento per il mean-reversion. Se più alto, in peggioramento.",
     "CBOE SKEW index reading. Measures tail-risk premium — higher means more downside protection being bought. Currently informational only.":
       "Lettura dell'indice CBOE SKEW. Misura il premio per il rischio di coda — più alto significa più protezione downside acquistata. Al momento solo informativo.",
-    "Volatility regime label. compressed = very low DVS, normal = 50–75, elevated / extreme = above 75. Should match the DVS value.":
-      "Etichetta del regime di volatilità. compresso = DVS molto basso, normale = 50–75, elevato / estremo = sopra 75. Deve essere coerente con il valore DVS.",
+    "Volatility regime label.\n\n• compressed — very low DVS\n• normal — 50–75\n• elevated / extreme — above 75\n\nShould match the DVS value.":
+      "Etichetta del regime di volatilità.\n\n• compresso — DVS molto basso\n• normale — 50–75\n• elevato / estremo — sopra 75\n\nDeve essere coerente con il valore DVS.",
     "Volume-Weighted Average Price. The primary take-profit target for every Trident trade — every position is closed when VWAP is reached. Units pending FB confirmation; current best guess is ES futures.":
       "Volume-Weighted Average Price. È il target di take-profit principale per ogni trade Trident — ogni posizione viene chiusa al raggiungimento del VWAP. Unità in attesa di conferma da FB; ipotesi attuale: ES futures.",
     "Time when VWAP was last refreshed. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. A warning fires if older than ~90 minutes.":
@@ -173,8 +178,8 @@ window.TRIDENT_I18N = {
       "Pivot di supporto derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
     "Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
       "Pivot di resistenza derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
-    "Analyst's directional overlay. long = only take long setups, short = only shorts, neutral = either side permitted. Leave blank if no preference.":
-      "Bias direzionale dell'analista. long = solo setup long, short = solo short, neutro = entrambi i lati permessi. Lascia vuoto se nessuna preferenza.",
+    "Analyst's directional overlay.\n\n• long — only take long setups\n• short — only shorts\n• neutral — either side permitted\n\nLeave blank if no preference.":
+      "Bias direzionale dell'analista.\n\n• long — solo setup long\n• short — solo short\n• neutro — entrambi i lati permessi\n\nLascia vuoto se nessuna preferenza.",
     "Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour.":
       "Confidenza dell'analista nel bias direzionale. Per ora solo informativo — non cambia il comportamento del motore.",
     "Free-text analyst reasoning. Stored with the signal but not acted on. Optional.":
@@ -246,5 +251,14 @@ window.TRIDENT_I18N = {
     'Cash → futures conversion preview (engine compares ES live to these)':
       'Anteprima conversione cash → futures (il motore confronta ES live con questi)',
     'Date is not today — engine will reject': 'La data non è oggi — il motore rifiuterà',
+
+    // ---------- Form / Status modal chrome ----------
+    'Signal form': 'Form segnale',
+    'Current status': 'Stato corrente',
+    "A read-only snapshot of the engine and the signal it's operating on right now.":
+      'Istantanea in sola lettura del motore e del segnale su cui sta operando.',
+    'Close': 'Chiudi',
+    'Currently loaded signal': 'Segnale attualmente caricato',
+    'No signal loaded today.': 'Nessun segnale caricato oggi.',
   },
 };
