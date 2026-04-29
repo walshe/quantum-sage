@@ -45,14 +45,13 @@
         <button type="button" id="btn-import-screenshots">Import from screenshots <i class="info info--end" data-tip="Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart). Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit. You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability. (AI extraction is not wired up yet — for now the upload just stores the images.)"></i></button>
         <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
       </div>
-      <p class="form-key"><span class="req-mark">*</span> indicates a required field</p>
       <form id="signal-form" novalidate>
         <fieldset>
           <legend>Meta</legend>
           <label>Date <i class="info" data-tip="Trading date for this signal (YYYY-MM-DD). The engine rejects signals whose date isn't today."></i> <input name="meta.date" type="date" required></label>
           <label>Time <i class="info" data-tip="Signal creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects signals older than ~6 hours."></i> <input name="meta.timestamp" type="time" required></label>
           <label>update_seq <i class="info" data-tip="1 for the morning signal. Bump to 2 (or higher) for an afternoon recalibration the same day. The engine uses this to distinguish a new signal from a level update."></i> <input name="meta.update_seq" type="number" min="1" step="1" value="1" required></label>
-          <label>Contract <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the signal was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6 (optional)"></label>
+          <label>Contract <span class="optional">(optional)</span> <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the signal was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6"></label>
           <label>Futures last [ES futures] <i class="info" data-tip="Most recent ES futures price at signal creation time."></i> <input name="meta.futures_last" type="number" step="0.01" required></label>
           <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at signal creation time. Used to cross-check basis."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
           <label>Basis [points] <i class="info" data-tip="ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points. Validation: must match within ±5 of the computed difference."></i> <input name="meta.basis" type="number" step="0.01" required></label>
@@ -92,25 +91,25 @@
         <fieldset>
           <legend>Ranges [ES futures]</legend>
           <label>Range 1 up <i class="info" data-tip="Outer upper boundary from the IV smile. Historical 75% re-entry rate — price comes back inside Range 1 three out of four times. Read off the LIVELLI table / IV Smile right panel — already in ES futures terms."></i> <input name="ranges.range_1_up" type="number" step="0.01" required></label>
+          <label>Range 1 down <i class="info" data-tip="Outer lower boundary from the IV smile. 75% re-entry rate. ES futures terms."></i> <input name="ranges.range_1_down" type="number" step="0.01" required></label>
           <label>Range 2 up <i class="info" data-tip="Inner upper boundary. Price spends most of its time between Range 2 up and Range 2 down. ES futures terms."></i> <input name="ranges.range_2_up" type="number" step="0.01" required></label>
           <label>Range 2 down <i class="info" data-tip="Inner lower boundary. Must satisfy: range_1_down < range_2_down < range_2_up < range_1_up. ES futures terms."></i> <input name="ranges.range_2_down" type="number" step="0.01" required></label>
-          <label>Range 1 down <i class="info" data-tip="Outer lower boundary from the IV smile. 75% re-entry rate. ES futures terms."></i> <input name="ranges.range_1_down" type="number" step="0.01" required></label>
         </fieldset>
 
         <fieldset>
           <legend>Levels [SPX cash]</legend>
-          <label class="wide">Level time <i class="info" data-tip="Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal."></i> <input name="levels.level_time" type="time"></label>
-          <label>MAX SELL 1 <i class="info" data-tip="Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
-          <label>MAX SELL 2 <i class="info" data-tip="Inner resistance. Triggers Short Entry 1 — this is the first touch that opens a short. Entry 2 is the midpoint of MAX SELL 1 and MAX SELL 2. SPX cash terms."></i> <input name="levels.max_sell_2" type="number" step="0.01"></label>
-          <label>MAX BUY 1 <i class="info" data-tip="Outer support. Triggers Long Entry 3 (last / deepest scale-in on the long side). SPX cash terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
-          <label>MAX BUY 2 <i class="info" data-tip="Inner support. Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of MAX BUY 2 and MAX BUY 1. SPX cash terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
-          <label>Support <i class="info" data-tip="Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.supporto" type="number" step="0.01"></label>
-          <label>Resistance <i class="info" data-tip="Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.resistenza" type="number" step="0.01"></label>
+          <label class="wide">Level time <span class="optional">(optional)</span> <i class="info" data-tip="Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal."></i> <input name="levels.level_time" type="time"></label>
+          <label>MAX SELL 1 <span class="optional">(optional)</span> <i class="info" data-tip="Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
+          <label>MAX SELL 2 <span class="optional">(optional)</span> <i class="info" data-tip="Inner resistance. Triggers Short Entry 1 — this is the first touch that opens a short. Entry 2 is the midpoint of MAX SELL 1 and MAX SELL 2. SPX cash terms."></i> <input name="levels.max_sell_2" type="number" step="0.01"></label>
+          <label>MAX BUY 1 <span class="optional">(optional)</span> <i class="info" data-tip="Outer support. Triggers Long Entry 3 (last / deepest scale-in on the long side). SPX cash terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
+          <label>MAX BUY 2 <span class="optional">(optional)</span> <i class="info" data-tip="Inner support. Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of MAX BUY 2 and MAX BUY 1. SPX cash terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
+          <label>Support <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.supporto" type="number" step="0.01"></label>
+          <label>Resistance <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.resistenza" type="number" step="0.01"></label>
         </fieldset>
 
         <fieldset>
           <legend>Bias</legend>
-          <label>Direction <i class="info" data-tip="Analyst's directional overlay. long = only take long setups, short = only shorts, neutral = either side permitted. Leave blank if no preference."></i>
+          <label>Direction <span class="optional">(optional)</span> <i class="info" data-tip="Analyst's directional overlay. long = only take long setups, short = only shorts, neutral = either side permitted. Leave blank if no preference."></i>
             <select name="bias.direction">
               <option value="">(none)</option>
               <option value="long">long</option>
@@ -118,7 +117,7 @@
               <option value="neutral" selected>neutral</option>
             </select>
           </label>
-          <label>Confidence <i class="info" data-tip="Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour."></i>
+          <label>Confidence <span class="optional">(optional)</span> <i class="info" data-tip="Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour."></i>
             <select name="bias.confidence">
               <option value="">(none)</option>
               <option value="low">low</option>
@@ -126,7 +125,7 @@
               <option value="high">high</option>
             </select>
           </label>
-          <label class="wide">Notes <i class="info" data-tip="Free-text analyst reasoning. Stored with the signal but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
+          <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text analyst reasoning. Stored with the signal but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
         </fieldset>
 
         <fieldset>
@@ -134,7 +133,7 @@
           <label>Void above <i class="info" data-tip="Price above which the signal is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
           <label>Void below <i class="info" data-tip="Price below which the signal is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
           <label>Expiry <i class="info" data-tip="Time-of-day after which the signal no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <input name="invalidation.expiry" type="time" required></label>
-          <label class="wide">Notes <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
+          <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
         </fieldset>
 
         <div class="form-actions">
@@ -156,6 +155,16 @@
       <ol id="log"></ol>
     </section>
   </main>
+
+  <dialog id="confirm-dialog" class="confirm-dialog">
+    <h2 id="confirm-title">Confirm signal submission</h2>
+    <p class="confirm-sub" id="confirm-sub">Review the values below before they go to the engine.</p>
+    <div id="confirm-dialog-body"></div>
+    <div class="confirm-actions">
+      <button type="button" id="confirm-cancel">Back to edit</button>
+      <button type="button" id="confirm-ok">Submit signal</button>
+    </div>
+  </dialog>
 
   <script src="/assets/i18n.js"></script>
   <script src="/assets/app.js"></script>

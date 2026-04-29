@@ -26,7 +26,7 @@ window.TRIDENT_I18N = {
     'Update during session': 'Aggiorna in sessione',
     'Pre-fill from latest': "Precompila dall'ultimo",
     'Import from screenshots': 'Importa da screenshot',
-    '* indicates a required field': '* indica un campo obbligatorio',
+    '(optional)': '(opzionale)',
 
     // ---------- Fieldset legends ----------
     'Meta': 'Meta',
@@ -188,5 +188,63 @@ window.TRIDENT_I18N = {
     "Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional.":
       "Contesto in testo libero per le condizioni di invalidazione (es. 'invalida se FOMC muove il mercato pre-apertura'). Opzionale.",
     "Switch language / Cambia lingua": "Cambia lingua / Switch language",
+
+    // ---------- Confirm dialog ----------
+    'Confirm signal submission': 'Conferma invio segnale',
+    'Review the values below before they go to the engine.':
+      'Rivedi i valori prima di inviarli al motore.',
+    'Back to edit': 'Torna a modificare',
+    'Engine state right now': 'Stato del motore in questo momento',
+    'Connection': 'Connessione',
+    'Engine state': 'Stato motore',
+    'Daily lock': 'Lock giornaliero',
+    'Locked — no more trades today': 'Bloccato — nessun altro trade oggi',
+    'Not locked': 'Non bloccato',
+    'Open position': 'Posizione aperta',
+    'Engine is offline — file will sit in signals/ until it reconnects.':
+      'Motore offline — il file resterà in signals/ finché non si riconnette.',
+    'Engine is locked for today — signal stored but no trades will fire until tomorrow.':
+      'Motore bloccato per oggi — segnale salvato ma nessun trade verrà aperto fino a domani.',
+    'Engine is blocked by the DVS gate — submission stored, but trading is off today.':
+      'Motore bloccato dal DVS gate — segnale salvato, ma il trading è disattivato oggi.',
+    'Updating levels of in-flight {dir} (seq {old} → {new}) — engine will recompute stops and entries.':
+      'Aggiornamento livelli della posizione {dir} in corso (seq {old} → {new}) — il motore ricalcolerà stop e ingressi.',
+    'Recalibration of current signal (seq {old} → {new}) — engine will swap in new levels.':
+      'Ricalibrazione del segnale corrente (seq {old} → {new}) — il motore sostituirà i nuovi livelli.',
+    'Engine is in a trade — submitting a fresh signal here would replace what it is currently working on.':
+      'Il motore è in trade — inviare un nuovo segnale qui sostituirebbe quello su cui sta lavorando.',
+    'Engine will load this as the active signal and start watching for Entry 1.':
+      'Il motore caricherà questo come segnale attivo e inizierà a osservare per Entry 1.',
+    'Signal summary': 'Riepilogo segnale',
+    'Date / time': 'Data / ora',
+    'Futures / Cash / Basis': 'Futures / Cash / Basis',
+    'DVS / regime': 'DVS / regime',
+    'Ranges (ES futures)': 'Range (ES futures)',
+    'Levels (SPX cash)': 'Livelli (SPX cash)',
+    'Support / Resistance': 'Supporto / Resistenza',
+    'Invalidation (futures)': 'Invalidazione (futures)',
+    'PRD sanity checks': 'Controlli PRD',
+    'Basis matches futures − cash': 'Basis coerente con futures − cash',
+    'Basis disagrees with futures − cash by more than 5 points':
+      'Basis differisce da futures − cash di più di 5 punti',
+    'Range ordering correct': 'Ordine dei range corretto',
+    'Range ordering broken': 'Ordine dei range non valido',
+    'Expected: range_1_down < range_2_down < range_2_up < range_1_up':
+      'Atteso: range_1_down < range_2_down < range_2_up < range_1_up',
+    'Level ordering correct': 'Ordine dei livelli corretto',
+    'Level ordering broken': 'Ordine dei livelli non valido',
+    'Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1':
+      'Atteso: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1',
+    'DVS above 75 — gate will block all trades today':
+      'DVS sopra 75 — il gate bloccherà tutti i trade oggi',
+    'DVS below 50 — ideal mean-reversion conditions':
+      'DVS sotto 50 — condizioni ideali per mean-reversion',
+    'DVS in normal range (50–75)': 'DVS in range normale (50–75)',
+    'VWAP older than 90 minutes vs signal time':
+      'VWAP più vecchio di 90 minuti rispetto al timestamp del segnale',
+    'VWAP fresh (≤90 min)': 'VWAP fresco (≤90 min)',
+    'Cash → futures conversion preview (engine compares ES live to these)':
+      'Anteprima conversione cash → futures (il motore confronta ES live con questi)',
+    'Date is not today — engine will reject': 'La data non è oggi — il motore rifiuterà',
   },
 };

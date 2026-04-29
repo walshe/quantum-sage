@@ -31,7 +31,9 @@
       "Bash(cp -L /Users/Emmett/dev/quantum-sage/trident/docs/research/telegram-cloud-photo-size-4-6003682419850021920-y.jpg /tmp/tg1.jpg)",
       "Bash(cp -L /Users/Emmett/dev/quantum-sage/trident/docs/research/telegram-cloud-photo-size-4-6003682419850021921-y.jpg /tmp/tg2.jpg)",
       "Read(//tmp/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(node --check /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/app.js)",
+      "Bash(node --check /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/i18n.js)"
     ]
   }
 }

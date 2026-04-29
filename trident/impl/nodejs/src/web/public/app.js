@@ -36,7 +36,8 @@ const _i18nTitleSnap = new WeakMap();
 
 const I18N_TEXT_SELECTOR = [
   'label', 'legend', 'option', 'button', 'h2', 'summary',
-  '.chip-label', '.chip-value', '.brand-name', '.form-key', '.log-sub',
+  '.chip-label', '.chip-value', '.brand-name', '.log-sub',
+  '.confirm-sub', '.optional',
 ].join(',');
 
 function applyLang(lang) {
@@ -96,6 +97,7 @@ const state = {
   position: 'idle',
   dailyLocked: false,
   currentSignal: null,
+  openPosition: null, // bootstrap snapshot of an in-flight position, if any
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
 };
@@ -228,6 +230,7 @@ function connectWs() {
 function handleBootstrap(b) {
   setStateChip(b.state, b.dailyLocked);
   state.currentSignal = b.currentSignal;
+  state.openPosition = b.position ?? null;
   renderSignalCard();
 
   // Synthesise a log entry that captures the engine's current state so the
@@ -311,7 +314,7 @@ function handleEvent(data) {
 
     case 'SETUP_READY':    setStateChip('watching', state.dailyLocked); break;
     case 'ENTRY_TRIGGERED':setStateChip('in_trade', state.dailyLocked); break;
-    case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); break;
+    case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); state.openPosition = null; break;
     case 'DAILY_LOCK':     setStateChip(state.position, true); break;
     case 'DVS_GATE_BLOCKED': setStateChip('blocked', state.dailyLocked); break;
   }
@@ -476,9 +479,22 @@ function collectForm() {
 async function submitForm(evt) {
   evt.preventDefault();
   $('#form-errors').innerHTML = '';
+  if (!evt.target.checkValidity()) {
+    evt.target.reportValidity();
+    return;
+  }
+  const signal = collectForm();
+  const confirmed = await showConfirmDialog(signal);
+  if (!confirmed) {
+    setSubmitStatus('', '');
+    return;
+  }
+  await postSignal(signal);
+}
+
+async function postSignal(signal) {
   setSubmitStatus('Submitting…', '');
   try {
-    const signal = collectForm();
     const res = await fetch('/signals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -507,6 +523,251 @@ async function submitForm(evt) {
     setSubmitStatus(`Submit error: ${err.message}`, 'err');
     console.error(err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Confirm dialog: shown after client-side validation, before the POST.
+// Renders three sections — engine state right now, signal summary, PRD checks
+// — so the analyst gets a one-glance review of what's about to happen.
+// ---------------------------------------------------------------------------
+function showConfirmDialog(signal) {
+  return new Promise(resolve => {
+    const dlg = $('#confirm-dialog');
+    const body = $('#confirm-dialog-body');
+    body.innerHTML = '';
+    body.append(buildEngineStateSection(signal));
+    body.append(buildSummarySection(signal));
+    body.append(buildChecksSection(signal));
+
+    const ok = $('#confirm-ok');
+    const cancel = $('#confirm-cancel');
+    const onOk     = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onClose  = () => { cleanup(); resolve(false); };
+    function cleanup() {
+      ok.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      dlg.removeEventListener('close', onClose);
+      if (dlg.open) dlg.close();
+    }
+    ok.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    dlg.addEventListener('close', onClose);
+    dlg.showModal();
+  });
+}
+
+function el(tag, opts = {}, children = []) {
+  const node = document.createElement(tag);
+  if (opts.class) node.className = opts.class;
+  if (opts.text != null) node.textContent = opts.text;
+  for (const c of children) if (c) node.append(c);
+  return node;
+}
+
+function fmtNum(n) {
+  if (n == null || n === '') return '—';
+  const x = Number(n);
+  return Number.isFinite(x) ? x.toFixed(2) : String(n);
+}
+
+function buildEngineStateSection(signal) {
+  const sec = el('section', { class: 'confirm-section' });
+  sec.append(el('h3', { text: tx('Engine state right now') }));
+
+  const grid = el('div', { class: 'confirm-grid' });
+  const addRow = (k, v) => {
+    grid.append(el('span', { class: 'k', text: k }));
+    grid.append(el('span', { class: 'v', text: v }));
+  };
+
+  const connTxt =
+    state.engine === 'connected'    ? tx('Connected') :
+    state.engine === 'reconnecting' ? tx('Reconnecting…') : tx('Disconnected');
+  addRow(tx('Connection'), connTxt);
+  addRow(tx('Engine state'), tx(state.position));
+  addRow(tx('Daily lock'), state.dailyLocked ? tx('Locked — no more trades today') : tx('Not locked'));
+  if (state.currentSignal) {
+    const cs = state.currentSignal;
+    addRow(tx('Current signal'), `${baseName(cs.filePath) || '—'} (seq ${cs.updateSeq})`);
+  } else {
+    addRow(tx('Current signal'), tx('None loaded'));
+  }
+  if (state.openPosition) {
+    const p = state.openPosition;
+    addRow(tx('Open position'),
+      `${p.direction.toUpperCase()} • avg ${fmtNum(p.avgEntry)} • stop ${fmtNum(p.currentStop)} • ${p.fills} fill(s)${p.breakEvenActive ? ' • BE' : ''}`);
+  }
+  sec.append(grid);
+
+  const headline = synthesiseAction(signal);
+  const h = el('div', { class: `confirm-headline is-${headline.tone}`, text: headline.text });
+  h.style.marginTop = '0.5rem';
+  sec.append(h);
+
+  return sec;
+}
+
+// One-line synthesis of what submitting this signal will actually do, given
+// the engine's current state and the new signal's seq vs the loaded one.
+function synthesiseAction(signal) {
+  if (state.engine !== 'connected') {
+    return { tone: 'warn', text: tx('Engine is offline — file will sit in signals/ until it reconnects.') };
+  }
+  if (state.dailyLocked) {
+    return { tone: 'warn', text: tx('Engine is locked for today — signal stored but no trades will fire until tomorrow.') };
+  }
+  if (state.position === 'blocked') {
+    return { tone: 'warn', text: tx('Engine is blocked by the DVS gate — submission stored, but trading is off today.') };
+  }
+  const cs = state.currentSignal;
+  const newSeq = Number(signal.meta.update_seq);
+  if (cs && Number(cs.updateSeq) >= 1 && newSeq > Number(cs.updateSeq)) {
+    if (state.position === 'in_trade') {
+      const dir = state.openPosition?.direction?.toUpperCase() ?? '';
+      return {
+        tone: 'warn',
+        text: tx('Updating levels of in-flight {dir} (seq {old} → {new}) — engine will recompute stops and entries.')
+          .replace('{dir}', dir).replace('{old}', cs.updateSeq).replace('{new}', newSeq),
+      };
+    }
+    return { tone: 'ok', text: tx('Recalibration of current signal (seq {old} → {new}) — engine will swap in new levels.').replace('{old}', cs.updateSeq).replace('{new}', newSeq) };
+  }
+  if (state.position === 'in_trade') {
+    return { tone: 'warn', text: tx('Engine is in a trade — submitting a fresh signal here would replace what it is currently working on.') };
+  }
+  return { tone: 'ok', text: tx('Engine will load this as the active signal and start watching for Entry 1.') };
+}
+
+function buildSummarySection(signal) {
+  const sec = el('section', { class: 'confirm-section' });
+  sec.append(el('h3', { text: tx('Signal summary') }));
+  const grid = el('div', { class: 'confirm-grid' });
+  const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels, inv = signal.invalidation;
+
+  const row = (k, val) => {
+    grid.append(el('span', { class: 'k', text: k }));
+    grid.append(el('span', { class: 'v', text: val }));
+  };
+  row(tx('Date / time'), `${m.date} ${m.timestamp} (seq ${m.update_seq})`);
+  row(tx('Futures / Cash / Basis'), `${fmtNum(m.futures_last)}  /  ${fmtNum(m.cash_last)}  /  ${fmtNum(m.basis)}`);
+  row(tx('DVS / regime'), `${fmtNum(v.dvs)} (${tx(v.regime)})  • prior ${fmtNum(v.dvs_prior)}`);
+  row(tx('VWAP'), `${fmtNum(w.value)} @ ${w.updated_at}`);
+  row(tx('Ranges (ES futures)'), `${fmtNum(r.range_1_down)}  ${fmtNum(r.range_2_down)}  …  ${fmtNum(r.range_2_up)}  ${fmtNum(r.range_1_up)}`);
+  row(tx('Levels (SPX cash)'),
+    `B1 ${fmtNum(l.max_buy_1)}  B2 ${fmtNum(l.max_buy_2)}  S2 ${fmtNum(l.max_sell_2)}  S1 ${fmtNum(l.max_sell_1)}`);
+  if (l.supporto != null || l.resistenza != null) {
+    row(tx('Support / Resistance'), `${fmtNum(l.supporto)}  /  ${fmtNum(l.resistenza)}`);
+  }
+  row(tx('Invalidation (futures)'), `void below ${fmtNum(inv.void_below)}  •  void above ${fmtNum(inv.void_above)}  •  expiry ${inv.expiry}`);
+  if (signal.bias?.direction) {
+    row(tx('Bias'), `${signal.bias.direction}/${signal.bias.confidence ?? '—'}`);
+  }
+  sec.append(grid);
+  return sec;
+}
+
+function buildChecksSection(signal) {
+  const sec = el('section', { class: 'confirm-section' });
+  sec.append(el('h3', { text: tx('PRD sanity checks') }));
+
+  const checks = computeChecks(signal);
+  for (const c of checks) sec.append(renderCheck(c));
+  return sec;
+}
+
+function renderCheck(c) {
+  const row = el('div', { class: `check ${c.status}` });
+  const ico = el('span', { class: 'ico', text: c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗' });
+  const msg = el('span', { class: 'msg' });
+  msg.append(document.createTextNode(c.title));
+  if (c.detail) msg.append(el('span', { class: 'det', text: c.detail }));
+  row.append(ico, msg);
+  return row;
+}
+
+function computeChecks(signal) {
+  const out = [];
+  const m = signal.meta, r = signal.ranges, l = signal.levels, v = signal.volatility, w = signal.vwap;
+
+  // 1. Basis matches futures - cash within ±5
+  if (m.futures_last != null && m.cash_last != null && m.basis != null) {
+    const computed = m.futures_last - m.cash_last;
+    const delta = Math.abs(computed - m.basis);
+    if (delta <= 5) {
+      out.push({ status: 'ok',   title: tx('Basis matches futures − cash'), detail: `Δ ${delta.toFixed(2)} (computed ${computed.toFixed(2)}, entered ${Number(m.basis).toFixed(2)})` });
+    } else {
+      out.push({ status: 'err',  title: tx('Basis disagrees with futures − cash by more than 5 points'), detail: `computed ${computed.toFixed(2)} vs entered ${Number(m.basis).toFixed(2)} (Δ ${delta.toFixed(2)}). Engine will reject.` });
+    }
+  }
+
+  // 2. Range ordering r1d < r2d < r2u < r1u
+  if ([r.range_1_down, r.range_2_down, r.range_2_up, r.range_1_up].every(x => x != null)) {
+    const ok = r.range_1_down < r.range_2_down && r.range_2_down < r.range_2_up && r.range_2_up < r.range_1_up;
+    out.push(ok
+      ? { status: 'ok',  title: tx('Range ordering correct'), detail: 'range_1_down < range_2_down < range_2_up < range_1_up' }
+      : { status: 'err', title: tx('Range ordering broken'),  detail: tx('Expected: range_1_down < range_2_down < range_2_up < range_1_up') });
+  }
+
+  // 3. Level ordering (cash) max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1
+  const lvls = [l.max_buy_1, l.max_buy_2, l.max_sell_2, l.max_sell_1];
+  if (lvls.every(x => x != null)) {
+    const ok = l.max_buy_1 < l.max_buy_2 && l.max_buy_2 < l.max_sell_2 && l.max_sell_2 < l.max_sell_1;
+    out.push(ok
+      ? { status: 'ok',  title: tx('Level ordering correct'), detail: 'max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1' }
+      : { status: 'err', title: tx('Level ordering broken'),  detail: tx('Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1') });
+  }
+
+  // 4. DVS gate
+  if (v.dvs != null) {
+    if (v.dvs > 75) {
+      out.push({ status: 'warn', title: tx('DVS above 75 — gate will block all trades today'), detail: `DVS = ${Number(v.dvs).toFixed(2)}` });
+    } else if (v.dvs < 50) {
+      out.push({ status: 'ok', title: tx('DVS below 50 — ideal mean-reversion conditions'), detail: `DVS = ${Number(v.dvs).toFixed(2)}` });
+    } else {
+      out.push({ status: 'ok', title: tx('DVS in normal range (50–75)'), detail: `DVS = ${Number(v.dvs).toFixed(2)}` });
+    }
+  }
+
+  // 5. VWAP staleness vs signal timestamp
+  if (w.updated_at && m.timestamp) {
+    const vwapMin = hhmmToMin(w.updated_at);
+    const sigMin  = hhmmToMin(m.timestamp);
+    if (Number.isFinite(vwapMin) && Number.isFinite(sigMin)) {
+      const ageMin = Math.abs(sigMin - vwapMin);
+      if (ageMin > 90) {
+        out.push({ status: 'warn', title: tx('VWAP older than 90 minutes vs signal time'), detail: `VWAP ${w.updated_at}, signal ${m.timestamp} (Δ ${ageMin}m)` });
+      } else {
+        out.push({ status: 'ok', title: tx('VWAP fresh (≤90 min)'), detail: `Δ ${ageMin}m` });
+      }
+    }
+  }
+
+  // 6. Cash → futures preview using basis
+  if (m.basis != null && lvls.every(x => x != null)) {
+    const b = Number(m.basis);
+    const conv = (cash) => (Number(cash) + b).toFixed(2);
+    out.push({
+      status: 'ok',
+      title: tx('Cash → futures conversion preview (engine compares ES live to these)'),
+      detail:
+        `B1 ${conv(l.max_buy_1)} • B2 ${conv(l.max_buy_2)} • S2 ${conv(l.max_sell_2)} • S1 ${conv(l.max_sell_1)} (basis ${b.toFixed(2)})`,
+    });
+  }
+
+  // 7. Date is today
+  const today = new Date().toISOString().slice(0, 10);
+  if (m.date && m.date !== today) {
+    out.push({ status: 'err', title: tx('Date is not today — engine will reject'), detail: `signal date ${m.date}, today ${today}` });
+  }
+
+  return out;
+}
+
+function hhmmToMin(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (!m) return NaN;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
 // ---------------------------------------------------------------------------
