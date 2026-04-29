@@ -98,6 +98,11 @@ npx tsx src/index.ts
 The engine picks up any `qs_signal_*.yaml` file dropped into `signals/`. To simulate
 an afternoon recalibration, drop a second file with `update_seq: 2`.
 
+Once running, open `http://localhost:3000` to use the built-in **dashboard**: a form
+for submitting signals and a live event tail mirroring the console output. The
+port is configurable via `TRIDENT_WEB_PORT`. Manual YAML drops still work exactly
+as before — the dashboard is an alternative input path, not a replacement.
+
 > **Price feed:** live mode currently has no real price feed wired in. The engine
 > watches for signals and validates them, but `onPriceUpdate()` is never called
 > without a feed. Plug in a real `PriceFeed` implementation in `src/index.ts` when

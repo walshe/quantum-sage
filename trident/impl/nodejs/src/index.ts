@@ -13,19 +13,29 @@ import { resolve } from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import 'dotenv/config';
 import { loadConfig } from './config/loader.js';
-import { watchSignalDir, loadSignalFile } from './signal/loader.js';
+import { watchSignalDir, loadSignalFile, scanSignalDirOnce } from './signal/loader.js';
 import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
+import { MultiNotifier } from './notifier/MultiNotifier.js';
 import { TridentEngine } from './strategy/TridentEngine.js';
+import { startWebServer } from './web/server.js';
+import type { Bootstrap } from './notifier/WebSocketNotifier.js';
+import type { Notifier } from './notifier/Notifier.js';
 
 const args = process.argv.slice(2); // process.argv[0] — the path to the node executable ,process.argv[1] — the path to the script being run
 const configPath = argValue(args, '--config') ?? './config.yaml';
 const useMock = args.includes('--mock');
 const signalPath = argValue(args, '--signal'); // load a specific signal file directly
+const webPort = Number(process.env.TRIDENT_WEB_PORT ?? 3000);
 
 const config = loadConfig(resolve(configPath));
-const notifier = new ConsoleNotifier(/* showPriceTicks = */ false);
+const consoleNotifier = new ConsoleNotifier(/* showPriceTicks = */ false);
+// MultiNotifier's children list is mutable so the WebSocket notifier can be
+// appended once the web server boots. Engine events go to console immediately
+// and to browser clients from the moment the server starts listening.
+const notifierChildren: Notifier[] = [consoleNotifier];
+const notifier = new MultiNotifier(notifierChildren);
 // Mock runs are ephemeral demos — don't pollute (or restore from) the live snapshot.
 const engine = new TridentEngine(config, notifier, {
   snapshotPath: useMock ? null : 'logs/engine-state.json',
@@ -86,10 +96,21 @@ if (useMock) {
 }
 
 // -------------------------------------------------------------------
-// Live mode: connect cTrader price feed + watch the signals directory
+// Live mode: start dashboard first (so the UI is responsive regardless
+// of broker connectivity), then connect cTrader + watch the signals dir.
 // -------------------------------------------------------------------
 const signalDir = resolve(config.signal.watch_dir);
-console.log(`Watching for signals in: ${signalDir}\n`);
+console.log(`Watching for signals in: ${signalDir}`);
+
+const webServer = await startWebServer({
+  port: webPort,
+  config,
+  signalsDir: signalDir,
+  publicDir: resolve('src/web/public'),
+  getBootstrap: buildBootstrap,
+});
+notifierChildren.push(webServer.notifier);
+console.log(`Trident UI: http://localhost:${webServer.port}\n`);
 
 // Wire up the real price feed if cTrader credentials are present in the environment
 const env = process.env;
@@ -159,17 +180,57 @@ const stopWatching = watchSignalDir(signalDir, async (signal, filePath) => {
   await engine.loadSignal(signal, filePath);
 });
 
+// fs.watch only sees events after it starts. Scan once for today's existing
+// files so a signal written during an engine-down window isn't orphaned.
+scanSignalDirOnce(signalDir, async (signal, filePath) => {
+  await engine.loadSignal(signal, filePath);
+});
+
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('\nShutting down...');
   stopWatching();
-  liveFeed?.disconnect().finally(() => process.exit(0)) ?? process.exit(0);
+  await webServer.close();
+  try { await liveFeed?.disconnect(); } catch { /* ignore */ }
+  process.exit(0);
 });
 
 // Helper
 function argValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   return idx !== -1 ? args[idx + 1] : undefined;
+}
+
+// Snapshot of engine state sent to each browser client on WS connect so a
+// freshly-opened tab reflects current reality instead of waiting for the
+// next event. Read directly from the engine — no caching, no duplication.
+function buildBootstrap(): Bootstrap {
+  const signal = engine.getCurrentSignal();
+  const signalPath = engine.getSignalFilePath();
+  const position = engine.getPosition();
+  return {
+    serverTime: new Date().toISOString(),
+    state: engine.getState(),
+    dailyLocked: engine.isLockedForDay(),
+    currentSignal: signal && signalPath ? {
+      filePath: signalPath,
+      date: signal.meta.date,
+      timestamp: signal.meta.timestamp,
+      updateSeq: signal.meta.update_seq,
+      dvs: signal.volatility.dvs,
+      vwap: signal.vwap.value,
+      biasDirection: signal.bias?.direction ?? null,
+      biasConfidence: signal.bias?.confidence ?? null,
+    } : null,
+    position: position ? {
+      direction: position.direction,
+      avgEntry: position.avgEntry,
+      currentStop: position.currentStop,
+      vwapTarget: position.vwapTarget,
+      fills: position.fills.length,
+      breakEvenActive: position.breakEvenActive,
+    } : null,
+  };
 }
 
 // Updates a single key in .env without touching other lines.

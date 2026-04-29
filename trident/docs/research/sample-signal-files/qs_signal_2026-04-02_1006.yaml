@@ -212,8 +212,15 @@ meta:
   timestamp: "10:06"              # 24-hour HH:MM (e.g. 10:06 am = "10:06", 3:36 pm = "15:36")
   update_seq: 1                   # 1 = first of day
                                   # 2 = update (e.g. 15:36)
-  contract: "ESM6"                # From IV Smile chart top-right
-                                  # (e.g. "Fut ESM6")
+  contract: "ESM6"                # OPTIONAL -- audit trail only.
+                                  # Front-month ES futures code from IV
+                                  # Smile chart top-right (e.g. "Fut ESM6").
+                                  # Not consumed by any validator or
+                                  # strategy rule; stored in the YAML so
+                                  # a file on disk is self-describing
+                                  # about which contract the analyst was
+                                  # watching. Omit the field (or leave
+                                  # blank in the dashboard) if not handy.
   futures_last: 6578.67           # Current ES futures price
                                   # From intraday chart top-right
   cash_last: 6535.67              # From IV Smile right panel

@@ -628,6 +628,14 @@ export class TridentEngine {
     return this.dailyLocked;
   }
 
+  getCurrentSignal(): SignalFile | null {
+    return this.currentSignal;
+  }
+
+  getSignalFilePath(): string | null {
+    return this.signalFilePath;
+  }
+
   reset(): void {
     this.cancelTimeExitTimer();
     this.state = 'idle';

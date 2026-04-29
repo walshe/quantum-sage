@@ -80,7 +80,7 @@ Entry 1 triggers.
 [15:41:00] [ENTRY 1]   SHORT @ 7160.10 (32.5%)
              Avg entry: 7160.10 | Stop: 7200.10 | Fills remaining: 2
              >>> ACTION: Open SHORT at broker (32.5% size). Set stop @ 7200.10.
-```
+```[
 
 Live price crossed Entry 1. The `>>> ACTION:` line tells you exactly what
 to do at the relevant broker. Any notification with a `>>> ACTION:` line is
@@ -203,30 +203,7 @@ done.
 
 Every day, from the `trident/impl/nodejs/` folder in Terminal:
 
-### 1. Create today's signal file
-
-Copy yesterday's signal:
-
-```bash
-cp signals/qs_signal_<yesterday>_<time>.yaml signals/qs_signal_$(date +%Y-%m-%d)_0900.yaml
-```
-
-Open the new file in any text editor and update:
-
-- `meta.date` and `meta.timestamp`
-- `meta.futures_last`, `meta.cash_last`, `meta.basis`
-- `volatility.dvs`, `volatility.skew`, `volatility.regime`
-- `vwap.value` and `vwap.updated_at`
-- `ranges.*` and `levels.*`
-- `bias.direction`, `bias.confidence`, `bias.notes`
-- `invalidation.void_above`, `void_below`, `expiry`
-
-Save the file. **Don't save it yet into the `signals/` folder if the engine
-isn't running** — if it's running and you save an incomplete file, it'll
-reject it with `[SIGNAL INVALID]`. Edit elsewhere, then save into
-`signals/` when ready.
-
-### 2. Start the engine
+### 1. Start the engine
 
 ```bash
 npx tsx src/index.ts
@@ -238,25 +215,61 @@ You should see:
 Trident qs-signal-engine starting...
 Config: /.../config.yaml
 Watching for signals in: /.../signals
+Trident UI: http://localhost:3000
 Connecting to cTrader (symbol: US500)...
 cTrader price feed connected.
 ```
 
-The engine is now live. If your signal is already in the folder with
-today's date, drop it in (or touch it) to load it now:
+The engine is now live.
 
-```bash
-touch signals/qs_signal_2026-04-21_0900.yaml
-```
+### 2. Open the dashboard
 
-(That "touches" the file — updates its timestamp without changing content —
-which makes the engine re-read it.)
+Open **http://localhost:3000** in your browser. You'll see two panes:
+
+- **Left — Signal form.** A field for every line of the YAML. Click
+  **Pre-fill from latest** to load yesterday's numbers and then type
+  over only what's changed today. Click **Submit signal** when done. A
+  brief "Submitted … waiting for engine" appears, then it clears to
+  "Loaded …" when the engine picks the file up — typically within a
+  second.
+- **Right — Live log.** Mirrors what would appear in the terminal:
+  `[SIGNAL]`, `[SETUP]`, `[ENTRY 1]`, `[BREAKEVEN]`, `[CLOSED WIN]`,
+  `[LOCK]`. Action rows are highlighted in orange with a `>>> ACTION:`
+  line — those are the ones you act on at the broker.
+
+The band above the two panes shows engine status at a glance:
+"Connected / Reconnecting / Disconnected", current state
+(`idle / watching / in_trade / closed / locked`), and the currently
+loaded signal.
+
+**During the day — recalibrating.** Around midday, click **Update during
+session** on the form. This bumps `update_seq` and puts today's time on
+the submission so the engine recognises it as a recalibration, not a new
+day's signal. Update VWAP and any level fields that changed, then
+submit.
 
 ### 3. Watch and act
 
-Keep the Terminal window visible. Notifications are timestamped and
-self-explanatory. Place and manage orders at the relevant broker manually
-based on what you see.
+Keep the dashboard visible. Place and manage orders at the broker
+manually based on what you see. Every row with a `>>> ACTION:` line is
+something for you to do now.
+
+If you close the browser mid-trade, nothing happens to the engine —
+re-open the tab and the state band repopulates from the bootstrap
+snapshot. The terminal still has the full log too.
+
+### Manual YAML fallback
+
+If the dashboard is unavailable (e.g. you're on a different machine via
+SSH), you can still create today's signal by hand:
+
+```bash
+cp signals/qs_signal_<yesterday>_<time>.yaml signals/qs_signal_$(date +%Y-%m-%d)_0900.yaml
+```
+
+Edit the copy in any editor and update `meta.date`, `meta.timestamp`,
+`volatility.*`, `vwap.*`, `ranges.*`, `levels.*`, `bias.*`, and
+`invalidation.*`. The engine picks up the file on save.
 
 ### 4. Stop the engine
 
@@ -342,6 +355,6 @@ per broker account at a time.**
    of what you were doing.
 3. Start fresh: `npx tsx src/index.ts`.
 
-The engine is designed to fail safe — if it can't do something
+]()The engine is designed to fail safe — if it can't do something
 confidently, it does nothing rather than guess. The worst case in Phase 1
 is a missed notification, not a rogue trade.

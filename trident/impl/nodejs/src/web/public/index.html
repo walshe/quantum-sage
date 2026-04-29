@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Trident Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/png" href="/assets/trident.png">
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="status-band">
+    <div class="brand">
+      <img src="/assets/trident.png" alt="Trident" class="brand-logo">
+      <span class="brand-name">Trident</span>
+    </div>
+    <div class="chip" id="engine-chip" data-state="disconnected">
+      <span class="chip-label">Engine <i class="info" data-tip="WebSocket connection between this browser and the engine process. Connected = engine is running and live events will stream in. Reconnecting = connection dropped; the tab retries with backoff automatically. Disconnected = engine process is down or unreachable."></i></span>
+      <span class="chip-value">Disconnected</span>
+    </div>
+    <div class="chip" id="state-chip" data-state="idle">
+      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine. idle = no signal loaded. watching = signal loaded, waiting for Entry 1 to trigger. in_trade = at least one entry has filled. closed = trade finished for today. locked = daily lock active (one winning trade done) or DVS gate blocking trades."></i></span>
+      <span class="chip-value">idle</span>
+    </div>
+    <div class="chip chip--price" id="price-chip" data-state="idle">
+      <span class="chip-label">Price <i class="info" data-tip="Latest ES/US500 futures price the engine has seen from the broker feed. Updates at most twice a second to keep the tab responsive. Dashes mean no ticks yet (engine just started or feed disconnected)."></i></span>
+      <span class="chip-value" id="price-chip-value">—</span>
+    </div>
+    <div class="signal-card" id="signal-card">
+      <span class="chip-label">Current signal <i class="info" data-tip="Filename and key fields of the signal YAML the engine is currently operating on. Shows 'None loaded' until one arrives. Updates when a new signal is picked up from the signals/ folder or submitted through this form."></i></span>
+      <span class="signal-card-body" id="signal-card-body">None loaded</span>
+    </div>
+    <details class="history">
+      <summary>Today <span id="history-count">(0)</span> <i class="info info--end" data-tip="Every signal file loaded or rejected since this browser tab connected. Count rises with each SIGNAL or INVALID event. Click to expand the list and see timestamps + filenames. Resets when you reload the page — does not persist across tabs."></i></summary>
+      <ol id="history-list"></ol>
+    </details>
+    <button type="button" id="btn-lang" class="lang-toggle" title="Switch language / Cambia lingua">IT</button>
+  </header>
+
+  <main class="grid">
+    <section class="form-pane">
+      <div class="form-actions-top">
+        <button type="button" id="btn-new">New signal <i class="info" data-tip="Clear the form to start a brand-new morning signal from scratch. Resets every field, sets update_seq back to 1, and fills today's date. Use this once per trading day when FB sends the first signal of the session."></i></button>
+        <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1 so this submission is treated as an intra-day recalibration of an already-loaded signal (e.g. afternoon level refresh). Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
+        <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent signal YAML from the signals/ folder into the form. Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running. Does not submit — you still need to click Submit signal to push changes."></i></button>
+        <button type="button" id="btn-import-screenshots">Import from screenshots <i class="info info--end" data-tip="Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart). Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit. You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability. (AI extraction is not wired up yet — for now the upload just stores the images.)"></i></button>
+        <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
+      </div>
+      <p class="form-key"><span class="req-mark">*</span> indicates a required field</p>
+      <form id="signal-form" novalidate>
+        <fieldset>
+          <legend>Meta</legend>
+          <label>Date <i class="info" data-tip="Trading date for this signal (YYYY-MM-DD). The engine rejects signals whose date isn't today."></i> <input name="meta.date" type="date" required></label>
+          <label>Time <i class="info" data-tip="Signal creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects signals older than ~6 hours."></i> <input name="meta.timestamp" type="time" required></label>
+          <label>update_seq <i class="info" data-tip="1 for the morning signal. Bump to 2 (or higher) for an afternoon recalibration the same day. The engine uses this to distinguish a new signal from a level update."></i> <input name="meta.update_seq" type="number" min="1" step="1" value="1" required></label>
+          <label>Contract <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the signal was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6 (optional)"></label>
+          <label>Futures last [ES futures] <i class="info" data-tip="Most recent ES futures price at signal creation time."></i> <input name="meta.futures_last" type="number" step="0.01" required></label>
+          <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at signal creation time. Used to cross-check basis."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
+          <label>Basis [points] <i class="info" data-tip="ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points. Validation: must match within ±5 of the computed difference."></i> <input name="meta.basis" type="number" step="0.01" required></label>
+          <label>Execution instrument <i class="info" data-tip="Which instrument the trade will actually be executed on. US500.cash = Pepperstone CFD."></i>
+            <select name="meta.execution_instrument" required>
+              <option value="US500.cash" selected>US500.cash</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Volatility</legend>
+          <label>DVS <i class="info" data-tip="Directional Volatility Score (0–200). Above 75 → DVS GATE blocks all trades for the day. 50–75 = normal. Below 50 = ideal mean-reversion conditions."></i> <input name="volatility.dvs" type="number" step="0.01" required></label>
+          <label>DVS prior <i class="info" data-tip="Yesterday's DVS. If today is lower than prior, volatility is compressing — conditions improving for mean-reversion. If higher, deteriorating."></i> <input name="volatility.dvs_prior" type="number" step="0.01" required></label>
+          <label>Skew <i class="info" data-tip="CBOE SKEW index reading. Measures tail-risk premium — higher means more downside protection being bought. Currently informational only."></i> <input name="volatility.skew" type="number" step="0.01" required></label>
+          <label>Regime <i class="info" data-tip="Volatility regime label. compressed = very low DVS, normal = 50–75, elevated / extreme = above 75. Should match the DVS value."></i>
+            <select name="volatility.regime" required>
+              <option value="compressed">compressed</option>
+              <option value="normal" selected>normal</option>
+              <option value="elevated">elevated</option>
+              <option value="extreme">extreme</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>VWAP</legend>
+          <label>Value [ES futures — TBC with FB] <i class="info" data-tip="Volume-Weighted Average Price. The primary take-profit target for every Trident trade — every position is closed when VWAP is reached. Units pending FB confirmation; current best guess is ES futures."></i> <input name="vwap.value" type="number" step="0.01" required></label>
+          <label>Updated at <i class="info" data-tip="Time when VWAP was last refreshed. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. A warning fires if older than ~90 minutes."></i> <input name="vwap.updated_at" type="time" required></label>
+          <label>Source <i class="info" data-tip="Where the VWAP number came from. manual = analyst typed it in from Bookmap / Excel."></i>
+            <select name="vwap.source" required>
+              <option value="manual" selected>manual</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Ranges [ES futures]</legend>
+          <label>Range 1 up <i class="info" data-tip="Outer upper boundary from the IV smile. Historical 75% re-entry rate — price comes back inside Range 1 three out of four times. Read off the LIVELLI table / IV Smile right panel — already in ES futures terms."></i> <input name="ranges.range_1_up" type="number" step="0.01" required></label>
+          <label>Range 2 up <i class="info" data-tip="Inner upper boundary. Price spends most of its time between Range 2 up and Range 2 down. ES futures terms."></i> <input name="ranges.range_2_up" type="number" step="0.01" required></label>
+          <label>Range 2 down <i class="info" data-tip="Inner lower boundary. Must satisfy: range_1_down < range_2_down < range_2_up < range_1_up. ES futures terms."></i> <input name="ranges.range_2_down" type="number" step="0.01" required></label>
+          <label>Range 1 down <i class="info" data-tip="Outer lower boundary from the IV smile. 75% re-entry rate. ES futures terms."></i> <input name="ranges.range_1_down" type="number" step="0.01" required></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Levels [SPX cash]</legend>
+          <label class="wide">Level time <i class="info" data-tip="Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal."></i> <input name="levels.level_time" type="time"></label>
+          <label>MAX SELL 1 <i class="info" data-tip="Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
+          <label>MAX SELL 2 <i class="info" data-tip="Inner resistance. Triggers Short Entry 1 — this is the first touch that opens a short. Entry 2 is the midpoint of MAX SELL 1 and MAX SELL 2. SPX cash terms."></i> <input name="levels.max_sell_2" type="number" step="0.01"></label>
+          <label>MAX BUY 1 <i class="info" data-tip="Outer support. Triggers Long Entry 3 (last / deepest scale-in on the long side). SPX cash terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
+          <label>MAX BUY 2 <i class="info" data-tip="Inner support. Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of MAX BUY 2 and MAX BUY 1. SPX cash terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
+          <label>Support <i class="info" data-tip="Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.supporto" type="number" step="0.01"></label>
+          <label>Resistance <i class="info" data-tip="Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.resistenza" type="number" step="0.01"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Bias</legend>
+          <label>Direction <i class="info" data-tip="Analyst's directional overlay. long = only take long setups, short = only shorts, neutral = either side permitted. Leave blank if no preference."></i>
+            <select name="bias.direction">
+              <option value="">(none)</option>
+              <option value="long">long</option>
+              <option value="short">short</option>
+              <option value="neutral" selected>neutral</option>
+            </select>
+          </label>
+          <label>Confidence <i class="info" data-tip="Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour."></i>
+            <select name="bias.confidence">
+              <option value="">(none)</option>
+              <option value="low">low</option>
+              <option value="medium" selected>medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label class="wide">Notes <i class="info" data-tip="Free-text analyst reasoning. Stored with the signal but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Invalidation [ES futures]</legend>
+          <label>Void above <i class="info" data-tip="Price above which the signal is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
+          <label>Void below <i class="info" data-tip="Price below which the signal is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
+          <label>Expiry <i class="info" data-tip="Time-of-day after which the signal no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <input name="invalidation.expiry" type="time" required></label>
+          <label class="wide">Notes <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" id="btn-submit">Submit signal</button>
+          <span id="submit-status"></span>
+        </div>
+        <ul id="form-errors" class="form-errors"></ul>
+      </form>
+    </section>
+
+    <section class="log-pane">
+      <div class="log-head">
+        <div>
+          <h2>Live log</h2>
+          <p class="log-sub">Events stream in as the engine fires them — signal load, setup, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.</p>
+        </div>
+        <button type="button" id="btn-clear-log">Clear</button>
+      </div>
+      <ol id="log"></ol>
+    </section>
+  </main>
+
+  <script src="/assets/i18n.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

@@ -10,7 +10,12 @@ export interface SignalMeta {
   /** 24-hour time: HH:MM. e.g. "10:06" or "15:36" */
   timestamp: string;
   update_seq: number;
-  contract: string;
+  /**
+   * Optional, audit-trail only. Front-month ES contract code (e.g. "ESM6").
+   * Not consumed by any validator or strategy rule — kept so a YAML on disk
+   * is self-describing about which contract the analyst was watching.
+   */
+  contract?: string;
   futures_last: number;
   cash_last: number;
   basis: number;

@@ -2,7 +2,7 @@
 
 Operational questions about the qs-signal-engine and what it does (and doesn't do) in edge cases.
 
-Reminder: this app is a **signal/notification engine**, not an order-execution engine. It watches YAML signal files, consumes a cTrader price feed, and emits notifications (console today, Telegram later) describing what a trade would do. The analyst places orders with their broker manually.
+Reminder: this app is a **signal/notification engine**, not an order-execution engine. It watches YAML signal files, consumes a cTrader price feed, and emits notifications (console + browser dashboard today, Telegram later) describing what a trade would do. The analyst places orders with their broker manually.
 
 > **Operating proviso.** The answers below assume only one engine process runs per Pepperstone / cTrader account at a time. That single-process guarantee is a deliberate constraint — see README "Operating assumptions" and Q2 below.
 
@@ -68,6 +68,16 @@ Run a single engine and fan notifications out via `MultiNotifier` (console + Tel
 
 ### Not implemented today
 A single-instance lockfile (write a PID file at startup, check for a live process, exit cleanly if one is already running) would turn the proviso into an enforced guarantee. Left out for now to keep the POC small.
+
+---
+
+## 3. What happens to the engine if I close the browser during a trade?
+
+Nothing. The dashboard is a client; the engine is the server. The engine's state machine, `fs.watch`, cTrader feed, and snapshot persistence are all running in the same Node process, untouched by browser lifecycle.
+
+Re-open `http://localhost:3000` at any time — the new tab connects, receives a bootstrap message, and the status band re-populates (current state, loaded signal, position summary). Events that happened while you were away are already visible in the terminal log; they won't back-fill in the log pane (the dashboard shows events from connect time onwards).
+
+If you need to survey what happened while the browser was closed, the terminal has the full log and `logs/engine-state.json` has the current snapshot.
 
 ---
 

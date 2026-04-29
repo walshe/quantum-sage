@@ -924,6 +924,119 @@ no longer need action:
   put levels into an Excel file. Engineer to design
   the bridge. (Section 11.4)
 
+### Signal Units -- Cash vs Futures
+
+**Background:** the numbers the analyst (FB)
+provides to Trident -- whether typed into
+Trident's GUI, pasted into a YAML file, or
+entered via Excel -- come from two different
+charts, which use two different price units. Some
+fields are in **ES futures** terms, and some are
+in **SPX cash** (also called `US500.cash`). The
+gap between the two is the **basis**, which is
+~40-75 points and changes every day.
+
+Trident executes against ES futures (or a
+CFD/index tracking them), so every value it
+compares against the live price must be in
+futures terms. Cash-terms values must be
+converted.
+
+(The specific entry mechanism -- GUI, YAML file,
+Excel bridge -- doesn't change the units
+question. Whichever input path FB uses, the
+numbers still come from the same two charts and
+carry the same units.)
+
+**Data flow (as FB described on 2026-04-23):**
+
+The signal service publishes a **levels table**
+in **ES futures terms** (source of truth). FB
+prefers to analyse in SPX cash, so he takes the
+futures values, subtracts basis, and plots the
+cash-converted levels on an SPX intraday chart.
+That SPX chart is where he reads back the numbers
+he sends to Trident.
+
+> FB: "Since the instrument I analyze is the SPX
+> cash index, I convert the futures values from
+> the levels table using the daily spread between
+> SPX and futures, and then I plot those
+> converted levels on this chart. So, the levels
+> you see before is SPX-based levels. However, if
+> you switch to a futures chart, you will see
+> that price touched exactly the levels from the
+> table I sent."
+
+Implication: the cash values he's been sending
+are derived from an upstream futures-terms
+source. If Trident ingests directly from the
+levels table (or FB reads back from the futures
+chart instead of the SPX chart), no basis math is
+needed in Trident at all.
+
+**Confirmed so far:**
+
+| Field(s) | Upstream source | What FB currently sends | How confirmed |
+|----------|-----------------|-------------------------|---------------|
+| `ranges.range_1_*`, `ranges.range_2_*` | LIVELLI table (ES futures) | ES futures | IV Smile / LIVELLI table shows "ESM6" in the header |
+| `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | Levels table (ES futures) | SPX cash (FB converts upstream values to plot on his SPX chart, then reads back) | FB chat 2026-04-23: "this is SPX cash, us500.cash" + data-flow explanation |
+| `vwap.value` | TBD | TBD | See Q1 below |
+
+**TODO FB:**
+
+- **Q1. VWAP number.** The VWAP number you give
+  to Trident (via the GUI, YAML, or Excel --
+  whichever we end up using) -- is it the **ES
+  futures price** (like 7136), or the **SPX cash
+  price** (like 7080)? One word answer is fine.
+
+- **Q2. Sending levels in futures terms
+  directly.** Since the levels table you use is
+  already in ES futures, could you just enter
+  those original futures values (into the GUI,
+  YAML, or Excel), instead of the SPX-converted
+  ones? That saves Trident from doing basis math
+  and avoids rounding drift. Does that work for
+  your workflow, or do you strongly prefer
+  reading back from your SPX chart?
+
+- **Q3. Missing basis.** Sometimes the IV Smile
+  chart shows `SPX Index - Last = 0.00` (empty).
+  When this happens, where do you get the basis
+  number from? Do you wait until the SPX feed
+  returns, or use yesterday's basis, or another
+  method? (Only matters if we keep cash-terms
+  levels; if Q2 lands on "futures", this question
+  becomes moot for levels -- but basis is still
+  useful as a sanity check.)
+
+**Plan (EW -- depends on FB's answer to Q2):**
+
+*Preferred (if FB agrees to Q2):* accept levels
+in futures terms directly from the source table.
+No conversion in Trident, no basis math in the
+signal path, no rounding drift. `meta.basis`
+stays in the schema as a recorded sanity-check
+value only.
+
+*Fallback (if FB prefers reading back from his
+SPX chart):* convert cash -> futures inside the
+signal loader:
+- `futures_value = cash_value + basis`
+- `ranges.*` pass through unchanged (already
+  futures).
+- Validation runs **after** conversion so every
+  downstream comparison is futures-to-futures.
+- The persisted record (YAML on disk, and the
+  corresponding form inputs in the dashboard)
+  keeps the original numbers FB entered (cash
+  stays cash as captured) -- faithful to what he
+  read, and easy to re-check.
+- If we go this way, the dashboard form's level
+  inputs should be labelled "(SPX cash)" next to
+  the field so it's unambiguous at entry time.
+
 ### Open TODOs
 
 These items are still unresolved:

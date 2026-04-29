@@ -13,8 +13,10 @@
     "auth:ctrader": "tsx scripts/ctrader-auth.ts"
   },
   "dependencies": {
+    "@types/express": "^5.0.6",
     "chokidar": "^3.6.0",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "js-yaml": "^4.1.0",
     "winston": "^3.19.0",
     "ws": "^8.20.0"

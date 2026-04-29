@@ -19,7 +19,19 @@
       "Bash(curl -s \"https://api.github.com/repos/spotware/openapi-proto-messages/branches\")",
       "Bash(curl *)",
       "Bash(find src *)",
-      "Bash(wc *)"
+      "Bash(wc *)",
+      "Bash(rm -f logs/engine-state.json /tmp/trident-run.log)",
+      "Bash(LOG_LEVEL=debug npx tsx src/index.ts)",
+      "Bash(awk *)",
+      "Bash(xargs -I{} kill {})",
+      "Bash(kill 16235)",
+      "Bash(kill -9 16235)",
+      "Bash(npx vitest *)",
+      "Bash(TRIDENT_WEB_PORT=3999 timeout 3 npx tsx src/index.ts)",
+      "Bash(cp -L /Users/Emmett/dev/quantum-sage/trident/docs/research/telegram-cloud-photo-size-4-6003682419850021920-y.jpg /tmp/tg1.jpg)",
+      "Bash(cp -L /Users/Emmett/dev/quantum-sage/trident/docs/research/telegram-cloud-photo-size-4-6003682419850021921-y.jpg /tmp/tg2.jpg)",
+      "Read(//tmp/**)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
