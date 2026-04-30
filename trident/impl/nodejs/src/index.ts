@@ -186,14 +186,34 @@ scanSignalDirOnce(signalDir, async (signal, filePath) => {
   await engine.loadSignal(signal, filePath);
 });
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
-  stopWatching();
-  await webServer.close();
+// Graceful shutdown — also handles SIGTERM (e.g. when the parent kills us).
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) {
+    // Second Ctrl-C in a row: bail immediately, the orderly path is taking too long.
+    console.log(`\nReceived second ${signal} — forcing exit.`);
+    process.exit(130);
+  }
+  shuttingDown = true;
+  console.log(`\nShutting down (${signal})...`);
+
+  // Hard fallback: if any close() handler hangs, kill the process anyway
+  // after 5 seconds so the terminal returns. unref() so this timer doesn't
+  // keep the event loop alive on its own.
+  const force = setTimeout(() => {
+    console.error('Shutdown timed out after 5s — forcing exit.');
+    process.exit(1);
+  }, 5000);
+  force.unref();
+
+  try { stopWatching(); } catch { /* ignore */ }
+  try { await webServer.close(); } catch { /* ignore */ }
   try { await liveFeed?.disconnect(); } catch { /* ignore */ }
   process.exit(0);
-});
+}
+
+process.on('SIGINT',  () => { shutdown('SIGINT').catch(() => process.exit(1)); });
+process.on('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1)); });
 
 // Helper
 function argValue(args: string[], flag: string): string | undefined {

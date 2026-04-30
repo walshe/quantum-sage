@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from 'express';
 import { createServer, type Server } from 'http';
 import { WebSocketServer } from 'ws';
-import { readdirSync, renameSync, statSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readdirSync, readFileSync, renameSync, statSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, join } from 'path';
 import { dump } from 'js-yaml';
 
@@ -10,6 +10,7 @@ import type { SignalFile } from '../signal/types.js';
 import { validateSignal } from '../signal/validator.js';
 import { loadSignalFile } from '../signal/loader.js';
 import { WebSocketNotifier, type Bootstrap } from '../notifier/WebSocketNotifier.js';
+import { buildVisionProvider, SignalExtractor, type ImageInput } from '../ai/index.js';
 import { getLogger } from '../logger.js';
 
 const log = getLogger('WebServer');
@@ -84,6 +85,59 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     }
   });
 
+  // ---- AI extraction (screenshots → partial SignalFile + notes/warnings) ----
+  // Probe the provider at startup so the operator gets an immediate log line
+  // ("AI extraction enabled / disabled") rather than discovering a missing
+  // key only when an analyst clicks Import mid-session. Failure to configure
+  // is *never* fatal — Trident still loads YAML signals via the manual flow.
+  const visionProvider = buildVisionProvider();
+  const extractor: SignalExtractor | null = visionProvider
+    ? new SignalExtractor(visionProvider)
+    : null;
+  if (extractor) {
+    log.info('AI extraction enabled', {
+      provider: visionProvider!.name,
+      model: visionProvider!.model,
+    });
+  }
+  function getExtractor(): SignalExtractor | null {
+    return extractor;
+  }
+
+  app.post('/signals/extract', express.json({ limit: '128kb' }), async (req, res) => {
+    const ex = getExtractor();
+    if (!ex) {
+      return res.status(503).json({
+        error: 'AI extraction is not configured on this server (no provider/API key).',
+      });
+    }
+    const filenames = Array.isArray((req.body as { filenames?: unknown }).filenames)
+      ? ((req.body as { filenames: unknown[] }).filenames as unknown[]).filter(
+          (s): s is string => typeof s === 'string'
+        )
+      : [];
+    if (filenames.length === 0) {
+      return res.status(400).json({ error: 'Body must include a non-empty `filenames` array.' });
+    }
+    if (filenames.length > 3) {
+      return res.status(400).json({ error: 'Up to 3 screenshots per extraction.' });
+    }
+    let images: ImageInput[];
+    try {
+      images = filenames.map(name => loadScreenshot(screenshotsDir, name));
+    } catch (err) {
+      log.warn('Failed to read screenshot for extraction', { error: (err as Error).message });
+      return res.status(404).json({ error: (err as Error).message });
+    }
+    try {
+      const result = await ex.extract(images, { callerKey: req.ip });
+      res.json(result);
+    } catch (err) {
+      log.error('Extraction failed', { error: (err as Error).message });
+      res.status(502).json({ error: `Extraction failed: ${(err as Error).message}` });
+    }
+  });
+
   app.post('/signals', (req, res) => {
     const body = req.body as SignalFile;
     if (!body || typeof body !== 'object') {
@@ -130,7 +184,18 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     port: actualPort,
     close: () =>
       new Promise<void>(resolveClose => {
+        // Forcibly drop any connected browsers — `wss.close()` only stops
+        // accepting new connections; without terminating existing clients
+        // it'll wait for them to leave on their own (which never happens
+        // when a tab stays open) and the whole process hangs on shutdown.
+        for (const client of wss.clients) {
+          try { client.terminate(); } catch { /* best-effort */ }
+        }
         wss.close(() => {
+          // Same problem at the HTTP layer: `server.close()` won't return
+          // while keep-alive sockets are still open. closeAllConnections
+          // (Node 18.2+) hard-cuts them.
+          (server as Server & { closeAllConnections?: () => void }).closeAllConnections?.();
           server.close(() => resolveClose());
         });
       }),
@@ -191,6 +256,40 @@ function decodeFilenameHeader(raw: string | undefined): string {
 
 function sanitizeForFilename(name: string): string {
   return name.replace(/\.[^./\\]+$/, '').replace(/[^a-zA-Z0-9._-]+/g, '_');
+}
+
+/**
+ * Read a previously-uploaded screenshot off disk and wrap it as an ImageInput
+ * for the AI provider. Throws if the file isn't where /signals/screenshots
+ * said it would be (mismatched filename, deleted, etc).
+ */
+function loadScreenshot(screenshotsDir: string, filename: string): ImageInput {
+  // Defensive: don't allow path traversal — only basenames live in screenshotsDir.
+  const safe = filename.replace(/[/\\]/g, '');
+  const path = resolve(screenshotsDir, safe);
+  if (!path.startsWith(resolve(screenshotsDir) + '/') && path !== resolve(screenshotsDir, safe)) {
+    throw new Error(`Refusing to read outside screenshots dir: ${filename}`);
+  }
+  if (!existsSync(path)) throw new Error(`Screenshot not found: ${filename}`);
+  const bytes = readFileSync(path);
+  return {
+    bytes,
+    mimeType: pickMimeType(safe),
+    filename: safe,
+  };
+}
+
+function pickMimeType(filename: string): string {
+  const ext = (/\.([a-zA-Z0-9]+)$/.exec(filename)?.[1] ?? '').toLowerCase();
+  const map: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    heic: 'image/heic',
+  };
+  return map[ext] ?? 'application/octet-stream';
 }
 
 function pickExtension(originalName: string, contentType: string | undefined): string {

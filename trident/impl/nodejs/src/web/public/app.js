@@ -38,6 +38,10 @@ const I18N_TEXT_SELECTOR = [
   'label', 'legend', 'option', 'button', 'h2', 'summary',
   '.chip-label', '.chip-value', '.brand-name', '.log-sub',
   '.confirm-sub', '.optional',
+  // Help dialog body — scope to that subtree so we don't translate every
+  // paragraph in the whole UI by accident.
+  '#help-dialog-body h3', '#help-dialog-body dt', '#help-dialog-body dd',
+  '#help-dialog-body p', '#help-dialog-body li',
 ].join(',');
 
 function applyLang(lang) {
@@ -244,6 +248,10 @@ function handleBootstrap(b) {
     detail.push(
       `Signal: ${filename} (seq ${b.currentSignal.updateSeq}, DVS ${b.currentSignal.dvs}, VWAP ${b.currentSignal.vwap})`
     );
+    // Seed history so Today shows the already-loaded signal even if the tab
+    // connected after the engine picked it up.
+    state.history.unshift({ ts: ts, tag: 'SIGNAL', text: b.currentSignal.filePath });
+    renderHistory();
   }
   if (b.position) {
     detail.push(
@@ -353,7 +361,12 @@ async function prefillFromLatest() {
 
 // Walk the signal object and set form fields whose name matches the
 // dotted path (e.g. meta.dvs → input[name="meta.dvs"]).
-function fillForm(signal) {
+//
+// `resetDateTime` (default true) overrides meta.date/timestamp/update_seq to
+// "now / seq 1" — appropriate when pre-filling from yesterday's or an old
+// signal as a starting point. Pass `false` for AI-extracted signals where
+// the model has already read the real signal creation time off the chart.
+function fillForm(signal, { resetDateTime = true } = {}) {
   const form = $('#signal-form');
   const setField = (path, value) => {
     const el = form.querySelector(`[name="${path}"]`);
@@ -369,11 +382,12 @@ function fillForm(signal) {
     }
   };
   walk(signal, '');
-  // Today + now for the new submission.
-  const now = new Date();
-  setField('meta.date', now.toISOString().slice(0, 10));
-  setField('meta.timestamp', now.toTimeString().slice(0, 5));
-  setField('meta.update_seq', 1);
+  if (resetDateTime) {
+    const now = new Date();
+    setField('meta.date', now.toISOString().slice(0, 10));
+    setField('meta.timestamp', now.toTimeString().slice(0, 5));
+    setField('meta.update_seq', 1);
+  }
 }
 
 function resetForNewSignal() {
@@ -399,15 +413,37 @@ function openScreenshotPicker() {
   $('#screenshot-input').click();
 }
 
+const MAX_SCREENSHOTS = 3;
+
 async function uploadScreenshots(evt) {
   const input = evt.target;
   const files = Array.from(input.files ?? []);
   if (files.length === 0) return;
+  if (files.length > MAX_SCREENSHOTS) {
+    setSubmitStatus(
+      tx('Too many screenshots — pick up to 3 (IV Smile, intraday chart, optional summary).'),
+      'err',
+    );
+    input.value = '';
+    return;
+  }
 
-  setSubmitStatus(`Uploading ${files.length} screenshot${files.length === 1 ? '' : 's'}…`, '');
+  clearAiBanner();
+  openFormModal();
+  showAiBusy(
+    tx('Uploading screenshots…'),
+    tx('Sending {n} image(s) to the server.').replace('{n}', String(files.length)),
+  );
+
   const results = [];
   try {
+    let idx = 0;
     for (const f of files) {
+      idx++;
+      showAiBusy(
+        tx('Uploading screenshots…'),
+        tx('Image {i} of {n}: {name}').replace('{i}', String(idx)).replace('{n}', String(files.length)).replace('{name}', f.name),
+      );
       const res = await fetch('/signals/screenshots', {
         method: 'POST',
         headers: {
@@ -419,17 +455,130 @@ async function uploadScreenshots(evt) {
       if (!res.ok) throw new Error(`${f.name}: ${res.status}`);
       results.push(await res.json());
     }
-    setSubmitStatus(
-      `Uploaded ${results.length} screenshot${results.length === 1 ? '' : 's'}. ` +
-      `AI extraction coming soon — populate the form manually for now.`,
-      'ok',
-    );
-    openFormModal();
   } catch (err) {
+    hideAiBusy();
     setSubmitStatus(`Upload failed: ${err.message}`, 'err');
-  } finally {
-    input.value = ''; // allow re-uploading the same file
+    input.value = '';
+    return;
   }
+
+  showAiBusy(
+    tx('AI is reading the screenshots…'),
+    tx('Extracting levels, ranges, DVS, and basis. This usually takes 5–20 seconds.'),
+  );
+
+  let extracted;
+  try {
+    const res = await fetch('/signals/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filenames: results.map(r => r.filename) }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 503) {
+      hideAiBusy();
+      renderAiBanner({
+        kind: 'info',
+        title: tx('AI extraction unavailable'),
+        body: tx('Screenshots saved on the server. AI provider is not configured — fill the form manually.'),
+      });
+      setSubmitStatus(tx('Screenshots uploaded. AI extraction unavailable.'), '');
+      input.value = '';
+      return;
+    }
+    if (!res.ok) throw new Error(body.error || `${res.status}`);
+    extracted = body;
+  } catch (err) {
+    hideAiBusy();
+    renderAiBanner({
+      kind: 'err',
+      title: tx('AI extraction failed'),
+      body: err.message,
+    });
+    setSubmitStatus(tx('AI extraction failed — fill the form manually.'), 'err');
+    input.value = '';
+    return;
+  }
+
+  hideAiBusy();
+  if (extracted?.signal) fillForm(extracted.signal, { resetDateTime: false });
+  renderAiBanner({
+    kind: 'ok',
+    title: tx('AI pre-fill complete — please review every field before submitting.'),
+    notes: extracted.notes ?? [],
+    warnings: extracted.warnings ?? [],
+  });
+  setSubmitStatus(tx('Form pre-filled from screenshots.'), 'ok');
+  input.value = '';
+}
+
+// ---------------------------------------------------------------------------
+// AI busy overlay — covers the form modal during upload + extraction so
+// users can't type into half-populated fields and double-clicks are absorbed.
+// ---------------------------------------------------------------------------
+function showAiBusy(text, sub) {
+  const dlg = $('#form-dialog');
+  if (!dlg) return;
+  dlg.classList.add('is-busy');
+  $('#ai-overlay-text').textContent = text ?? '';
+  $('#ai-overlay-sub').textContent = sub ?? '';
+}
+function hideAiBusy() {
+  const dlg = $('#form-dialog');
+  if (dlg) dlg.classList.remove('is-busy');
+}
+
+// ---------------------------------------------------------------------------
+// AI banner inside the form modal — green/red/blue strip with notes &
+// warnings from the extraction. Cleared whenever a fresh upload begins.
+// ---------------------------------------------------------------------------
+function clearAiBanner() {
+  const b = $('#ai-banner');
+  if (b) b.remove();
+}
+
+function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
+  clearAiBanner();
+  const form = $('#signal-form');
+  const banner = document.createElement('div');
+  banner.id = 'ai-banner';
+  banner.className = `ai-banner ai-banner--${kind}`;
+  const h = document.createElement('div');
+  h.className = 'ai-banner-head';
+  h.textContent = title;
+  banner.append(h);
+  if (body) {
+    const p = document.createElement('p');
+    p.className = 'ai-banner-body';
+    p.textContent = body;
+    banner.append(p);
+  }
+  if (warnings.length) {
+    const ul = document.createElement('ul');
+    ul.className = 'ai-banner-warnings';
+    for (const w of warnings) {
+      const li = document.createElement('li');
+      li.textContent = w;
+      ul.append(li);
+    }
+    banner.append(ul);
+  }
+  if (notes.length) {
+    const det = document.createElement('details');
+    det.className = 'ai-banner-notes';
+    const sum = document.createElement('summary');
+    sum.textContent = tx('Extraction details');
+    det.append(sum);
+    const ul = document.createElement('ul');
+    for (const n of notes) {
+      const li = document.createElement('li');
+      li.textContent = n;
+      ul.append(li);
+    }
+    det.append(ul);
+    banner.append(det);
+  }
+  form.prepend(banner);
 }
 
 function setSubmitStatus(text, kind) {
@@ -525,9 +674,77 @@ function collectForm() {
   return signal;
 }
 
+// Map a server validation message to the form field name(s) it relates to.
+// Returns dotted names matching the input `name` attributes (e.g. "meta.basis").
+// Empty array = no inline highlight, banner-only.
+function fieldsForError(msg) {
+  const fields = new Set();
+  // Any explicit "section.field" tokens in the message.
+  const dotted = msg.match(/\b[a-z_]+\.[a-z_0-9]+\b/g) || [];
+  for (const f of dotted) fields.add(f);
+  // Heuristics for messages that don't carry a dotted name.
+  if (/^basis \(/.test(msg) || /Basis math mismatch/.test(msg)) {
+    fields.add('meta.basis'); fields.add('meta.futures_last'); fields.add('meta.cash_last');
+  }
+  if (/Range ordering invalid/.test(msg)) {
+    fields.add('ranges.range_1_down'); fields.add('ranges.range_2_down');
+    fields.add('ranges.range_2_up');   fields.add('ranges.range_1_up');
+  }
+  if (/Buy level ordering invalid/.test(msg)) {
+    fields.add('levels.max_buy_1'); fields.add('levels.max_buy_2');
+  }
+  if (/Sell level ordering invalid/.test(msg)) {
+    fields.add('levels.max_sell_1'); fields.add('levels.max_sell_2');
+  }
+  if (/Required levels are missing/.test(msg)) {
+    fields.add('levels.max_buy_1');  fields.add('levels.max_buy_2');
+    fields.add('levels.max_sell_1'); fields.add('levels.max_sell_2');
+  }
+  if (/Invalidation boundaries must bracket/.test(msg)) {
+    fields.add('invalidation.void_below'); fields.add('invalidation.void_above');
+    fields.add('meta.futures_last');
+  }
+  if (/^dvs \(/.test(msg)) fields.add('volatility.dvs');
+  if (/Signal timestamp .* must be before expiry/.test(msg)) {
+    fields.add('meta.timestamp'); fields.add('invalidation.expiry');
+  }
+  if (/Signal is stale/.test(msg)) {
+    fields.add('meta.timestamp'); fields.add('meta.date');
+  }
+  return [...fields];
+}
+
+function clearFieldErrors() {
+  document.querySelectorAll('#signal-form label.has-error').forEach(lbl => {
+    lbl.classList.remove('has-error');
+    const m = lbl.querySelector('.field-error');
+    if (m) m.remove();
+  });
+}
+
+function markFieldError(name, msg) {
+  const input = document.querySelector(`#signal-form [name="${name}"]`);
+  if (!input) return;
+  const lbl = input.closest('label');
+  if (!lbl) return;
+  lbl.classList.add('has-error');
+  let m = lbl.querySelector('.field-error');
+  if (!m) {
+    m = document.createElement('span');
+    m.className = 'field-error';
+    lbl.append(m);
+  }
+  // Append message; multiple errors per field stack.
+  const line = document.createElement('span');
+  line.textContent = msg;
+  if (m.children.length > 0) m.append(document.createElement('br'));
+  m.append(line);
+}
+
 async function submitForm(evt) {
   evt.preventDefault();
   $('#form-errors').innerHTML = '';
+  clearFieldErrors();
   if (!evt.target.checkValidity()) {
     evt.target.reportValidity();
     return;
@@ -554,10 +771,19 @@ async function postSignal(signal) {
     if (!res.ok) {
       setSubmitStatus('Validation failed.', 'err');
       const ul = $('#form-errors');
+      let firstErrField = null;
       for (const err of body.errors ?? []) {
         const li = document.createElement('li');
         li.textContent = err;
         ul.append(li);
+        for (const name of fieldsForError(err)) {
+          markFieldError(name, err);
+          if (!firstErrField) firstErrField = name;
+        }
+      }
+      if (firstErrField) {
+        const input = document.querySelector(`#signal-form [name="${firstErrField}"]`);
+        input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
       return false;
     }
@@ -775,6 +1001,17 @@ function computeChecks(signal) {
       : { status: 'err', title: tx('Level ordering broken'),  detail: tx('Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1') });
   }
 
+  // 3b. Tradeable pair coverage — engine needs at least one full pair.
+  const hasBuyPair  = l.max_buy_1  != null && l.max_buy_2  != null;
+  const hasSellPair = l.max_sell_1 != null && l.max_sell_2 != null;
+  if (!hasBuyPair && !hasSellPair) {
+    out.push({ status: 'err', title: tx('No tradeable level pair — engine will not enter'),
+      detail: tx('Provide both MAX BUY 1+2 or both MAX SELL 1+2.') });
+  } else if (hasBuyPair !== hasSellPair) {
+    out.push({ status: 'warn', title: tx('Only one side has levels — engine will trade that side only'),
+      detail: hasBuyPair ? 'MAX BUY 1+2 only (no shorts will fire)' : 'MAX SELL 1+2 only (no longs will fire)' });
+  }
+
   // 4. DVS gate
   if (v.dvs != null) {
     if (v.dvs > 75) {
@@ -850,6 +1087,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Status dialog close (X + bottom Close button).
   $('#btn-status-close').addEventListener('click', () => $('#status-dialog').close());
   $('#btn-status-ok').addEventListener('click', () => $('#status-dialog').close());
+
+  // Help dialog open + close.
+  $('#btn-help').addEventListener('click', () => {
+    const dlg = $('#help-dialog');
+    if (!dlg.open) dlg.showModal();
+  });
+  $('#btn-help-close').addEventListener('click', () => $('#help-dialog').close());
+  $('#btn-help-ok').addEventListener('click', () => $('#help-dialog').close());
 
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);

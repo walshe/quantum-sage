@@ -69,6 +69,17 @@ export function validateSignal(
     );
   }
 
+  // Rule 5b: at least one tradeable level pair must be present, otherwise the
+  // engine has nothing to act on and will immediately emit NO SETUP.
+  const hasBuyPair  = max_buy_1  !== null && max_buy_2  !== null;
+  const hasSellPair = max_sell_1 !== null && max_sell_2 !== null;
+  if (!hasBuyPair && !hasSellPair) {
+    errors.push(
+      'Required levels are missing — provide both MAX BUY 1+2 or both MAX SELL 1+2 ' +
+        '(or both pairs); otherwise the engine has no entries to trade.'
+    );
+  }
+
   // Rule 6: price sanity (all non-null prices within 20% of futures_last)
   const pricesToCheck: [string, number | null][] = [
     ['ranges.range_1_up', range_1_up],

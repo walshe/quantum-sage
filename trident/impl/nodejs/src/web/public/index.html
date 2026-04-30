@@ -30,9 +30,10 @@
       <span class="signal-card-body" id="signal-card-body">None loaded</span>
     </div>
     <details class="history">
-      <summary>Today <span id="history-count">(0)</span> <i class="info info--end" data-tip="Every signal file loaded or rejected since this browser tab connected.&#10;&#10;Count rises with each SIGNAL or INVALID event.&#10;&#10;Click to expand the list and see timestamps + filenames.&#10;&#10;Resets when you reload the page — does not persist across tabs."></i></summary>
+      <summary>Today <span id="history-count">(0)</span> <i class="info info--end" data-tip="Every signal file loaded or rejected today.&#10;&#10;Count rises with each SIGNAL or INVALID event. The currently loaded signal is always shown even if it was loaded before this tab opened.&#10;&#10;Click to expand the list and see timestamps + filenames.&#10;&#10;Resets when you reload the page — does not persist across tabs."></i></summary>
       <ol id="history-list"></ol>
     </details>
+    <button type="button" id="btn-help" class="lang-toggle" title="Help">Help</button>
     <button type="button" id="btn-lang" class="lang-toggle" title="Switch language / Cambia lingua">IT</button>
   </header>
 
@@ -62,6 +63,14 @@
     <div class="dialog-head">
       <h2 id="form-dialog-title">Signal form</h2>
       <button type="button" class="dialog-close" id="btn-form-close" aria-label="Close">×</button>
+    </div>
+    <div class="ai-overlay" id="ai-overlay" aria-live="polite" aria-busy="true">
+      <div class="ai-overlay-stage">
+        <span class="ai-overlay-glyph">✨</span>
+        <span class="ai-overlay-ring"></span>
+      </div>
+      <div class="ai-overlay-text" id="ai-overlay-text">Working…</div>
+      <div class="ai-overlay-sub" id="ai-overlay-sub"></div>
     </div>
     <form id="signal-form" novalidate>
       <fieldset>
@@ -106,7 +115,7 @@
         </label>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="paired">
         <legend>Ranges [ES futures]</legend>
         <label>Range 1 up <i class="info" data-tip="Outer upper boundary from the IV smile. Historical 75% re-entry rate — price comes back inside Range 1 three out of four times. Read off the LIVELLI table / IV Smile right panel — already in ES futures terms."></i> <input name="ranges.range_1_up" type="number" step="0.01" required></label>
         <label>Range 1 down <i class="info" data-tip="Outer lower boundary from the IV smile. 75% re-entry rate. ES futures terms."></i> <input name="ranges.range_1_down" type="number" step="0.01" required></label>
@@ -114,7 +123,7 @@
         <label>Range 2 down <i class="info" data-tip="Inner lower boundary. Must satisfy: range_1_down < range_2_down < range_2_up < range_1_up. ES futures terms."></i> <input name="ranges.range_2_down" type="number" step="0.01" required></label>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="paired">
         <legend>Levels [SPX cash]</legend>
         <label class="wide">Level time <span class="optional">(optional)</span> <i class="info" data-tip="Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal."></i> <input name="levels.level_time" type="time"></label>
         <label>MAX SELL 1 <span class="optional">(optional)</span> <i class="info" data-tip="Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
@@ -171,6 +180,72 @@
     <div id="status-dialog-body"></div>
     <div class="confirm-actions">
       <button type="button" id="btn-status-ok">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="help-dialog" class="help-dialog">
+    <div class="dialog-head">
+      <h2>Trident dashboard — quick reference</h2>
+      <button type="button" class="dialog-close" id="btn-help-close" aria-label="Close">×</button>
+    </div>
+    <p class="confirm-sub">A short summary of the buttons, the log tags, and the things that go wrong most often. For the full guide, open <code>PHASE_1_ANALYST_GUIDE.md</code>.</p>
+    <div id="help-dialog-body" class="help-body">
+      <div class="help-col">
+        <section>
+          <h3>Top buttons</h3>
+          <dl>
+            <dt>Status</dt>
+            <dd>Read-only snapshot of the engine right now — connection, state, daily lock, currently loaded signal, any open position.</dd>
+            <dt>New signal</dt>
+            <dd>Open the form and start a fresh morning signal (resets every field, sets <code>update_seq</code> to 1).</dd>
+            <dt>Update during session</dt>
+            <dd>Open the form keeping the current values, with <code>update_seq</code> bumped — for an intra-day recalibration.</dd>
+            <dt>Pre-fill from latest</dt>
+            <dd>Load today's most recent signal YAML into the form so you can tweak only what's changed.</dd>
+            <dt>✨ Import from screenshots <span class="ai-badge">AI</span></dt>
+            <dd>Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form. <strong>Always review every value</strong> before submitting.</dd>
+          </dl>
+        </section>
+
+        <section>
+          <h3>If submission fails</h3>
+          <p class="help-sub">Fields outlined in red show exactly what's wrong. Most common causes:</p>
+          <dl>
+            <dt>Required levels are missing</dt>
+            <dd>Provide both MAX BUY 1+2 or both MAX SELL 1+2 (or both pairs).</dd>
+            <dt>Range / level ordering invalid</dt>
+            <dd>Check the inequalities printed in the error message.</dd>
+            <dt>Basis math mismatch</dt>
+            <dd><code>futures_last − cash_last</code> must be within ±5 of the basis you entered.</dd>
+            <dt>Invalidation boundaries</dt>
+            <dd>Void values must be in ES futures terms, not SPX cash terms.</dd>
+          </dl>
+        </section>
+
+        <p class="help-footer">Every field has an <span class="info-inline">i</span> icon — hover for a per-field explanation.</p>
+      </div>
+
+      <div class="help-col">
+        <section>
+          <h3>Log tags</h3>
+          <p class="help-sub">Anything with <code>&gt;&gt;&gt; ACTION:</code> needs you to do something at the broker. The rest is informational.</p>
+          <dl>
+            <dt>SIGNAL</dt><dd>YAML parsed and accepted.</dd>
+            <dt>SIGNAL INVALID</dt><dd>YAML failed validation. The error list says which rule broke.</dd>
+            <dt>SIGNAL WARNING</dt><dd>Loaded but with warnings (e.g. stale VWAP). Still trading.</dd>
+            <dt>DVS GATE</dt><dd>DVS &gt; 75 — no trades today. Engine stays idle.</dd>
+            <dt>SETUP</dt><dd>Trade plan ready. Engine is now watching for Entry 1.</dd>
+            <dt>NO SETUP</dt><dd>Bias + your levels don't give a valid trade.</dd>
+            <dt>ENTRY 1 / 2 / 3 <em>(action)</em></dt><dd>Open / scale into the position at the stated size and stop.</dd>
+            <dt>BREAKEVEN <em>(action)</em></dt><dd>Move your broker stop to the stated level; cancel any unfilled entry orders.</dd>
+            <dt>CLOSED <em>(action)</em></dt><dd>Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).</dd>
+            <dt>LOCK</dt><dd>One winning trade done — no more trades today.</dd>
+          </dl>
+        </section>
+      </div>
+    </div>
+    <div class="confirm-actions">
+      <button type="button" id="btn-help-ok">Close</button>
     </div>
   </dialog>
 

@@ -80,7 +80,7 @@ Entry 1 triggers.
 [15:41:00] [ENTRY 1]   SHORT @ 7160.10 (32.5%)
              Avg entry: 7160.10 | Stop: 7200.10 | Fills remaining: 2
              >>> ACTION: Open SHORT at broker (32.5% size). Set stop @ 7200.10.
-```[
+```
 
 Live price crossed Entry 1. The `>>> ACTION:` line tells you exactly what
 to do at the relevant broker. Any notification with a `>>> ACTION:` line is
@@ -108,7 +108,7 @@ you to do.
 | `[SIGNAL WARNING]` | — | Loaded but with warnings (e.g. stale VWAP). Still trading. |
 | `[DVS GATE]` | — | DVS > 75. **No trades today.** Engine stays idle. |
 | `[SETUP]` | — | Trade plan ready. Waiting for Entry 1. |
-| `[NO SETUP]` | — | Required levels missing — bias + your levels don't give a valid trade. |
+| `[NO SETUP]` | — | Bias + your levels don't give a valid trade (e.g. bias=long but no MAX BUY 1+2 pair). Submission validation usually catches this first; you'd only see it from a hand-edited YAML or a bias/levels mismatch. |
 | `[ENTRY 1]` | **Yes** | Open the position at the relevant broker at the stated size and stop. |
 | `[ENTRY 2/3]` | **Yes** | Scale in at the relevant broker and update your stop to the new avg-entry-based level. |
 | `[BREAKEVEN]` | **Yes** | Move your broker stop to the stated level; cancel any unfilled entry orders. |
@@ -173,7 +173,7 @@ normal.
 
 ### 5. Set up the cTrader price feed
 
-Ask Emmett for the five cTrader values — they go in a file called `.env` in
+Ask Emmett for the cTrader values — they go in a file called `.env` in
 this folder. He can send you a starter `.env` file directly; drop it into
 `trident/impl/nodejs/` and you're done.
 
@@ -184,7 +184,23 @@ npm run auth:ctrader
 ```
 
 Follow the prompts — it opens a browser, you log into cTrader, and the
-command writes the tokens into `.env` automatically.
+command writes the tokens into `.env` automatically. The engine refreshes
+the access token in the background as it expires and writes the new value
+back into `.env`, so you should rarely need to re-run this.
+
+### 5b. (Optional) AI screenshot extraction
+
+The dashboard has an **Import from screenshots** button that can read your
+IV Smile / LIVELLI / SPX charts and pre-fill the form. To enable it, add
+this line to `.env`:
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+Without a key, the Import button still uploads and stores the images on
+the server, but the form is not auto-filled and a banner says "AI
+extraction unavailable" — you fill the form manually.
 
 ### 6. Verify everything works
 
@@ -224,29 +240,46 @@ The engine is now live.
 
 ### 2. Open the dashboard
 
-Open **http://localhost:3000** in your browser. You'll see two panes:
+Open **http://localhost:3000** in your browser. The page has a **status
+band** at the top and a **Live log** below it. You open the signal form
+in a modal by clicking one of the top buttons:
 
-- **Left — Signal form.** A field for every line of the YAML. Click
-  **Pre-fill from latest** to load yesterday's numbers and then type
-  over only what's changed today. Click **Submit signal** when done. A
-  brief "Submitted … waiting for engine" appears, then it clears to
-  "Loaded …" when the engine picks the file up — typically within a
-  second.
-- **Right — Live log.** Mirrors what would appear in the terminal:
-  `[SIGNAL]`, `[SETUP]`, `[ENTRY 1]`, `[BREAKEVEN]`, `[CLOSED WIN]`,
-  `[LOCK]`. Action rows are highlighted in orange with a `>>> ACTION:`
-  line — those are the ones you act on at the broker.
+- **New signal** — clears the form and resets `update_seq` to 1 for the
+  morning signal.
+- **Update during session** — keeps the current values but bumps
+  `update_seq` for an intra-day recalibration.
+- **Pre-fill from latest** — loads today's most recent signal YAML into
+  the form so you can tweak only what's changed.
+- **Import from screenshots** *(AI)* — upload up to 3 chart screenshots
+  (IV Smile / LIVELLI table / SPX intraday). If `OPENAI_API_KEY` is set,
+  Trident extracts levels, ranges, DVS, VWAP, and basis from the images
+  and pre-fills the form. **Always review every value** before
+  submitting — extraction is best-effort, not authoritative.
+- **Status** — opens a read-only view of the engine right now (state,
+  connection, daily lock, currently loaded signal, any open position).
 
-The band above the two panes shows engine status at a glance:
-"Connected / Reconnecting / Disconnected", current state
-(`idle / watching / in_trade / closed / locked`), and the currently
-loaded signal.
+In the form modal, click **Submit signal** when done. A brief
+"Submitted … waiting for engine" appears, then it clears to "Loaded …"
+when the engine picks the file up — typically within a second.
+
+The **Live log** mirrors what would appear in the terminal: `[SIGNAL]`,
+`[SETUP]`, `[ENTRY 1]`, `[BREAKEVEN]`, `[CLOSED WIN]`, `[LOCK]`. Action
+rows are highlighted in orange with a `>>> ACTION:` line — those are the
+ones you act on at the broker.
+
+The status band shows, at a glance: "Connected / Reconnecting /
+Disconnected", current state (`idle / watching / in_trade / closed /
+locked`), latest price, and the currently loaded signal.
 
 **During the day — recalibrating.** Around midday, click **Update during
-session** on the form. This bumps `update_seq` and puts today's time on
-the submission so the engine recognises it as a recalibration, not a new
-day's signal. Update VWAP and any level fields that changed, then
-submit.
+session**. This bumps `update_seq` and puts today's time on the
+submission so the engine recognises it as a recalibration, not a new
+day's signal. Update VWAP and any level fields that changed, then submit.
+
+**Inline validation feedback.** If the server rejects a submission, the
+banner lists every error and the offending fields are outlined in red
+with the message printed under each input. The page scrolls to the first
+problem field for you.
 
 ### 3. Watch and act
 
@@ -295,16 +328,24 @@ it). Go back to Setup step 1.
 
 The engine printed what's wrong. Common issues:
 
+- **"Required levels are missing — provide both MAX BUY 1+2 or both
+  MAX SELL 1+2"** — at least one full pair is needed; otherwise the
+  engine has no entries to compute.
 - **"Sell level ordering invalid"** — remember `max_sell_2` (inner) must be
   *lower than* `max_sell_1` (outer).
 - **"Range ordering invalid"** —
   `range_1_down < range_2_down < range_2_up < range_1_up`.
 - **"Basis math mismatch"** — `futures_last - cash_last` must be within ±5
   of `basis`.
+- **"Invalidation boundaries must bracket futures_last"** —
+  `void_below < futures_last < void_above`. Common cause: a void value
+  is in SPX cash terms instead of ES futures terms.
 - **"too old to trade"** — the signal file's `date`/`timestamp` is more
   than 6 hours in the past. Update and save again.
 
-Fix the YAML and save; the engine will re-read automatically.
+If you submitted via the dashboard, the relevant input fields are also
+red-highlighted with the error text under them. Fix and resubmit. If you
+edited the YAML directly, the engine will re-read on save.
 
 ### "cTrader connection failed"
 
@@ -355,6 +396,6 @@ per broker account at a time.**
    of what you were doing.
 3. Start fresh: `npx tsx src/index.ts`.
 
-]()The engine is designed to fail safe — if it can't do something
+The engine is designed to fail safe — if it can't do something
 confidently, it does nothing rather than guess. The worst case in Phase 1
 is a missed notification, not a rogue trade.

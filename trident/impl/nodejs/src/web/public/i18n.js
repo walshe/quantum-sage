@@ -26,7 +26,7 @@ window.TRIDENT_I18N = {
     'New signal': 'Nuovo segnale',
     'Update during session': 'Aggiorna in sessione',
     'Pre-fill from latest': "Precompila dall'ultimo",
-    'Import from screenshots': 'Importa da screenshot',
+    '✨ Import from screenshots': '✨ Importa da screenshot',
     '(optional)': '(opzionale)',
 
     // ---------- Fieldset legends ----------
@@ -114,8 +114,8 @@ window.TRIDENT_I18N = {
       "Ultimo prezzo ES/US500 ricevuto dal feed del broker.\n\nAggiornato al massimo due volte al secondo per non rallentare il tab.\n\nI trattini indicano che non sono ancora arrivati tick (motore appena avviato o feed disconnesso).",
     "Filename and key fields of the signal YAML the engine is currently operating on.\n\nShows 'None loaded' until one arrives.\n\nUpdates when a new signal is picked up from the signals/ folder or submitted through this form.":
       "Nome del file e campi principali del segnale YAML attualmente in uso dal motore.\n\nMostra 'Nessuno caricato' finché non ne arriva uno.\n\nSi aggiorna quando un nuovo segnale viene preso dalla cartella signals/ o inviato tramite questo form.",
-    "Every signal file loaded or rejected since this browser tab connected.\n\nCount rises with each SIGNAL or INVALID event.\n\nClick to expand the list and see timestamps + filenames.\n\nResets when you reload the page — does not persist across tabs.":
-      "Ogni file segnale caricato o rifiutato da quando questo tab è connesso.\n\nIl contatore sale a ogni evento SIGNAL o INVALID.\n\nClicca per espandere la lista con timestamp e nome file.\n\nSi azzera al ricaricamento della pagina — non persiste tra i tab.",
+    "Every signal file loaded or rejected today.\n\nCount rises with each SIGNAL or INVALID event. The currently loaded signal is always shown even if it was loaded before this tab opened.\n\nClick to expand the list and see timestamps + filenames.\n\nResets when you reload the page — does not persist across tabs.":
+      "Ogni file segnale caricato o rifiutato oggi.\n\nIl contatore sale a ogni evento SIGNAL o INVALID. Il segnale attualmente caricato viene sempre mostrato anche se era stato caricato prima dell'apertura di questo tab.\n\nClicca per espandere la lista con timestamp e nome file.\n\nSi azzera al ricaricamento della pagina — non persiste tra i tab.",
     "Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).\n\nTrident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.\n\nYou'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.\n\n(AI extraction is not wired up yet — for now the upload just stores the images.)":
       "Carica uno o più screenshot dei grafici dell'analista (IV Smile / tabella LIVELLI / grafico SPX intraday).\n\nTrident li passerà a un modello AI di visione che estrae livelli, range, DVS, VWAP e basis, poi precompila questo form per la revisione.\n\nAvrai sempre la possibilità di verificare ogni valore prima di inviarlo al motore. I file vengono salvati sul server per tracciabilità.\n\n(L'estrazione AI non è ancora collegata — per ora il caricamento salva solo le immagini.)",
     "Open a read-only view of what the engine is currently doing.\n\nShows: connection, state machine, daily lock, currently loaded signal (full values), and any open position.\n\nUseful while the form modal is closed.":
@@ -193,6 +193,71 @@ window.TRIDENT_I18N = {
     "Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional.":
       "Contesto in testo libero per le condizioni di invalidazione (es. 'invalida se FOMC muove il mercato pre-apertura'). Opzionale.",
     "Switch language / Cambia lingua": "Cambia lingua / Switch language",
+    'Help': 'Aiuto',
+
+    // ---------- Help dialog ----------
+    'Trident dashboard — quick reference': 'Cruscotto Trident — riferimento rapido',
+    "A short summary of the buttons, the log tags, and the things that go wrong most often. For the full guide, open":
+      "Un breve riepilogo dei pulsanti, dei tag di log e dei problemi più frequenti. Per la guida completa, apri",
+    'Top buttons': 'Pulsanti principali',
+    'Log tags': 'Tag del log',
+    "If submission fails": "Se l'invio fallisce",
+    'Tooltips': 'Tooltip',
+    'Read-only snapshot of the engine right now — connection, state, daily lock, currently loaded signal, any open position.':
+      'Istantanea in sola lettura del motore in questo momento — connessione, stato, lock giornaliero, segnale attualmente caricato, eventuale posizione aperta.',
+    'Open the form and start a fresh morning signal (resets every field, sets':
+      'Apre il form e inizia un nuovo segnale del mattino (resetta ogni campo, imposta',
+    'to 1).': 'a 1).',
+    'Open the form keeping the current values, with':
+      'Apre il form mantenendo i valori attuali, con',
+    'bumped — for an intra-day recalibration.':
+      'incrementato — per una ricalibrazione intra-day.',
+    "Load today's most recent signal YAML into the form so you can tweak only what's changed.":
+      "Carica nel form il segnale YAML più recente di oggi così puoi modificare solo ciò che è cambiato.",
+    'Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form.':
+      "Carica fino a 3 screenshot dei grafici (IV Smile / LIVELLI / SPX intraday). Se l'AI è configurata, Trident estrae livelli, range, DVS, VWAP e basis e precompila il form.",
+    'Always review every value': 'Verifica sempre ogni valore',
+    'before submitting.': 'prima di inviare.',
+    'Anything with': 'Tutto ciò che contiene',
+    'needs you to do something at the broker. The rest is informational.':
+      "richiede un'azione al broker. Il resto è informativo.",
+    'YAML parsed and accepted.': 'YAML analizzato e accettato.',
+    'YAML failed validation. The error list says which rule broke.':
+      'YAML non superato dalla validazione. La lista degli errori indica quale regola si è rotta.',
+    'Loaded but with warnings (e.g. stale VWAP). Still trading.':
+      'Caricato ma con warning (es. VWAP vecchio). Continua a tradare.',
+    'DVS > 75 — no trades today. Engine stays idle.':
+      'DVS > 75 — nessun trade oggi. Il motore resta inattivo.',
+    'Trade plan ready. Engine is now watching for Entry 1.':
+      'Piano di trade pronto. Il motore osserva per Entry 1.',
+    "Bias + your levels don't give a valid trade.":
+      'Bias + i tuoi livelli non producono un trade valido.',
+    'Open / scale into the position at the stated size and stop.':
+      'Apri / scala nella posizione con la size e lo stop indicati.',
+    'Move your broker stop to the stated level; cancel any unfilled entry orders.':
+      'Sposta lo stop al broker al livello indicato; cancella eventuali ordini di entrata non eseguiti.',
+    'Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).':
+      'Esci al broker. Il motivo viene stampato (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).',
+    'One winning trade done — no more trades today.':
+      'Un trade vincente chiuso — nessun altro trade oggi.',
+    'Fields outlined in red show exactly what\'s wrong. Most common causes:':
+      "I campi evidenziati in rosso mostrano esattamente il problema. Cause più comuni:",
+    'Required levels are missing': 'Livelli richiesti mancanti',
+    'Provide both MAX BUY 1+2 or both MAX SELL 1+2 (or both pairs).':
+      'Fornisci sia MAX BUY 1+2 sia MAX SELL 1+2 (o entrambe le coppie).',
+    'Range / level ordering invalid':
+      'Ordine di range / livelli non valido',
+    'Check the inequalities printed in the error message.':
+      "Controlla le disuguaglianze stampate nel messaggio di errore.",
+    'Basis math mismatch': 'Basis math non coerente',
+    'must be within ±5 of the basis you entered.':
+      'deve corrispondere entro ±5 al basis che hai inserito.',
+    'Invalidation boundaries': 'Limiti di invalidazione',
+    'Void values must be in ES futures terms, not SPX cash terms.':
+      'I valori void devono essere in termini ES futures, non SPX cash.',
+    'Every field has an': 'Ogni campo ha un',
+    'icon — hover for a per-field explanation.':
+      'icona — passaci sopra per una spiegazione del campo.',
 
     // ---------- Confirm dialog ----------
     'Confirm signal submission': 'Conferma invio segnale',
@@ -240,6 +305,12 @@ window.TRIDENT_I18N = {
     'Level ordering broken': 'Ordine dei livelli non valido',
     'Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1':
       'Atteso: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1',
+    'No tradeable level pair — engine will not enter':
+      'Nessuna coppia di livelli operativa — il motore non entrerà',
+    'Provide both MAX BUY 1+2 or both MAX SELL 1+2.':
+      'Fornisci sia MAX BUY 1+2 sia MAX SELL 1+2 (almeno una coppia).',
+    'Only one side has levels — engine will trade that side only':
+      'Solo un lato ha livelli — il motore tradera solo quel lato',
     'DVS above 75 — gate will block all trades today':
       'DVS sopra 75 — il gate bloccherà tutti i trade oggi',
     'DVS below 50 — ideal mean-reversion conditions':
@@ -260,5 +331,27 @@ window.TRIDENT_I18N = {
     'Close': 'Chiudi',
     'Currently loaded signal': 'Segnale attualmente caricato',
     'No signal loaded today.': 'Nessun segnale caricato oggi.',
+
+    // ---------- AI extraction banner ----------
+    'AI extraction unavailable': 'Estrazione AI non disponibile',
+    'AI extraction failed': 'Estrazione AI fallita',
+    'AI pre-fill complete — please review every field before submitting.':
+      'Precompilazione AI completata — controlla ogni campo prima di inviare.',
+    'Screenshots saved on the server. AI provider is not configured — fill the form manually.':
+      'Screenshot salvati sul server. Provider AI non configurato — compila il form manualmente.',
+    'Screenshots uploaded. AI extraction unavailable.':
+      'Screenshot caricati. Estrazione AI non disponibile.',
+    'AI extraction failed — fill the form manually.':
+      'Estrazione AI fallita — compila il form manualmente.',
+    'Form pre-filled from screenshots.': 'Form precompilato dagli screenshot.',
+    'Extraction details': 'Dettagli estrazione',
+    'Too many screenshots — pick up to 3 (IV Smile, intraday chart, optional summary).':
+      'Troppi screenshot — selezionane al massimo 3 (IV Smile, grafico intraday, riepilogo opzionale).',
+    'Uploading screenshots…': 'Caricamento screenshot…',
+    'Sending {n} image(s) to the server.': 'Invio di {n} immagine/i al server.',
+    'Image {i} of {n}: {name}': 'Immagine {i} di {n}: {name}',
+    'AI is reading the screenshots…': "L'AI sta leggendo gli screenshot…",
+    'Extracting levels, ranges, DVS, and basis. This usually takes 5–20 seconds.':
+      'Estrazione di livelli, range, DVS e basis. In genere richiede 5–20 secondi.',
   },
 };

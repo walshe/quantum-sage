@@ -8,28 +8,47 @@ quick refresher, not a stranger reading docs for the first time.
 
 ## Entry point — `src/index.ts`
 
-This is where the process starts. Three things happen here before anything
-trading-related runs:
+Where the process starts. Boot order:
 
 1. **Read CLI args** — `--config`, `--mock`, `--signal`. Nothing fancy, just
    `process.argv`. Lets you point at a different config file or kick off a demo
    without touching code.
 
-2. **Load config** — calls `loadConfig()` with the path to `config.yaml`. This
-   gives you the `QSConfig` object that everything else reads from: capital
-   amounts, stop distances, entry allocations, the DVS gate threshold, etc.
-   These are the knobs that rarely change.
+2. **Load config** — `loadConfig()` reads `config.yaml` and returns the
+   `QSConfig` object: capital amounts, stop distances, entry allocations, DVS
+   gate threshold, time-exit, etc.
 
-3. **Wire up the three core objects** and hand them to each other:
-   - `ConsoleNotifier` — the output channel (swap this for Telegram later)
-   - `TridentEngine` — the brain, takes config and notifier
-   - Signal watcher / mock feed — the input
+3. **Wire up the components**:
+   - `ConsoleNotifier` — terminal output channel.
+   - `MultiNotifier` — fan-out wrapper holding a mutable list of children.
+     Initially `[ConsoleNotifier]`; the `WebSocketNotifier` is appended once
+     the web server boots so engine events also stream to browsers.
+   - `TridentEngine` — the brain. Takes config + the MultiNotifier and a
+     `snapshotPath` (`logs/engine-state.json` by default; `null` for `--mock`).
+     Constructor automatically hydrates from a same-day snapshot if present.
 
-After that it either runs the mock scenario (scripted prices, good for demos and
-development) or starts watching the `signals/` directory for real YAML files.
+4. **`--mock` branch**: load the sample YAML, run a scripted `MockPriceFeed`
+   through `engine.onPriceUpdate`, exit. No web server, no persistence.
+
+5. **Live branch**: in this order
+   - Start the web server (`startWebServer`) and append its
+     `WebSocketNotifier` to the MultiNotifier — done **before** connecting
+     cTrader so the dashboard is responsive even if the broker is down.
+   - Build a `CTraderPriceFeed` if `CTRADER_CLIENT_ID/SECRET/ACCESS_TOKEN` are
+     set. Subscribe its callback to `engine.onPriceUpdate`. `connectWithRetry`
+     loops indefinitely with a 5s backoff so a transient drop doesn't kill the
+     engine. The feed has an `onTokenRefresh` callback that writes refreshed
+     tokens back into `.env` via `writeEnvKey`.
+   - If `--signal <path>` was passed, load it directly.
+   - Start `watchSignalDir` for live drops, then `scanSignalDirOnce` so a
+     signal written while the engine was down still gets picked up.
+
+6. **Shutdown**: SIGINT/SIGTERM trigger `shutdown()` which stops the watcher,
+   closes the web server, and disconnects the feed. A 5s `setTimeout(...).unref()`
+   forces exit if any close handler hangs. Second Ctrl-C bails immediately.
 
 > **Mental model:** index.ts is the plug board. It doesn't contain any business
-> logic — it just connects the right parts together.
+> logic — it just connects the right parts together in the right order.
 
 ---
 
@@ -65,23 +84,35 @@ trimmed-down version of the levels section that the engine actually works with
 (morning or recalibrated, whichever applies).
 
 ### `validator.ts`
-This is the gatekeeper. Takes a parsed `SignalFile` and runs 15 checks against
-it. Things like: are the range boundaries in the right order, does the basis math
-add up, is the DVS within a sane range, is the file too old, is VWAP suspiciously
-stale. Returns `{ valid, errors, warnings }` — errors block trading, warnings
-just log.
+This is the gatekeeper. Takes a parsed `SignalFile` and runs the full set of
+trust checks: schema version, required sections, range/buy/sell ordering,
+**at least one tradeable level pair (both MAX BUY 1+2 or both MAX SELL 1+2)**,
+price sanity (within 20% of `futures_last`), basis range and basis math,
+DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
+enum values (regime/instrument/direction/confidence), timestamp before
+expiry, signal staleness, and VWAP staleness (warning only). Returns
+`{ valid, errors, warnings }` — errors block trading, warnings just log.
+
+The validator runs in two places that matter:
+- The web server's `POST /signals` endpoint, so a bad submission is rejected
+  before it's ever written to `signals/`.
+- `TridentEngine.loadSignal`, so a hand-written or fs.watch-detected file
+  that bypasses the web UI gets the same treatment.
 
 The validator is the only place where untrusted external data (the YAML) gets
 challenged. If it passes here, the rest of the engine trusts the numbers.
 
 ### `loader.ts`
-Two functions:
+Three functions:
 - `loadSignalFile(path)` — reads a YAML file off disk and returns a raw
   `SignalFile`. No validation here, just parsing.
 - `watchSignalDir(dir, callback)` — sets up a filesystem watcher on the
   `signals/` directory. Whenever a file matching `qs_signal_*.yaml` appears or
   changes, it calls `loadSignalFile` and fires the callback. Returns a cleanup
   function to stop watching.
+- `scanSignalDirOnce(dir, callback)` — one-shot scan over today's existing
+  files. Runs at boot so a YAML written during a downtime window isn't orphaned
+  by `fs.watch`'s "events from now on only" semantics.
 
 > **Mental model:** the loader is just a pipe. It gets bytes off disk and turns
 > them into objects. The validator decides if those objects are trustworthy.
@@ -151,8 +182,21 @@ cleanly, then closes the WebSocket.
 **`index.ts` wiring**: the feed is only created if `CTRADER_CLIENT_ID`,
 `CTRADER_CLIENT_SECRET`, and `CTRADER_ACCESS_TOKEN` are all present in the
 environment. If any are missing, the engine starts without a price feed and
-prints a reminder to run `auth:ctrader`. The optional `CTRADER_SYMBOL` env var
-controls the symbol name (default: `US500`).
+prints a reminder to run `auth:ctrader`. Optional env vars: `CTRADER_SYMBOL`
+(default `US500`), `CTRADER_ACCOUNT_ID`, `CTRADER_WS_URL` (set for demo),
+`CTRADER_NO_HEARTBEAT=true` (also for demo), `CTRADER_SYMBOL_ID` (skip the
+symbol-list lookup if your environment doesn't support it).
+
+**Token refresh** is handled by the feed itself: `CTRADER_REFRESH_TOKEN` and
+`CTRADER_TOKEN_EXPIRES_AT` are read on connect, and an `onTokenRefresh`
+callback writes the new triple back into `.env` via `writeEnvKey()` so the
+next process start sees fresh credentials.
+
+**Reconnect**: `index.ts` wraps `connect()` in a `connectWithRetry` loop
+that re-creates the feed and resubscribes after every failure with a 5-second
+backoff. The cTrader demo server drops idle connections after ~60s, so this
+matters for development. Indefinite retry, no exponential backoff —
+deliberately simple.
 
 > **Mental model:** the feed does the whole cTrader ceremony so the engine
 > doesn't have to know anything about WebSockets or OAuth. Once `connect()`
@@ -179,9 +223,31 @@ into a readable line, and `console.log`s it. Timestamps every line. The
 `showPriceTicks` flag controls whether every price update is printed (off by
 default, very noisy).
 
+### `MultiNotifier.ts`
+Fan-out wrapper. `notify(event)` runs every child's `notify` via
+`Promise.allSettled` so one child throwing doesn't block the others — the
+error is logged and the rest still receive the event. The children list is
+mutable from the outside so `index.ts` can append `WebSocketNotifier` *after*
+the web server is up without restructuring the engine.
+
+### `WebSocketNotifier.ts`
+Bridges engine events to connected browser tabs over a `ws` server (mounted at
+`/events` by the web server module). On every new client it sends a
+`{ kind: 'bootstrap', data }` envelope with current engine state — drives the
+status band on a freshly-opened tab. Subsequent events go out as
+`{ kind: 'event', data }`. `PRICE_UPDATE` events are throttled (default
+500ms) so a quiet UI doesn't get hammered by tick frequency.
+
+### `eventFormatter.ts`
+Pure function that turns a `NotificationEvent` into the row shape the web
+client expects (`{ tag, severity, head, lines, action }`). Shared between
+the WebSocket notifier and any other formatter that wants the same string
+shape; keeps presentation out of the notifier transport.
+
 > **Mental model:** the notifier is the voice of the engine. The engine fires
-> events; the notifier decides how to communicate them. Swap `ConsoleNotifier`
-> for `TelegramNotifier` and the engine doesn't change at all.
+> events; each notifier decides how to communicate them. Add a Telegram
+> notifier and you just push it onto the MultiNotifier's children — the engine
+> doesn't change.
 
 ---
 
@@ -240,13 +306,23 @@ Pure functions, no state, no side effects. Easy to unit test in isolation.
 The state machine. The most important file in the project.
 
 **State it holds:**
-- Which state it's in (`idle` → `watching` → `in_trade` → `closed`)
+- Which state it's in (`idle` → `watching` → `in_trade` → `closed`, plus
+  `blocked` for DVS-gated days)
 - The current signal (levels, VWAP, invalidation)
 - The active levels resolved from the signal (morning or recal)
 - The trade setup (three calculated entry prices)
 - The active position (fills, avg entry, stop, breakeven flag)
 - Whether today is locked (one winning trade already closed)
 - A timer handle for the 180-minute time exit
+
+**Snapshot integration.** Constructor takes a `snapshotPath` (default
+`logs/engine-state.json`, `null` to disable for mock/test runs).
+On boot, `hydrateFromSnapshot` loads a same-day snapshot if one exists and
+restores state, position, daily lock, etc. If a position was open, it
+re-schedules the time-exit timer with the *remaining* duration; if the
+deadline already passed during downtime, the next price tick force-closes
+as `time_exit`. After every meaningful state transition the engine calls
+`persist()` to write a fresh snapshot atomically.
 
 **`loadSignal(signal, filePath)`** — called whenever a new signal file arrives.
 Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
@@ -284,6 +360,119 @@ activate breakeven (move stop, cancel pending entries, don't close).
 from the *last* fill, per the PRD). If it fires, closes the position at whatever
 the latest price is.
 
+### `persistence.ts`
+Engine-state crash-recovery. Writes a versioned JSON snapshot
+(`SNAPSHOT_VERSION = 1`) atomically: tmp file → fsync → rename, so a
+mid-write crash can never produce a corrupt file. The snapshot stamps
+`date: todayStr()`; `loadSnapshot` discards any snapshot whose date isn't
+today and unlinks it (fresh start each session — daily lock is per-day).
+
+`buildSnapshot` / `serializePosition` flatten `Date` → ISO string;
+`loadSnapshot` / `deserializePosition` rehydrate them. `clearSnapshot`
+removes the file when the engine resets explicitly.
+
+> **Mental model:** persistence is engine-shaped, not file-shaped. The snapshot
+> mirrors the engine's in-memory state 1:1. If you add a field to the engine
+> and want it to survive a restart, add it here too.
+
+---
+
+## Web server — `src/web/`
+
+Local-only HTTP + WebSocket service that powers the analyst dashboard. Boots
+before the price feed so the UI is responsive even when cTrader is down.
+
+### `server.ts`
+Express app with four endpoints plus a WebSocket:
+
+- `GET /` — serves `public/index.html`.
+- `GET /assets/...` — static files from `public/`.
+- `POST /signals` — accepts a JSON `SignalFile`, runs `validateSignal`, and
+  on success writes the YAML atomically (tmp + rename) into `signalsDir`.
+  Filename is derived from `meta.date` + `meta.timestamp`. Validation errors
+  come back as `{ valid: false, errors, warnings }` with status 400.
+- `GET /signals/latest` — returns the most recent same-day YAML for the
+  Pre-fill button. 204 if there isn't one.
+- `POST /signals/screenshots` — raw binary upload (one file per call) that
+  saves the image into `screenshots/` with a timestamped filename. Used by
+  the Import-from-screenshots flow.
+- `POST /signals/extract` — JSON `{ filenames: [...] }` (max 3). Loads the
+  saved screenshots, runs them through the configured `SignalExtractor`,
+  and returns the partial `SignalFile` plus notes/warnings. 503 if the
+  provider isn't configured (no API key); the UI degrades to "AI
+  extraction unavailable" without breaking.
+- `GET ws://.../events` — engine event stream + bootstrap envelope. Backed
+  by the `WebSocketNotifier` that's returned from `startWebServer` and
+  appended to the engine's MultiNotifier.
+
+The provider is built once at server startup (`buildVisionProvider()`)
+so a missing key produces an immediate log line — operators don't
+discover the misconfiguration mid-session when an analyst clicks Import.
+
+### `public/`
+The vanilla-JS, no-build dashboard. `index.html`, `styles.css`, `app.js`,
+and `i18n.js` (English ↔ Italian dictionary). The client opens the `/events`
+WebSocket on load, populates the status band from the bootstrap envelope, and
+appends every subsequent event to the live log. The signal form lives in a
+modal triggered by the top-bar buttons (`New signal`, `Update during session`,
+`Pre-fill from latest`, `Import from screenshots`, `Status`).
+
+> **Mental model:** the web server is read-mostly: the engine is authoritative,
+> the dashboard is a window onto it. The only writes from the UI are
+> `POST /signals` (which goes through the same validator the engine uses) and
+> the screenshot uploads.
+
+---
+
+## AI extraction — `src/ai/`
+
+Optional. Reads chart screenshots through a vision LLM and returns a partial
+`SignalFile` for the analyst to review. Off by default — Trident still loads
+YAML signals via the manual flow if AI is unavailable.
+
+### `types.ts`
+Three contracts: `ImageInput` (`{ bytes, mimeType, filename? }`),
+`ExtractionResult` (partial signal + notes + warnings + provider/model/usage),
+and `VisionProvider` (`{ name, model, extractSignal(images, systemPrompt) }`).
+Provider implementations swap the SDK without changing anything upstream.
+
+### `providers/index.ts` + `providers/OpenAIProvider.ts`
+`buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `openai`)
+and returns `null` if the chosen provider isn't configured (e.g. no
+`OPENAI_API_KEY`). Severity of the disable-log depends on whether the operator
+*explicitly* asked for a provider — explicit + missing key is `error`, implicit
+default + missing key is `info` (operator never asked for AI).
+
+`OpenAIProvider` calls the chat-completions endpoint with the `gpt-4o-*`
+vision model, base64-encodes the images, asks for JSON output, and parses
+the response into an `ExtractionResult`. Model and base URL overridable via
+`OPENAI_MODEL` / `OPENAI_BASE_URL`.
+
+### `signalExtractor.ts`
+Orchestration layer. `extract()`:
+1. Calls `checkBeforeCall` on the guardrail (currently a no-op stub —
+   future home for rate-limiting / budget caps).
+2. Calls the provider with the canonical `SIGNAL_EXTRACTION_PROMPT`.
+3. `normalise()` stamps the fields the model isn't allowed to invent —
+   `schema_version: '1.0'`, `meta.execution_instrument: 'US500.cash'`,
+   `meta.update_seq: 1`, `levels.additional: []`, `vwap.source: 'manual'` —
+   so the result is always loadable into the form.
+4. Calls `recordUsage` on the guardrail for telemetry.
+
+### `prompts/signalExtractionPrompt.ts`
+The system prompt that tells the model what fields to extract and explicitly
+forbids invention — missing data must come back `null`. Update this file (not
+the provider) to tune extraction behaviour.
+
+### `guardrail.ts`
+Stub policy layer. Both functions currently return "allow" / no-op, but the
+shape is in place so per-IP rate limits, daily budget caps, or content
+filters can land without touching the extractor or providers.
+
+> **Mental model:** AI is a strictly optional pre-fill helper. The validator,
+> not the model, decides whether a signal can be loaded. The model's job is
+> to save the analyst typing — never to bypass review.
+
 ---
 
 ## How it all connects — the happy path
@@ -291,15 +480,23 @@ the latest price is.
 ```
 index.ts boots
   → loadConfig()            reads config.yaml
-  → new TridentEngine()     engine created, sitting in 'idle'
+  → new MultiNotifier([Console])
+  → new TridentEngine()     hydrates from logs/engine-state.json if same-day,
+                            else starts in 'idle'
+  → startWebServer()        Express + ws on :3000
+                            appends WebSocketNotifier to MultiNotifier
+  → CTraderPriceFeed        connect-with-retry, refresh tokens to .env
+  → scanSignalDirOnce()     pick up any signal written during downtime
   → watchSignalDir()        fs.watch on signals/ directory
 
-FB drops qs_signal_2026-04-13_1006.yaml into signals/
-  → loader detects file change
+FB submits via dashboard (POST /signals)
+  → server validates the SignalFile
+  → on success writes qs_signal_<date>_<time>.yaml atomically
+  → fs.watch fires
   → loadSignalFile()        parses YAML
   → engine.loadSignal()     validates → DVS check → resolve levels → setupTrade()
-  → engine state: 'watching'
-  → notifier fires SETUP_READY
+  → engine state: 'watching' → persist()
+  → notifier fan-out fires SETUP_READY (console + browser tabs)
 
 Price feed delivers ticks to engine.onPriceUpdate()
   → each tick: check invalidation, check expiry, check Entry 1 trigger
@@ -335,7 +532,17 @@ Price feed delivers ticks to engine.onPriceUpdate()
   the engine treats all values as correct.
 - **Calculator functions are pure.** All the maths is side-effect free and tested
   independently of the engine.
-- **One engine instance per day.** Call `engine.reset()` at the start of a new
-  session. The daily lock, position state, and signal are all cleared.
+- **One engine instance per day.** `engine.reset()` clears the daily lock,
+  position, signal, and snapshot file — fresh start. Normally not called
+  manually; the snapshot's date stamp causes `loadSnapshot` to reject and
+  unlink anything from a prior day.
 - **The notifier and the logger serve different audiences.** Notifier = trader
   (what happened). Logger = developer/operator (why it happened).
+- **The dashboard is a thin window over the engine.** No business logic in the
+  browser. The only state the client owns is the live event log and form
+  inputs; everything else (status band, currently loaded signal, position) is
+  reconstituted from the WebSocket bootstrap envelope on every connect.
+- **AI is optional and never authoritative.** The signal extractor pre-fills
+  the form; the analyst always reviews; the validator gates entry into the
+  engine. Removing `OPENAI_API_KEY` reverts the dashboard to manual entry —
+  nothing else changes.
