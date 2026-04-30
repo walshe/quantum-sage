@@ -246,7 +246,7 @@ function handleBootstrap(b) {
   if (b.currentSignal) {
     const filename = baseName(b.currentSignal.filePath);
     detail.push(
-      `Signal: ${filename} (seq ${b.currentSignal.updateSeq}, DVS ${b.currentSignal.dvs}, VWAP ${b.currentSignal.vwap})`
+      `Setup: ${filename} (seq ${b.currentSignal.updateSeq}, DVS ${b.currentSignal.dvs}, VWAP ${b.currentSignal.vwap})`
     );
     // Seed history so Today shows the already-loaded signal even if the tab
     // connected after the engine picked it up.
@@ -275,8 +275,8 @@ function describeEngineState(b) {
     return 'Engine is locked for the day — no more trades.';
   }
   switch (b.state) {
-    case 'idle':     return 'Engine is idle — waiting for a signal.';
-    case 'watching': return 'Engine is watching — signal loaded, waiting for Entry 1.';
+    case 'idle':     return 'Engine is idle — waiting for a setup.';
+    case 'watching': return 'Engine is watching — setup loaded, waiting for Entry 1.';
     case 'in_trade': return 'Engine is in a trade.';
     case 'blocked':  return 'Engine is blocked — DVS gate has stopped trading today.';
     case 'closed':   return 'Engine is closed — today\'s trade is finished.';
@@ -352,11 +352,11 @@ function updatePriceChip(data) {
 // ---------------------------------------------------------------------------
 async function prefillFromLatest() {
   const res = await fetch('/signals/latest');
-  if (res.status === 204) { setSubmitStatus('No prior signal to pre-fill from.', ''); return; }
+  if (res.status === 204) { setSubmitStatus('No prior setup to pre-fill from.', ''); return; }
   if (!res.ok) { setSubmitStatus(`Pre-fill failed: ${res.status}`, 'err'); return; }
   const { signal } = await res.json();
   fillForm(signal);
-  setSubmitStatus('Pre-filled from latest signal.', '');
+  setSubmitStatus('Pre-filled from latest setup.', '');
 }
 
 // Walk the signal object and set form fields whose name matches the
@@ -623,12 +623,12 @@ async function showStatusDialog() {
 
   if (loadedSignal) {
     const sec = buildSummarySection(loadedSignal);
-    sec.querySelector('h3').textContent = tx('Currently loaded signal');
+    sec.querySelector('h3').textContent = tx('Currently loaded setup');
     body.append(sec);
   } else {
     const sec = el('section', { class: 'confirm-section' });
-    sec.append(el('h3', { text: tx('Currently loaded signal') }));
-    sec.append(el('div', { class: 'confirm-headline', text: tx('No signal loaded today.') }));
+    sec.append(el('h3', { text: tx('Currently loaded setup') }));
+    sec.append(el('div', { class: 'confirm-headline', text: tx('No setup loaded today.') }));
     body.append(sec);
   }
 
@@ -870,9 +870,9 @@ function buildEngineStateSection(signalAboutToSubmit) {
   addRow(tx('Daily lock'), state.dailyLocked ? tx('Locked — no more trades today') : tx('Not locked'));
   if (state.currentSignal) {
     const cs = state.currentSignal;
-    addRow(tx('Current signal'), `${baseName(cs.filePath) || '—'} (seq ${cs.updateSeq})`);
+    addRow(tx('Current setup'), `${baseName(cs.filePath) || '—'} (seq ${cs.updateSeq})`);
   } else {
-    addRow(tx('Current signal'), tx('None loaded'));
+    addRow(tx('Current setup'), tx('None loaded'));
   }
   if (state.openPosition) {
     const p = state.openPosition;
@@ -898,7 +898,7 @@ function synthesiseAction(signal) {
     return { tone: 'warn', text: tx('Engine is offline — file will sit in signals/ until it reconnects.') };
   }
   if (state.dailyLocked) {
-    return { tone: 'warn', text: tx('Engine is locked for today — signal stored but no trades will fire until tomorrow.') };
+    return { tone: 'warn', text: tx('Engine is locked for today — setup stored but no trades will fire until tomorrow.') };
   }
   if (state.position === 'blocked') {
     return { tone: 'warn', text: tx('Engine is blocked by the DVS gate — submission stored, but trading is off today.') };
@@ -914,17 +914,17 @@ function synthesiseAction(signal) {
           .replace('{dir}', dir).replace('{old}', cs.updateSeq).replace('{new}', newSeq),
       };
     }
-    return { tone: 'ok', text: tx('Recalibration of current signal (seq {old} → {new}) — engine will swap in new levels.').replace('{old}', cs.updateSeq).replace('{new}', newSeq) };
+    return { tone: 'ok', text: tx('Recalibration of current setup (seq {old} → {new}) — engine will swap in new levels.').replace('{old}', cs.updateSeq).replace('{new}', newSeq) };
   }
   if (state.position === 'in_trade') {
-    return { tone: 'warn', text: tx('Engine is in a trade — submitting a fresh signal here would replace what it is currently working on.') };
+    return { tone: 'warn', text: tx('Engine is in a trade — submitting a fresh setup here would replace what it is currently working on.') };
   }
-  return { tone: 'ok', text: tx('Engine will load this as the active signal and start watching for Entry 1.') };
+  return { tone: 'ok', text: tx('Engine will load this as the active setup and start watching for Entry 1.') };
 }
 
 function buildSummarySection(signal) {
   const sec = el('section', { class: 'confirm-section' });
-  sec.append(el('h3', { text: tx('Signal summary') }));
+  sec.append(el('h3', { text: tx('Setup summary') }));
   const grid = el('div', { class: 'confirm-grid' });
   const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels, inv = signal.invalidation;
 
@@ -1030,7 +1030,7 @@ function computeChecks(signal) {
     if (Number.isFinite(vwapMin) && Number.isFinite(sigMin)) {
       const ageMin = Math.abs(sigMin - vwapMin);
       if (ageMin > 90) {
-        out.push({ status: 'warn', title: tx('VWAP older than 90 minutes vs signal time'), detail: `VWAP ${w.updated_at}, signal ${m.timestamp} (Δ ${ageMin}m)` });
+        out.push({ status: 'warn', title: tx('VWAP older than 90 minutes vs setup time'), detail: `VWAP ${w.updated_at}, setup ${m.timestamp} (Δ ${ageMin}m)` });
       } else {
         out.push({ status: 'ok', title: tx('VWAP fresh (≤90 min)'), detail: `Δ ${ageMin}m` });
       }
@@ -1052,7 +1052,7 @@ function computeChecks(signal) {
   // 7. Date is today
   const today = new Date().toISOString().slice(0, 10);
   if (m.date && m.date !== today) {
-    out.push({ status: 'err', title: tx('Date is not today — engine will reject'), detail: `signal date ${m.date}, today ${today}` });
+    out.push({ status: 'err', title: tx('Date is not today — engine will reject'), detail: `setup date ${m.date}, today ${today}` });
   }
 
   return out;

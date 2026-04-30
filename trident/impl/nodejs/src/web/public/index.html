@@ -18,7 +18,7 @@
       <span class="chip-value">Disconnected</span>
     </div>
     <div class="chip" id="state-chip" data-state="idle">
-      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no signal loaded&#10;• watching — signal loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades"></i></span>
+      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no setup loaded&#10;• watching — setup loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades"></i></span>
       <span class="chip-value">idle</span>
     </div>
     <div class="chip chip--price" id="price-chip" data-state="idle">
@@ -26,11 +26,11 @@
       <span class="chip-value" id="price-chip-value">—</span>
     </div>
     <div class="signal-card" id="signal-card">
-      <span class="chip-label">Current signal <i class="info" data-tip="Filename and key fields of the signal YAML the engine is currently operating on.&#10;&#10;Shows 'None loaded' until one arrives.&#10;&#10;Updates when a new signal is picked up from the signals/ folder or submitted through this form."></i></span>
+      <span class="chip-label">Current setup <i class="info" data-tip="Filename and key fields of the setup file the engine is currently operating on.&#10;&#10;Shows 'None loaded' until one arrives.&#10;&#10;Updates when a new setup is picked up from the signals/ folder or submitted through this form."></i></span>
       <span class="signal-card-body" id="signal-card-body">None loaded</span>
     </div>
     <details class="history">
-      <summary>Today <span id="history-count">(0)</span> <i class="info info--end" data-tip="Every signal file loaded or rejected today.&#10;&#10;Count rises with each SIGNAL or INVALID event. The currently loaded signal is always shown even if it was loaded before this tab opened.&#10;&#10;Click to expand the list and see timestamps + filenames.&#10;&#10;Resets when you reload the page — does not persist across tabs."></i></summary>
+      <summary>Today <span id="history-count">(0)</span> <i class="info info--end" data-tip="Every setup file loaded or rejected today.&#10;&#10;Count rises with each SIGNAL or INVALID event. The currently loaded setup is always shown even if it was loaded before this tab opened.&#10;&#10;Click to expand the list and see timestamps + filenames.&#10;&#10;Resets when you reload the page — does not persist across tabs."></i></summary>
       <ol id="history-list"></ol>
     </details>
     <button type="button" id="btn-help" class="lang-toggle" title="Help">Help</button>
@@ -38,10 +38,10 @@
   </header>
 
   <div class="action-strip">
-    <button type="button" id="btn-status">Status <i class="info" data-tip="Open a read-only view of what the engine is currently doing.&#10;&#10;Shows: connection, state machine, daily lock, currently loaded signal (full values), and any open position.&#10;&#10;Useful while the form modal is closed."></i></button>
-    <button type="button" id="btn-new">New signal <i class="info" data-tip="Clear the form to start a brand-new morning signal from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first signal of the session."></i></button>
-    <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded signal (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
-    <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent signal YAML from the signals/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit signal to push changes."></i></button>
+    <button type="button" id="btn-status">Status <i class="info" data-tip="Open a read-only view of what the engine is currently doing.&#10;&#10;Shows: connection, state machine, daily lock, currently loaded setup (full values), and any open position.&#10;&#10;Useful while the form modal is closed."></i></button>
+    <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session."></i></button>
+    <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
+    <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the signals/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
     <button type="button" id="btn-import-screenshots">✨ Import from screenshots <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).&#10;&#10;Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.&#10;&#10;(AI extraction is not wired up yet — for now the upload just stores the images.)"></i></button>
     <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
   </div>
@@ -51,7 +51,7 @@
       <div class="log-head">
         <div>
           <h2>Live log</h2>
-          <p class="log-sub">Events stream in as the engine fires them — signal load, setup, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.</p>
+          <p class="log-sub">Events stream in as the engine fires them — setup load, trade plan, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.</p>
         </div>
         <button type="button" id="btn-clear-log">Clear <i class="info info--end" data-tip="Wipe the log pane in this browser tab. Does not affect the engine, the signals/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events."></i></button>
       </div>
@@ -61,7 +61,7 @@
 
   <dialog id="form-dialog" class="form-dialog">
     <div class="dialog-head">
-      <h2 id="form-dialog-title">Signal form</h2>
+      <h2 id="form-dialog-title">Setup form</h2>
       <button type="button" class="dialog-close" id="btn-form-close" aria-label="Close">×</button>
     </div>
     <div class="ai-overlay" id="ai-overlay" aria-live="polite" aria-busy="true">
@@ -75,12 +75,12 @@
     <form id="signal-form" novalidate>
       <fieldset>
         <legend>Meta</legend>
-        <label>Date <i class="info" data-tip="Trading date for this signal (YYYY-MM-DD). The engine rejects signals whose date isn't today."></i> <input name="meta.date" type="date" required></label>
-        <label>Time <i class="info" data-tip="Signal creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects signals older than ~6 hours."></i> <input name="meta.timestamp" type="time" required></label>
-        <label>update_seq <i class="info" data-tip="1 for the morning signal. Bump to 2 (or higher) for an afternoon recalibration the same day. The engine uses this to distinguish a new signal from a level update."></i> <input name="meta.update_seq" type="number" min="1" step="1" value="1" required></label>
-        <label>Contract <span class="optional">(optional)</span> <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the signal was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6"></label>
-        <label>Futures last [ES futures] <i class="info" data-tip="Most recent ES futures price at signal creation time."></i> <input name="meta.futures_last" type="number" step="0.01" required></label>
-        <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at signal creation time. Used to cross-check basis."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
+        <label>Date <i class="info" data-tip="Trading date for this setup (YYYY-MM-DD). The engine rejects setups whose date isn't today."></i> <input name="meta.date" type="date" required></label>
+        <label>Time <i class="info" data-tip="Setup creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects setups older than ~6 hours."></i> <input name="meta.timestamp" type="time" required></label>
+        <label>update_seq <i class="info" data-tip="1 for the morning setup. Bump to 2 (or higher) for an afternoon recalibration the same day. The engine uses this to distinguish a new setup from a level update."></i> <input name="meta.update_seq" type="number" min="1" step="1" value="1" required></label>
+        <label>Contract <span class="optional">(optional)</span> <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the setup was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6"></label>
+        <label>Futures last [ES futures] <i class="info" data-tip="Most recent ES futures price at setup creation time."></i> <input name="meta.futures_last" type="number" step="0.01" required></label>
+        <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at setup creation time. Used to cross-check basis."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
         <label>Basis [points] <i class="info" data-tip="ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points. Validation: must match within ±5 of the computed difference."></i> <input name="meta.basis" type="number" step="0.01" required></label>
         <label>Execution instrument <i class="info" data-tip="Which instrument the trade will actually be executed on. US500.cash = Pepperstone CFD."></i>
           <select name="meta.execution_instrument" required>
@@ -152,19 +152,19 @@
             <option value="high">high</option>
           </select>
         </label>
-        <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text analyst reasoning. Stored with the signal but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
+        <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text analyst reasoning. Stored with the setup but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
       </fieldset>
 
       <fieldset>
         <legend>Invalidation [ES futures]</legend>
-        <label>Void above <i class="info" data-tip="Price above which the signal is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
-        <label>Void below <i class="info" data-tip="Price below which the signal is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
-        <label>Expiry <i class="info" data-tip="Time-of-day after which the signal no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <input name="invalidation.expiry" type="time" required></label>
+        <label>Void above <i class="info" data-tip="Price above which the setup is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
+        <label>Void below <i class="info" data-tip="Price below which the setup is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
+        <label>Expiry <i class="info" data-tip="Time-of-day after which the setup no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <input name="invalidation.expiry" type="time" required></label>
         <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
       </fieldset>
 
       <div class="form-actions">
-        <button type="submit" id="btn-submit">Submit signal</button>
+        <button type="submit" id="btn-submit">Submit setup</button>
         <span id="submit-status"></span>
       </div>
       <ul id="form-errors" class="form-errors"></ul>
@@ -176,7 +176,7 @@
       <h2>Current status</h2>
       <button type="button" class="dialog-close" id="btn-status-close" aria-label="Close">×</button>
     </div>
-    <p class="confirm-sub">A read-only snapshot of the engine and the signal it's operating on right now.</p>
+    <p class="confirm-sub">A read-only snapshot of the engine and the setup it's operating on right now.</p>
     <div id="status-dialog-body"></div>
     <div class="confirm-actions">
       <button type="button" id="btn-status-ok">Close</button>
@@ -196,14 +196,14 @@
           <dl>
             <dt>Status</dt>
             <dd>Read-only snapshot of the engine right now — connection, state, daily lock, currently loaded signal, any open position.</dd>
-            <dt>New signal</dt>
-            <dd>Open the form and start a fresh morning signal (resets every field, sets <code>update_seq</code> to 1).</dd>
+            <dt>New setup</dt>
+            <dd>Open the form and start a fresh morning setup (resets every field, sets <code>update_seq</code> to 1).</dd>
             <dt>Update during session</dt>
             <dd>Open the form keeping the current values, with <code>update_seq</code> bumped — for an intra-day recalibration.</dd>
             <dt>Pre-fill from latest</dt>
-            <dd>Load today's most recent signal YAML into the form so you can tweak only what's changed.</dd>
+            <dd>Load today's most recent setup file into the form so you can tweak only what's changed.</dd>
             <dt>✨ Import from screenshots <span class="ai-badge">AI</span></dt>
-            <dd>Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form. <strong>Always review every value</strong> before submitting.</dd>
+            <dd>Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form. <strong>Always review every value</strong> before submitting the setup.</dd>
           </dl>
         </section>
 
@@ -230,9 +230,9 @@
           <h3>Log tags</h3>
           <p class="help-sub">Anything with <code>&gt;&gt;&gt; ACTION:</code> needs you to do something at the broker. The rest is informational.</p>
           <dl>
-            <dt>SIGNAL</dt><dd>YAML parsed and accepted.</dd>
-            <dt>SIGNAL INVALID</dt><dd>YAML failed validation. The error list says which rule broke.</dd>
-            <dt>SIGNAL WARNING</dt><dd>Loaded but with warnings (e.g. stale VWAP). Still trading.</dd>
+            <dt>SIGNAL</dt><dd>Setup file accepted and loaded.</dd>
+            <dt>SIGNAL INVALID</dt><dd>Setup file failed validation. The error list says which rule broke.</dd>
+            <dt>SIGNAL WARNING</dt><dd>Setup loaded with warnings (e.g. stale VWAP). Still trading.</dd>
             <dt>DVS GATE</dt><dd>DVS &gt; 75 — no trades today. Engine stays idle.</dd>
             <dt>SETUP</dt><dd>Trade plan ready. Engine is now watching for Entry 1.</dd>
             <dt>NO SETUP</dt><dd>Bias + your levels don't give a valid trade.</dd>
@@ -250,12 +250,12 @@
   </dialog>
 
   <dialog id="confirm-dialog" class="confirm-dialog">
-    <h2 id="confirm-title">Confirm signal submission</h2>
+    <h2 id="confirm-title">Confirm setup submission</h2>
     <p class="confirm-sub" id="confirm-sub">Review the values below before they go to the engine.</p>
     <div id="confirm-dialog-body"></div>
     <div class="confirm-actions">
       <button type="button" id="confirm-cancel">Back to edit</button>
-      <button type="button" id="confirm-ok">Submit signal</button>
+      <button type="button" id="confirm-ok">Submit setup</button>
     </div>
   </dialog>
 
