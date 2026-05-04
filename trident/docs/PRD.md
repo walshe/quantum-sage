@@ -25,7 +25,7 @@
 2. Background and Context
 3. System Concept
 4. Roles and Responsibilities
-5. The Signal File (Data Contract)
+5. The Setup File (Data Contract)
 6. Key Data Points and Their Meaning
 7. Trident: Trading Logic
 8. Risk and Capital Management
@@ -57,13 +57,13 @@ tightly controlled downside risk.
 Future strategies under the QS umbrella may use
 different logic, instruments, or timeframes, but
 they will all share the same core architecture:
-signal file ingestion, strategy logic, tradeable
+setup file ingestion, strategy logic, tradeable
 signal generation, and execution dispatch.
 
 QS is composed of two modules:
 
 - **qs-signal-engine** -- the brain. Ingests the
-  analyst's signal file, watches live price, applies
+  analyst's setup file, watches live price, applies
   strategy-specific trading logic (Trident in
   Phase 1), and generates tradeable signals. This
   is the Phase 1 priority.
@@ -81,7 +81,7 @@ built and validated independently before qs-trader
 is wired up.
 
 QS is NOT a fully autonomous system. In its initial
-phase, it depends on human-generated signals and
+phase, it depends on human-generated setups and
 operates within strict boundaries defined by the
 analyst.
 
@@ -92,23 +92,27 @@ analyst.
 
 ### 1.2 Long-Term Vision
 
-The current architecture assumes a human analyst
-producing the signal file manually, with a human
-trader executing the signals.
+The current architecture has a human analyst
+producing the setup file -- via the dashboard
+form, or by importing screenshots that the AI
+vision model reads and pre-fills -- and a human
+trader executing the resulting signals manually.
 
 **Phase 2** adds automated execution -- qs-trader
-runs natively inside a trading platform (cTrader,
-MT4, or MT5), so the human trader is no longer
-needed in the loop.
+sends orders directly to the broker via API (e.g.
+cTrader Open API), so the human trader is no
+longer needed in the loop. The system remains a
+standalone Node.js process; there is no native
+platform plugin.
 
 **Phase 3** goes further by automating the analyst's
 role as well -- replacing the manual chart reading
 and level extraction with an automated pipeline
 that ingests raw options data, computes the IV
 smile, derives DVS/ranges/levels, and generates the
-signal file programmatically.
+setup file programmatically.
 
-This is why the signal file (data contract) is
+This is why the setup file (data contract) is
 designed as a clean interface between the two halves
 of the system. When the analyst side is eventually
 automated, QS core logic does not need to change --
@@ -116,16 +120,16 @@ it still consumes the same YAML schema regardless
 of whether a human or a machine produced it.
 
 **Phase 1 (current):**
-  Human analyst --> Signal file --> qs-signal-engine
+  Human analyst --> Setup file --> qs-signal-engine
   --> qs-trader (manual mode) --> Human executes
 
 **Phase 2 (future):**
-  Human analyst --> Signal file --> qs-signal-engine
-  --> qs-trader (auto mode, native to platform)
+  Human analyst --> Setup file --> qs-signal-engine
+  --> qs-trader (auto mode, broker API)
   --> Broker
 
 **Phase 3 (future):**
-  Automated analysis --> Signal file -->
+  Automated analysis --> Setup file -->
   qs-signal-engine --> qs-trader (auto mode) -->
   Broker
 
@@ -160,8 +164,11 @@ From this data, the signal service produces:
 - SKEW index readings for tail risk assessment
 
 The analyst reviews these outputs, applies
-discretionary judgment, and produces a signal file
-for QS.
+discretionary judgment, and submits the setup to
+QS -- either by filling the dashboard form
+directly, or by importing chart screenshots that
+the AI vision model reads and pre-fills for
+review before submission.
 
 ### 2.2 Origin of Levels
 
@@ -204,10 +211,10 @@ capturing the mean-reversion move back toward VWAP.
 │                           │
 │   Reviews/computes levels │
 │   Updates VWAP            │
-│   Fills signal file       │
+│   Fills setup file       │
 └─────────────┬─────────────┘
               │
-              │  Signal YAML file
+              │  Setup YAML file
               │  (the data contract)
               ▼
 ┌─────────────────────────────────┐
@@ -216,7 +223,7 @@ capturing the mean-reversion move back toward VWAP.
 │                                 │
 │  ┌───────────────────────────┐  │
 │  │   qs-signal-engine        │  │
-│  │   Validates signal        │  │
+│  │   Validates setup         │  │
 │  │   Watches live price      │  │
 │  │   Applies strategy logic  │  │
 │  │     (Trident in Phase 1)  │  │
@@ -236,9 +243,9 @@ capturing the mean-reversion move back toward VWAP.
 │  │     for manual execution  │  │
 │  │     (Telegram, dashboard) │  │
 │  │                           │  │
-│  │   Phase 2: native to      │  │
-│  │     platform              │  │
-│  │     (cTrader/MT4/MT5)     │  │
+│  │   Phase 2: auto via       │  │
+│  │     broker API            │  │
+│  │     (e.g. cTrader)        │  │
 │  └─────────────┬─────────────┘  │
 │                │                │
 └────────────────┼────────────────┘
@@ -265,11 +272,10 @@ Key design principles:
   trade opportunities). qs-trader owns the "how"
   (getting orders to market).
 - **Internal interface between modules.** The
-  tradeable signal is a well-defined data structure
-  passed from qs-signal-engine to qs-trader. This
-  allows each module to be developed and tested
-  independently.
-- **The signal file is a stable external interface.**
+  setup is a well-defined data structure passed from
+  qs-signal-engine to qs-trader. This allows each
+  module to be developed and tested independently.
+- **The setup file is a stable external interface.**
   Whether a human or a machine produces it, QS
   consumes the same schema.
 - **QS is useful from day one.** qs-signal-engine
@@ -289,14 +295,15 @@ Key design principles:
 - Identifies key levels (MAX SELL 1/2, MAX BUY 1/2,
   SUPPORTO, RESISTENZA)
 - Updates VWAP periodically (roughly once per hour)
-- Fills in the signal YAML file with all required
-  fields
-- May issue updated signals intraday (e.g. after
+- Submits the day's setup via the dashboard form
+  (directly, or via AI screenshot import which
+  pre-fills the form for review)
+- May issue updated setups intraday (e.g. after
   the Europe mid-afternoon recalibration)
 - Sets invalidation boundaries and event risk notes
 
 > **Phase 3 note:** In the future, this role will be
-> replaced by an automated pipeline. The signal file
+> replaced by an automated pipeline. The setup file
 > schema remains the same -- only the producer
 > changes.
 
@@ -306,7 +313,7 @@ The brain of QS. Responsible for all strategy logic
 and signal generation. In Phase 1, this means
 implementing the Trident strategy.
 
-- Validates the signal file against the schema
+- Validates the setup file against the schema
 - Loads levels, VWAP, and bias into memory
 - Checks DVS gate (if DVS > 75, no trades allowed)
 - Monitors live price feed
@@ -341,13 +348,13 @@ in front of a human or into a trading platform.
 - Human trader decides whether to act
 
 **Phase 2 (automated mode):**
-- Implemented natively inside the analyst's
-  trading platform (cTrader, MT4, or MT5)
+- Runs as the same standalone Node.js process,
+  extended with order-execution capability
 - Receives tradeable signals from qs-signal-engine
-- Translates them into platform orders (market,
-  limit, stop)
+- Sends orders to the broker via API (cTrader
+  Open API -- already used for price feed)
 - Manages position lifecycle (fills, partials,
-  cancellations)
+  cancellations) via API responses
 - Enforces broker-level risk limits (margin,
   daily loss cap)
 - Reports execution status back for logging
@@ -362,14 +369,14 @@ in front of a human or into a trading platform.
 
 ---
 
-## 5. The Signal File (Data Contract)
+## 5. The Setup File (Data Contract)
 
 ### 5.1 Format
 
 - **Format:** YAML
 - **Encoding:** UTF-8
 - **Schema version:** 1.0
-- **Naming:** `qs_signal_YYYY-MM-DD_HHmm.yaml`
+- **Naming:** `qs_setup_YYYY-MM-DD_HHmm.yaml`
   - Date format is ISO 8601: **year-month-day** (e.g. `2026-04-17`, not `17-04-2026`)
   - Time is 24-hour HHmm (e.g. `1006` = 10:06 am)
 - **Delivery:** TBD
@@ -388,7 +395,7 @@ in front of a human or into a trading platform.
 ### 5.3 Schema (v1.0)
 
 The full annotated example is in
-`qs_signal_2026-04-02_1006.yaml`.
+`qs_setup_2026-04-02_1006.yaml`.
 
 Summary of sections:
 
@@ -432,7 +439,7 @@ Summary of sections:
 - VWAP present and reasonable
 - Enum fields valid
 - Invalidation boundaries sensible
-- Signal not stale
+- Setup not stale
 
 ---
 
@@ -473,18 +480,13 @@ average price weighted by volume. In a mean-reversion
 system, price is expected to return to VWAP after
 deviating to the MAX BUY or MAX SELL zones.
 
-> **[FB resolved]** VWAP will be entered manually
-> by the analyst and updated periodically in an
-> external Excel file. Reliable VWAP requires
-> volume data from a professional platform like
-> Bookmap or MultiCharts. Since VWAP does not
-> change dramatically in a short period, manual
-> updates every few hours are acceptable for now.
->
-> If the engineer is able to retrieve VWAP from an
-> external source independently, that is also
-> acceptable -- the signal file VWAP would then
-> become a fallback/validation reference.
+VWAP is entered by the analyst into the dashboard
+form (directly, or pre-filled via AI screenshot
+import) and updated periodically intraday. Reliable
+VWAP requires volume data from a professional
+platform like Bookmap or MultiCharts. Since VWAP
+does not change dramatically over short periods,
+manual updates every few hours are acceptable.
 
 ### 6.3 Range Levels
 
@@ -549,7 +551,7 @@ Changes daily. Recent range: 40-75 points.
 
 Trident is the first strategy implemented under
 the Quantum Sage umbrella. Future strategies may
-have different logic, but the architecture (signal
+have different logic, but the architecture (setup
 file, qs-signal-engine, qs-trader) remains shared.
 
 ### 7.1 System Type
@@ -593,7 +595,7 @@ The position is built in three entries:
 - Sell side: midpoint - 2 points
 
 > **IMPORTANT:** Only Entry 1 and Entry 3 come from
-> the signal file (as MAX BUY/SELL levels). Entry 2
+> the setup file (as MAX BUY/SELL levels). Entry 2
 > is **calculated by qs-signal-engine** at runtime
 > from those two levels. It does not appear in the
 > YAML.
@@ -618,7 +620,7 @@ third entry.
 ### 7.3.1 Missing Level Behavior
 
 > **[FB resolved]** If the required levels are not
-> available in the signal file (e.g. one of the
+> available in the setup file (e.g. one of the
 > MAX BUY or MAX SELL levels is null),
 > qs-signal-engine should **skip the trade
 > entirely**. No fallback, no two-entry mode -- the
@@ -714,7 +716,7 @@ QS should evaluate in this order:
 
 1. Risk limit checks (daily loss, DVS gate)
 2. Trade eligibility checks (daily lock, session
-   time, signal validity)
+   time, setup validity)
 3. Entry execution by level (three-entry structure)
 4. VWAP and target monitoring
 5. Breakeven activation above +25 points
@@ -782,7 +784,7 @@ the relationship between per-trade risk and the
 soft daily stop.
 
 > **NOTE:** These are QS configuration parameters,
-> NOT part of the signal file. They live in a
+> NOT part of the setup file. They live in a
 > separate QS config file that rarely changes.
 
 ### 8.2 Position Size Adaptation
@@ -833,16 +835,16 @@ soft daily stop.
 ### 8.6 Technical Risk
 
 - Price feed outage -- QS must detect and halt
-- Signal file corruption -- validation catches this
+- Setup file corruption -- validation catches this
 - Clock drift -- timestamps matter for 180-min
-  timer and signal expiry
+  timer and setup expiry
 - Network issues -- QS should not assume permanent
   connectivity
 
 ### 8.7 Operational Risk
 
-- Stale signals -- must not trade yesterday's levels
-- Fat finger in signal file -- validation is safety
+- Stale setups -- must not trade yesterday's levels
+- Fat finger in setup file -- validation is safety
   net
 - Conflicting update_seq -- always use latest
 - Session boundaries must be respected
@@ -862,20 +864,15 @@ soft daily stop.
 
 ### 9.2 Broker / Execution (qs-trader)
 
-> **[FB resolved]** The analyst trades this strategy
-> on **cTrader, MT4, or MT5**. qs-trader Phase 2
-> will be implemented natively inside one (or more)
-> of these platforms rather than as a standalone
-> process talking to a broker API.
-
 > **Phase 1:** qs-trader operates in manual mode --
-> displays signals for human execution. No platform
-> integration needed.
+> displays events for human execution. No order
+> API integration needed.
 >
-> **Phase 2:** qs-trader is implemented natively
-> inside cTrader / MT4 / MT5. Order execution,
-> position management, and broker connectivity
-> come "for free" from the platform.
+> **Phase 2:** qs-trader is extended to place orders
+> via the cTrader Open API (the same WebSocket
+> connection already used for the price feed).
+> No native platform plugin required -- the system
+> stays a standalone Node.js process throughout.
 
 ### 9.3 Currency
 
@@ -918,13 +915,16 @@ no longer need action:
   acceptable. (Section 8.1.1)
 - ✅ **Hard daily stop** -- corrected from EUR 4,000
   to EUR 800. (Section 8.1)
-- ✅ **Trading platform** -- cTrader, MT4, or MT5.
+- ✅ **Broker API** -- cTrader Open API (same
+  WebSocket used for price feed, extended to
+  send orders in Phase 2). Standalone Node.js
+  process throughout -- no native plugin.
   (Section 9.2 and 11.4)
-- ✅ **Signal delivery from analyst** -- FB will
+- ✅ **Setup delivery from analyst** -- FB will
   put levels into an Excel file. Engineer to design
   the bridge. (Section 11.4)
 
-### Signal Units -- Cash vs Futures
+### Setup Units -- Cash vs Futures
 
 **Background:** the numbers the analyst (FB)
 provides to Trident -- whether typed into
@@ -1051,7 +1051,7 @@ These items are still unresolved:
   (analyst's future enhancement -- currently
   single target mode using VWAP)
 
-### Signal Delivery (EW)
+### Setup Delivery (EW)
 
 - **TODO EW:** FB will use an Excel file for
   levels. How does QS read it? Direct file watch?
@@ -1097,7 +1097,7 @@ These items are still unresolved:
 
 ### Backtesting
 
-- Can the analyst provide historical signal data?
+- Can the analyst provide historical setup data?
 - How will we validate Trident logic before going
   live?
 
@@ -1106,7 +1106,7 @@ These items are still unresolved:
 - The risk/capital parameters (Section 8) and
   Trident-specific parameters (entry allocations,
   offsets, profit targets) should live in a
-  separate QS config file, not the signal YAML
+  separate QS config file, not the setup YAML
 - **TODO EW:** Design the QS config schema
 - Config is shared by both qs-signal-engine (for
   sizing in signals) and qs-trader (for
@@ -1135,7 +1135,7 @@ These items are still unresolved:
 ```
          INPUTS
 ┌──────────────┐  ┌──────────────┐
-│  Signal       │  │  Price Feed   │
+│  Setup        │  │  Price Feed   │
 │  Ingestion    │  │  Service      │
 │  (YAML/Excel) │  │  (Live ES)    │
 └──────┬───────┘  └──────┬───────┘
@@ -1149,7 +1149,7 @@ These items are still unresolved:
 │  │  (Trident strategy)      │  │
 │  │                          │  │
 │  │  ┌─────────┐ ┌────────┐ │  │
-│  │  │ Signal  │ │ DVS    │ │  │
+│  │  │ Setup   │ │ DVS    │ │  │
 │  │  │ Valid.  │ │ Gate   │ │  │
 │  │  └─────────┘ └────────┘ │  │
 │  │                          │  │
@@ -1180,8 +1180,8 @@ These items are still unresolved:
 │  │  Phase 1: Manual output  │  │
 │  │  (Telegram, dashboard)   │  │
 │  │                          │  │
-│  │  Phase 2: Native to      │  │
-│  │  cTrader / MT4 / MT5     │  │
+│  │  Phase 2: auto via       │  │
+│  │  cTrader Open API        │  │
 │  └────────────┬─────────────┘  │
 │               │                │
 └───────────────┼────────────────┘
@@ -1197,7 +1197,7 @@ These items are still unresolved:
 
 QS has two separate configuration inputs:
 
-**Signal File (changes daily/intraday):**
+**Setup File (changes daily/intraday):**
 - Levels, VWAP, DVS, ranges, bias
 - Produced by the analyst (Excel, converted to
   YAML or read directly)
@@ -1226,42 +1226,41 @@ QS has two separate configuration inputs:
 >   parsing, rapid prototyping)
 > - TypeScript/Node.js (event-driven, good for
 >   real-time dashboards)
-> - Native platform languages (cAlgo C# for
->   cTrader, MQL4/5 for MetaTrader) for Phase 2
->   qs-trader
+> - TypeScript/Node.js is the confirmed stack;
+>   broker integration via cTrader Open API
 
-### 11.4 Platform Strategy
+### 11.4 Execution Strategy
 
-> **[FB resolved]** FB confirmed that Trident
-> should run **natively inside the trading
-> platform(s)** he uses: cTrader, MT4, or MT5.
-> This is the canonical Phase 2 deployment target.
+**Approach (Phase 2):**
 
-**Approach:**
+The system is a standalone Node.js process
+throughout. Phase 2 extends the existing
+cTrader Open API connection (currently read-only
+for price ticks) to also send orders:
 
-1. Build the canonical qs-signal-engine logic in
-   Python (or TypeScript) as the reference
-   implementation -- used for testing,
-   backtesting, and rule validation
-2. Port qs-signal-engine to cTrader (cAlgo C#) and/or
-   MT4/MT5 (MQL4/5) using AI-assisted translation
-3. qs-trader comes "for free" inside the platform
-   -- native order execution, position management,
-   price feed, broker connectivity
-4. Signal file (YAML or Excel-converted) remains
-   the same regardless of which platform consumes
-   it
+1. qs-signal-engine generates a tradeable signal
+   (entry price, direction, stop, size)
+2. qs-trader translates that into a cTrader
+   Open API order message (ProtoOANewOrderReq
+   or similar) sent over the existing WebSocket
+3. The broker confirms fill / rejection; qs-trader
+   relays the result back to qs-signal-engine for
+   state tracking
+4. Setup file format and all strategy logic remain
+   unchanged -- only the output path changes
+   (console/dashboard → API call)
 
-**Why native platform implementation:**
+**Why standalone API over native plugin:**
 
-- Price feed is built in and reliable -- no need
-  to self-manage
-- Order execution is built in
-- Backtesting tools come free
-- AI-assisted porting (Opus 4.6) makes
-  reimplementing for multiple platforms feasible
+- The cTrader Open API already provides price feed,
+  order execution, account info, and position
+  management -- no need to run inside the platform
+- One codebase, one deployment -- no reimplementation
+  in cAlgo C# or MQL
+- Easier to test, log, and iterate outside the
+  platform sandbox
 
-> **[FB resolved]** Signal delivery: FB will put
+> **[FB resolved]** Setup delivery: FB will put
 > the levels into an Excel file for the moment.
 > The engineer needs to design how QS reads from
 > Excel (file watcher, bridge service to convert
@@ -1271,9 +1270,7 @@ QS has two separate configuration inputs:
 ### 11.5 Deployment
 
 > **TBD** -- Local machine, cloud VPS, or
-> dedicated trading server. Likely depends on
-> whether the canonical Python reference is run
-> alongside the platform-native implementation.
+> dedicated trading server.
 
 ---
 
@@ -1288,11 +1285,11 @@ QS has two separate configuration inputs:
 |            | with three-entry scaling and VWAP   |
 |            | target                              |
 | qs-signal- | QS module: the brain. Ingests       |
-| engine     | signals, watches price, generates   |
+| engine     | setups, watches price, generates    |
 |            | tradeable signals                   |
 | qs-trader  | QS module: the hands. Displays      |
 |            | signals (manual) or executes them   |
-|            | inside trading platform (auto)      |
+|            | via broker API (auto)               |
 | DVS        | Directional Volatility Score        |
 | ES         | E-mini S&P 500 futures              |
 | SPX        | S&P 500 cash index                  |
@@ -1310,7 +1307,7 @@ QS has two separate configuration inputs:
 | Coast to   | Full move from MAX BUY/SELL to VWAP |
 | Coast      |                                     |
 | CFD        | Contract for Difference             |
-| Signal     | YAML file -- QS's sole input        |
+| Setup      | YAML file -- QS's sole input        |
 | File       |                                     |
 | DVS Gate   | Hard rule: no trades if DVS > 75    |
 | Three-Entry| Trident's structure: scaling into   |
@@ -1322,9 +1319,9 @@ QS has two separate configuration inputs:
 
 ## 13. Appendices
 
-### Appendix A: Signal File Example
+### Appendix A: Setup File Example
 
-See [qs_signal_2026-04-02_1006.yaml](./research/sample-signal-files/qs_signal_2026-04-02_1006.yaml)
+See [qs_setup_2026-04-02_1006.yaml](./research/sample-signal-files/qs_setup_2026-04-02_1006.yaml)
 for an annotated example with inline comments
 showing where each value originates on the
 analyst's charts.

@@ -119,6 +119,14 @@ details[open].history summary::before { content: '▼ '; }
   letter-spacing: 0;
   font-style: italic;
 }
+.field-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-dim);
+  line-height: 1.4;
+  font-style: italic;
+}
 button {
   background: linear-gradient(to bottom, #2d3542, #232a35);
   color: var(--fg);

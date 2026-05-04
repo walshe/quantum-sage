@@ -33,7 +33,14 @@
       "Read(//tmp/**)",
       "Bash(python3 -c ' *)",
       "Bash(node --check /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/app.js)",
-      "Bash(node --check /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/i18n.js)"
+      "Bash(node --check /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/i18n.js)",
+      "Bash(grep -v \":0$\")",
+      "Bash(openspec new *)",
+      "Bash(openspec status *)",
+      "Bash(openspec instructions *)",
+      "Bash(npm start *)",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"dist/index.js\")"
     ]
   }
 }

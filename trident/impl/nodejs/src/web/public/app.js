@@ -37,7 +37,7 @@ const _i18nTitleSnap = new WeakMap();
 const I18N_TEXT_SELECTOR = [
   'label', 'legend', 'option', 'button', 'h2', 'summary',
   '.chip-label', '.chip-value', '.brand-name', '.log-sub',
-  '.confirm-sub', '.optional',
+  '.confirm-sub', '.optional', '.field-note',
   // Help dialog body — scope to that subtree so we don't translate every
   // paragraph in the whole UI by accident.
   '#help-dialog-body h3', '#help-dialog-body dt', '#help-dialog-body dd',
