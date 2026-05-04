@@ -2,8 +2,6 @@ export interface QSConfig {
   capital: {
     starting_capital_eur: number;
     daily_risk_pct: number;
-    soft_daily_stop_eur: number;
-    hard_daily_stop_eur: number;
   };
   trident: {
     entry_1_allocation_pct: number;

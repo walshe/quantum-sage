@@ -15,7 +15,7 @@ import { getLogger } from '../logger.js';
 
 const log = getLogger('WebServer');
 
-const SIGNAL_PATTERN = /^qs_signal_.+\.yaml$/;
+const SIGNAL_PATTERN = /^qs_setup_.+\.yaml$/;
 
 export interface StartWebServerOpts {
   port: number;
@@ -80,7 +80,7 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
       const signal = loadSignalFile(latest.path);
       res.json({ filename: latest.filename, signal });
     } catch (err) {
-      log.error('Failed to read latest signal', { error: (err as Error).message });
+      log.error('Failed to read latest setup', { error: (err as Error).message });
       res.status(500).json({ error: (err as Error).message });
     }
   });
@@ -155,10 +155,10 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     try {
       written = writeSignalYaml(opts.signalsDir, body);
     } catch (err) {
-      log.error('Failed to write signal file', { error: (err as Error).message });
+      log.error('Failed to write setup file', { error: (err as Error).message });
       return res.status(500).json({ valid: false, errors: [(err as Error).message], warnings: result.warnings });
     }
-    log.info('Signal written via web UI', { path: written });
+    log.info('Setup written via web UI', { path: written });
     res.json({ valid: true, filename: written, warnings: result.warnings });
   });
 
@@ -204,13 +204,13 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
 
 /**
  * Atomic write: tmp file + rename. Mirrors src/strategy/persistence.ts so an
- * engine fs.watch can never see a half-written YAML. Uses the signal's own
+ * engine fs.watch can never see a half-written YAML. Uses the setup's own
  * meta.date + meta.timestamp for the filename (HH:MM → HHMM).
  */
 function writeSignalYaml(signalsDir: string, signal: SignalFile): string {
   if (!existsSync(signalsDir)) mkdirSync(signalsDir, { recursive: true });
   const hhmm = signal.meta.timestamp.replace(':', '');
-  const filename = `qs_signal_${signal.meta.date}_${hhmm}.yaml`;
+  const filename = `qs_setup_${signal.meta.date}_${hhmm}.yaml`;
   const target = resolve(signalsDir, filename);
   const tmp = `${target}.tmp`;
   writeFileSync(tmp, dump(signal, { lineWidth: 120 }), 'utf8');
@@ -223,7 +223,7 @@ function pickLatestTodaysSignal(
 ): { filename: string; path: string; mtimeMs: number } | null {
   if (!existsSync(signalsDir)) return null;
   const today = todayStr();
-  const datePattern = new RegExp(`^qs_signal_${today}_`);
+  const datePattern = new RegExp(`^qs_setup_${today}_`);
   let entries: string[];
   try {
     entries = readdirSync(signalsDir);

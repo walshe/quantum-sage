@@ -154,7 +154,7 @@ export function validateSignal(
   const expiryTime = parseTimeOnDate(signal.meta.date, signal.invalidation.expiry);
   if (signalTime >= expiryTime) {
     errors.push(
-      `Signal timestamp (${signal.meta.timestamp}) must be before expiry (${signal.invalidation.expiry})`
+      `Setup timestamp (${signal.meta.timestamp}) must be before expiry (${signal.invalidation.expiry})`
     );
   }
 
@@ -163,7 +163,7 @@ export function validateSignal(
   const signalAgeHours = (nowMs - signalTime.getTime()) / (1000 * 60 * 60);
   if (signalAgeHours > opts.staleThresholdHours) {
     errors.push(
-      `Signal is stale: created ${signalAgeHours.toFixed(1)}h ago (threshold: ${opts.staleThresholdHours}h)`
+      `Setup is stale: created ${signalAgeHours.toFixed(1)}h ago (threshold: ${opts.staleThresholdHours}h)`
     );
   }
 

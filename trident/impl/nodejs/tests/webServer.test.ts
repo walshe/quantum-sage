@@ -12,7 +12,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const NOW_TIME = new Date().toTimeString().slice(0, 5);
 
 const config: QSConfig = {
-  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5, soft_daily_stop_eur: 400, hard_daily_stop_eur: 800 },
+  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5 },
   trident: {
     entry_1_allocation_pct: 32.5, entry_2_allocation_pct: 35.0, entry_3_allocation_pct: 32.5,
     midpoint_offset_buy: 2, midpoint_offset_sell: -2, stop_loss_points: 40,
@@ -86,7 +86,7 @@ describe('web server — POST /signals', () => {
     const body = await res.json() as { valid: boolean; filename: string; warnings: string[] };
     expect(body.valid).toBe(true);
     const hhmm = NOW_TIME.replace(':', '');
-    expect(body.filename).toBe(`qs_signal_${TODAY}_${hhmm}.yaml`);
+    expect(body.filename).toBe(`qs_setup_${TODAY}_${hhmm}.yaml`);
 
     const written = join(signalsDir, body.filename);
     expect(existsSync(written)).toBe(true);
@@ -129,9 +129,9 @@ describe('web server — GET /signals/latest', () => {
     // write two files: one for yesterday, one for today
     const signal = makeSignal();
     const hhmm = NOW_TIME.replace(':', '');
-    const todayFile = join(signalsDir, `qs_signal_${TODAY}_${hhmm}.yaml`);
+    const todayFile = join(signalsDir, `qs_setup_${TODAY}_${hhmm}.yaml`);
     const yesterdayDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    const yesterdayFile = join(signalsDir, `qs_signal_${yesterdayDate}_0900.yaml`);
+    const yesterdayFile = join(signalsDir, `qs_setup_${yesterdayDate}_0900.yaml`);
 
     // need the dir first
     const { mkdirSync } = await import('fs');
@@ -142,7 +142,7 @@ describe('web server — GET /signals/latest', () => {
     const res = await fetch(`${baseUrl}/signals/latest`);
     expect(res.status).toBe(200);
     const body = await res.json() as { filename: string; signal: SignalFile };
-    expect(body.filename).toBe(`qs_signal_${TODAY}_${hhmm}.yaml`);
+    expect(body.filename).toBe(`qs_setup_${TODAY}_${hhmm}.yaml`);
     expect(body.signal.meta.date).toBe(TODAY);
   });
 });

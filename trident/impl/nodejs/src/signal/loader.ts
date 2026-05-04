@@ -8,8 +8,8 @@ const log = getLogger('SignalLoader');
 
 export type SignalCallback = (signal: SignalFile, filePath: string) => void;
 
-const SIGNAL_PATTERN = /^qs_signal_.+\.yaml$/;
-const SIGNAL_FILENAME_DATE = /^qs_signal_(\d{4}-\d{2}-\d{2})_/;
+const SIGNAL_PATTERN = /^qs_setup_.+\.yaml$/;
+const SIGNAL_FILENAME_DATE = /^qs_setup_(\d{4}-\d{2}-\d{2})_/;
 
 function todayStr(): string {
   const d = new Date();
@@ -24,7 +24,7 @@ function todayStr(): string {
  */
 export function watchSignalDir(dir: string, onSignal: SignalCallback): () => void {
   const absDir = resolve(dir);
-  log.info('Watching signal directory', { dir: absDir });
+  log.info('Watching setup directory', { dir: absDir });
 
   const watcher = watch(absDir, { persistent: true }, (eventType, filename) => {
     if (!filename || !SIGNAL_PATTERN.test(filename)) return;
@@ -35,7 +35,7 @@ export function watchSignalDir(dir: string, onSignal: SignalCallback): () => voi
     const filePath = resolve(absDir, filename);
     try {
       const signal = loadSignalFile(filePath);
-      log.info('Signal file parsed', {
+      log.info('Setup file parsed', {
         filename,
         date: signal.meta.date,
         update_seq: signal.meta.update_seq,
@@ -43,7 +43,7 @@ export function watchSignalDir(dir: string, onSignal: SignalCallback): () => voi
       });
       onSignal(signal, filePath);
     } catch (err) {
-      log.error('Failed to parse signal file', {
+      log.error('Failed to parse setup file', {
         filename,
         error: (err as Error).message,
       });
@@ -51,13 +51,13 @@ export function watchSignalDir(dir: string, onSignal: SignalCallback): () => voi
   });
 
   return () => {
-    log.info('Stopped watching signal directory', { dir: absDir });
+    log.info('Stopped watching setup directory', { dir: absDir });
     watcher.close();
   };
 }
 
 export function loadSignalFile(filePath: string): SignalFile {
-  log.debug('Reading signal file from disk', { filePath });
+  log.debug('Reading setup file from disk', { filePath });
   const raw = readFileSync(filePath, 'utf8');
   return load(raw) as SignalFile;
 }
@@ -81,7 +81,7 @@ export function scanSignalDirOnce(dir: string, onSignal: SignalCallback): void {
   try {
     entries = readdirSync(absDir);
   } catch (err) {
-    log.warn('Signal directory not readable on startup scan', {
+    log.warn('Setup directory not readable on startup scan', {
       dir: absDir, error: (err as Error).message,
     });
     return;
@@ -101,21 +101,21 @@ export function scanSignalDirOnce(dir: string, onSignal: SignalCallback): void {
   }
 
   if (candidates.length === 0) {
-    log.info('Startup scan found no signal files for today', { dir: absDir, today });
+    log.info('Startup scan found no setup files for today', { dir: absDir, today });
     return;
   }
 
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
   const chosen = candidates[0];
   const filePath = resolve(absDir, chosen.filename);
-  log.info('Startup scan loading most recent signal file', {
+  log.info('Startup scan loading most recent setup file', {
     filename: chosen.filename, candidates: candidates.length,
   });
   try {
     const signal = loadSignalFile(filePath);
     onSignal(signal, filePath);
   } catch (err) {
-    log.error('Failed to parse signal file during startup scan', {
+    log.error('Failed to parse setup file during startup scan', {
       filename: chosen.filename, error: (err as Error).message,
     });
   }

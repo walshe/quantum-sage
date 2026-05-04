@@ -102,8 +102,8 @@ window.TRIDENT_I18N = {
     'Clear': 'Pulisci',
     "Events stream in as the engine fires them — setup load, trade plan, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.":
       "Gli eventi compaiono in tempo reale mentre il motore li genera — caricamento setup, piano di trade, ingressi, breakeven, chiusura, lock giornaliero. I tick di prezzo non vengono mostrati. Gli eventi precedenti alla connessione del browser non vengono recuperati.",
-    "Wipe the log pane in this browser tab. Does not affect the engine, the signals/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events.":
-      "Pulisce il pannello dei log in questo tab del browser. Non influisce sul motore, sulla cartella signals/ o sugli altri tab connessi — è un reset puramente locale della vista. Utile quando il log diventa rumoroso e vuoi una finestra pulita sugli eventi successivi.",
+    "Wipe the log pane in this browser tab. Does not affect the engine, the setups/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events.":
+      "Pulisce il pannello dei log in questo tab del browser. Non influisce sul motore, sulla cartella setups/ o sugli altri tab connessi — è un reset puramente locale della vista. Utile quando il log diventa rumoroso e vuoi una finestra pulita sugli eventi successivi.",
 
     // ---------- Tooltips ----------
     "WebSocket connection between this browser and the engine process.\n\n• Connected — engine is running, live events streaming\n• Reconnecting — connection dropped; tab retries with backoff\n• Disconnected — engine process is down or unreachable":
@@ -112,8 +112,8 @@ window.TRIDENT_I18N = {
       "Macchina a stati del motore.\n\n• inattivo — nessun setup caricato\n• in osservazione — setup caricato, in attesa di Entry 1\n• in trade — almeno un ingresso eseguito\n• chiuso — trade del giorno terminato\n• bloccato — lock giornaliero attivo (un trade vincente già chiuso) o gate DVS che blocca i trade",
     "Latest ES/US500 futures price the engine has seen from the broker feed.\n\nUpdates at most twice a second to keep the tab responsive.\n\nDashes mean no ticks yet (engine just started or feed disconnected).":
       "Ultimo prezzo ES/US500 ricevuto dal feed del broker.\n\nAggiornato al massimo due volte al secondo per non rallentare il tab.\n\nI trattini indicano che non sono ancora arrivati tick (motore appena avviato o feed disconnesso).",
-    "Filename and key fields of the setup file the engine is currently operating on.\n\nShows 'None loaded' until one arrives.\n\nUpdates when a new setup is picked up from the signals/ folder or submitted through this form.":
-      "Nome del file e campi principali del setup attualmente in uso dal motore.\n\nMostra 'Nessuno caricato' finché non ne arriva uno.\n\nSi aggiorna quando un nuovo setup viene preso dalla cartella signals/ o inviato tramite questo form.",
+    "Filename and key fields of the setup file the engine is currently operating on.\n\nShows 'None loaded' until one arrives.\n\nUpdates when a new setup is picked up from the setups/ folder or submitted through this form.":
+      "Nome del file e campi principali del setup attualmente in uso dal motore.\n\nMostra 'Nessuno caricato' finché non ne arriva uno.\n\nSi aggiorna quando un nuovo setup viene preso dalla cartella setups/ o inviato tramite questo form.",
     "Every setup file loaded or rejected today.\n\nCount rises with each SIGNAL or INVALID event. The currently loaded setup is always shown even if it was loaded before this tab opened.\n\nClick to expand the list and see timestamps + filenames.\n\nResets when you reload the page — does not persist across tabs.":
       "Ogni file setup caricato o rifiutato oggi.\n\nIl contatore sale a ogni evento SIGNAL o INVALID. Il setup attualmente caricato viene sempre mostrato anche se era stato caricato prima dell'apertura di questo tab.\n\nClicca per espandere la lista con timestamp e nome file.\n\nSi azzera al ricaricamento della pagina — non persiste tra i tab.",
     "Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).\n\nTrident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.\n\nYou'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.\n\n(AI extraction is not wired up yet — for now the upload just stores the images.)":
@@ -124,8 +124,8 @@ window.TRIDENT_I18N = {
       "Svuota il form per iniziare un nuovo setup del mattino da zero.\n\nResetta tutti i campi, riporta update_seq a 1 e imposta la data di oggi.\n\nUsalo una volta al giorno quando FB invia il primo setup della sessione.",
     "Keep the current values but bump update_seq by 1.\n\nThe submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).\n\nEdit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state.":
       "Mantiene i valori correnti ma incrementa update_seq di 1.\n\nL'invio viene trattato come una ricalibrazione intra-day di un setup già caricato (es. aggiornamento livelli pomeridiano).\n\nModifica solo i campi cambiati e invia — il motore sostituisce i nuovi livelli senza resettare lo stato del trade.",
-    "Load today's most recent setup file from the signals/ folder into the form.\n\nUseful if the page was reloaded or you want to inspect / tweak what the engine is currently running.\n\nDoes not submit — you still need to click Submit setup to push changes.":
-      "Carica nel form l'ultimo setup di oggi dalla cartella signals/.\n\nUtile se hai ricaricato la pagina o vuoi ispezionare / modificare ciò che il motore sta eseguendo.\n\nNon invia — devi comunque cliccare Invia setup per applicare le modifiche.",
+    "Load today's most recent setup file from the setups/ folder into the form.\n\nUseful if the page was reloaded or you want to inspect / tweak what the engine is currently running.\n\nDoes not submit — you still need to click Submit setup to push changes.":
+      "Carica nel form l'ultimo setup di oggi dalla cartella setups/.\n\nUtile se hai ricaricato la pagina o vuoi ispezionare / modificare ciò che il motore sta eseguendo.\n\nNon invia — devi comunque cliccare Invia setup per applicare le modifiche.",
     "Trading date for this setup (YYYY-MM-DD). The engine rejects setups whose date isn't today.":
       "Data di trading di questo setup (YYYY-MM-DD). Il motore rifiuta setup con data diversa da oggi.",
     "Setup creation time. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Used for the staleness check — the engine rejects setups older than ~6 hours.":
@@ -271,8 +271,8 @@ window.TRIDENT_I18N = {
     'Locked — no more trades today': 'Bloccato — nessun altro trade oggi',
     'Not locked': 'Non bloccato',
     'Open position': 'Posizione aperta',
-    'Engine is offline — file will sit in signals/ until it reconnects.':
-      'Motore offline — il file resterà in signals/ finché non si riconnette.',
+    'Engine is offline — file will sit in setups/ until it reconnects.':
+      'Motore offline — il file resterà in setups/ finché non si riconnette.',
     'Engine is locked for today — setup stored but no trades will fire until tomorrow.':
       'Motore bloccato per oggi — setup salvato ma nessun trade verrà aperto fino a domani.',
     'Engine is blocked by the DVS gate — submission stored, but trading is off today.':

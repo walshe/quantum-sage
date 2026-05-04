@@ -13,10 +13,10 @@ below walks through everything from zero.
 
 **The engine is an advisor, not an auto-trader.** It:
 
-1. Reads the daily YAML signal file you drop into `signals/`.
+1. Reads the daily setup YAML you drop into `setups/`.
 2. Watches live US500 prices from the cTrader demo feed.
 3. Prints a message to the console whenever the Trident strategy would act —
-   setup ready, entry triggered, breakeven reached, exit hit, etc.
+   trade plan ready, entry triggered, breakeven reached, exit hit, etc.
 
 **You place the actual orders manually at the relevant broker.** Nothing in
 Phase 1 touches your broker — the cTrader link is read-only (prices only).
@@ -24,16 +24,16 @@ This means running the engine carries zero execution risk: if the engine
 misbehaves, the worst it can do is print a wrong notification.
 
 Why this matters for Phase 1 testing: you can leave the engine running
-against the demo feed all day, drop signal files at it, and watch how it
+against the demo feed all day, drop setup files at it, and watch how it
 reacts, without any money or positions being affected.
 
 ---
 
 ## What your trading day looks like
 
-1. **Morning, before the session:** update your signal YAML for today
-   (levels, VWAP, DVS, bias) and save it into the `signals/` folder.
-   Filename pattern: `qs_signal_YYYY-MM-DD_HHMM.yaml`.
+1. **Morning, before the session:** prepare today's setup (levels, VWAP,
+   DVS, bias) using the dashboard and submit it, or drop a YAML directly
+   into the `setups/` folder. Filename pattern: `qs_setup_YYYY-MM-DD_HHMM.yaml`.
 2. **Start the engine** (see *Daily running instructions* below). A single
    command in the terminal.
 3. **Watch the console.** When the engine has something to say, it prints a
@@ -42,11 +42,12 @@ reacts, without any money or positions being affected.
    at the relevant broker. When you see `[CLOSED]`, exit your broker
    position.
 5. **Mid-session updates:** if your mid-afternoon levels differ from your
-   morning levels, edit the YAML (or drop a new one) and save. The engine
-   re-loads automatically. `update_seq` is not checked by the engine —
-   bump it for your own audit trail, but the file reloads either way. One
-   caveat: if a trade is already open, mid-session level changes are
-   ignored so the engine doesn't move the goalposts on an in-flight trade.
+   morning setup, click **Update during session** on the dashboard and
+   submit revised values. The engine re-loads automatically. `update_seq`
+   is not checked by the engine — bump it for your own audit trail, but
+   the file reloads either way. One caveat: if a trade is already open,
+   mid-session level changes are ignored so the engine doesn't move the
+   goalposts on an in-flight trade.
 6. **End of day:** stop the engine (`Ctrl+C` in the terminal).
 
 ---
@@ -57,11 +58,11 @@ This is real output from a test run on 2026-04-21 against the live cTrader
 demo feed. Each block is one console event.
 
 ```
-[15:34:01] [SIGNAL]   Loaded signals/qs_signal_2026-04-21_1533.yaml
+[15:34:01] [SIGNAL]   Loaded setups/qs_setup_2026-04-21_1533.yaml
              Date: 2026-04-21 | DVS: 50 (normal) | VWAP: 7140
 ```
 
-Your YAML was parsed and accepted. If validation had failed you'd see
+Your setup was accepted. If validation had failed you'd see
 `[SIGNAL INVALID]` with a list of problems instead.
 
 ```
@@ -72,8 +73,8 @@ Your YAML was parsed and accepted. If validation had failed you'd see
              Stop: 40pts from avg entry | Target: VWAP @ 7140.00
 ```
 
-DVS gate passed, trade plan laid out. This is your "here's what the strategy
-intends to do today" summary. The engine now watches price silently until
+DVS gate passed, trade plan laid out. This is the strategy's summary of what
+it intends to do today. The engine now watches price silently until
 Entry 1 triggers.
 
 ```
@@ -103,9 +104,9 @@ you to do.
 
 | Tag | Action? | Meaning |
 |---|---|---|
-| `[SIGNAL]` | — | YAML parsed and accepted. |
-| `[SIGNAL INVALID]` | — | YAML failed validation. The error list tells you which rule broke. |
-| `[SIGNAL WARNING]` | — | Loaded but with warnings (e.g. stale VWAP). Still trading. |
+| `[SIGNAL]` | — | Setup accepted and loaded. |
+| `[SIGNAL INVALID]` | — | Setup failed validation. The error list tells you which rule broke. |
+| `[SIGNAL WARNING]` | — | Setup loaded with warnings (e.g. stale VWAP). Still trading. |
 | `[DVS GATE]` | — | DVS > 75. **No trades today.** Engine stays idle. |
 | `[SETUP]` | — | Trade plan ready. Waiting for Entry 1. |
 | `[NO SETUP]` | — | Bias + your levels don't give a valid trade (e.g. bias=long but no MAX BUY 1+2 pair). Submission validation usually catches this first; you'd only see it from a hand-edited YAML or a bias/levels mismatch. |
@@ -119,7 +120,7 @@ you to do.
 
 On most days you'll see `[SIGNAL]` and `[SETUP]` in the morning, and then
 nothing until either Entry 1 triggers or the expiry time is reached.
-Silence is not a problem — it just means price hasn't reached your levels.
+Silence is not a problem — it just means price hasn't reached your setup levels.
 
 ---
 
@@ -208,9 +209,9 @@ extraction unavailable" — you fill the form manually.
 npx tsx src/index.ts --mock
 ```
 
-This runs a scripted demo scenario (no live feed, no real signal file).
+This runs a scripted demo scenario (no live feed, no real setup file).
 You should see a short sequence of notifications play out in the console —
-signal loaded, setup, entries, close. If that scrolls cleanly, setup is
+setup loaded, trade plan, entries, close. If that scrolls cleanly, installation is
 done.
 
 ---
@@ -230,7 +231,7 @@ You should see:
 ```
 Trident qs-signal-engine starting...
 Config: /.../config.yaml
-Watching for signals in: /.../signals
+Watching for setups in: /.../setups
 Trident UI: http://localhost:3000
 Connecting to cTrader (symbol: US500)...
 cTrader price feed connected.
@@ -241,14 +242,14 @@ The engine is now live.
 ### 2. Open the dashboard
 
 Open **http://localhost:3000** in your browser. The page has a **status
-band** at the top and a **Live log** below it. You open the signal form
+band** at the top and a **Live log** below it. You open the setup form
 in a modal by clicking one of the top buttons:
 
-- **New signal** — clears the form and resets `update_seq` to 1 for the
-  morning signal.
+- **New setup** — clears the form and resets `update_seq` to 1 for the
+  morning setup.
 - **Update during session** — keeps the current values but bumps
   `update_seq` for an intra-day recalibration.
-- **Pre-fill from latest** — loads today's most recent signal YAML into
+- **Pre-fill from latest** — loads today's most recent setup file into
   the form so you can tweak only what's changed.
 - **Import from screenshots** *(AI)* — upload up to 3 chart screenshots
   (IV Smile / LIVELLI table / SPX intraday). If `OPENAI_API_KEY` is set,
@@ -256,9 +257,9 @@ in a modal by clicking one of the top buttons:
   and pre-fills the form. **Always review every value** before
   submitting — extraction is best-effort, not authoritative.
 - **Status** — opens a read-only view of the engine right now (state,
-  connection, daily lock, currently loaded signal, any open position).
+  connection, daily lock, currently loaded setup, any open position).
 
-In the form modal, click **Submit signal** when done. A brief
+In the form modal, click **Submit setup** when done. A brief
 "Submitted … waiting for engine" appears, then it clears to "Loaded …"
 when the engine picks the file up — typically within a second.
 
@@ -269,12 +270,12 @@ ones you act on at the broker.
 
 The status band shows, at a glance: "Connected / Reconnecting /
 Disconnected", current state (`idle / watching / in_trade / closed /
-locked`), latest price, and the currently loaded signal.
+locked`), latest price, and the currently loaded setup.
 
 **During the day — recalibrating.** Around midday, click **Update during
 session**. This bumps `update_seq` and puts today's time on the
 submission so the engine recognises it as a recalibration, not a new
-day's signal. Update VWAP and any level fields that changed, then submit.
+day's setup. Update VWAP and any level fields that changed, then submit.
 
 **Inline validation feedback.** If the server rejects a submission, the
 banner lists every error and the offending fields are outlined in red
@@ -294,10 +295,10 @@ snapshot. The terminal still has the full log too.
 ### Manual YAML fallback
 
 If the dashboard is unavailable (e.g. you're on a different machine via
-SSH), you can still create today's signal by hand:
+SSH), you can still create today's setup by hand:
 
 ```bash
-cp signals/qs_signal_<yesterday>_<time>.yaml signals/qs_signal_$(date +%Y-%m-%d)_0900.yaml
+cp setups/qs_setup_<yesterday>_<time>.yaml setups/qs_setup_$(date +%Y-%m-%d)_0900.yaml
 ```
 
 Edit the copy in any editor and update `meta.date`, `meta.timestamp`,
@@ -326,7 +327,7 @@ it). Go back to Setup step 1.
 
 ### "[SIGNAL INVALID]" with a list of errors
 
-The engine printed what's wrong. Common issues:
+The engine rejected the setup. Common issues:
 
 - **"Required levels are missing — provide both MAX BUY 1+2 or both
   MAX SELL 1+2"** — at least one full pair is needed; otherwise the
@@ -340,7 +341,7 @@ The engine printed what's wrong. Common issues:
 - **"Invalidation boundaries must bracket futures_last"** —
   `void_below < futures_last < void_above`. Common cause: a void value
   is in SPX cash terms instead of ES futures terms.
-- **"too old to trade"** — the signal file's `date`/`timestamp` is more
+- **"too old to trade"** — the setup file's `date`/`timestamp` is more
   than 6 hours in the past. Update and save again.
 
 If you submitted via the dashboard, the relevant input fields are also
@@ -381,7 +382,7 @@ per broker account at a time.**
 
 | Path | What it is |
 |---|---|
-| `signals/qs_signal_*.yaml` | Your daily signal files. The engine watches this folder. |
+| `setups/qs_setup_*.yaml` | Your daily setup files. The engine watches this folder. |
 | `config.yaml` | Strategy parameters (DVS gate, stop distance, etc.). Rarely changes. |
 | `.env` | cTrader credentials. Do not share this file. |
 | `logs/trident.log` | Full audit log (JSON). Useful if something goes wrong — send it to Emmett. |

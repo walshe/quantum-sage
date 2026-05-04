@@ -705,10 +705,10 @@ function fieldsForError(msg) {
     fields.add('meta.futures_last');
   }
   if (/^dvs \(/.test(msg)) fields.add('volatility.dvs');
-  if (/Signal timestamp .* must be before expiry/.test(msg)) {
+  if (/Setup timestamp .* must be before expiry/.test(msg)) {
     fields.add('meta.timestamp'); fields.add('invalidation.expiry');
   }
-  if (/Signal is stale/.test(msg)) {
+  if (/Setup is stale/.test(msg)) {
     fields.add('meta.timestamp'); fields.add('meta.date');
   }
   return [...fields];

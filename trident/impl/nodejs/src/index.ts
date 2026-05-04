@@ -49,10 +49,10 @@ if (useMock) {
   // Demo scenario: long trade from the sample signal file
   // Prices walk through Entry 1, Entry 2, Entry 3, then hit VWAP.
   // -------------------------------------------------------------------
-  console.log('\nRunning MOCK scenario — loading sample signal file...\n');
+  console.log('\nRunning MOCK scenario — loading sample setup file...\n');
 
   const sampleSignal = loadSignalFile(
-    resolve('../../docs/research/sample-signal-files/qs_signal_2026-04-02_1006.yaml')
+    resolve('../../docs/research/sample-signal-files/qs_setup_2026-04-02_1006.yaml')
   );
 
   // Patch the date/time so the stale check passes
@@ -100,7 +100,7 @@ if (useMock) {
 // of broker connectivity), then connect cTrader + watch the signals dir.
 // -------------------------------------------------------------------
 const signalDir = resolve(config.signal.watch_dir);
-console.log(`Watching for signals in: ${signalDir}`);
+console.log(`Watching for setups in: ${signalDir}`);
 
 const webServer = await startWebServer({
   port: webPort,

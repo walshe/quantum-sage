@@ -1,0 +1,46 @@
+schema_version: '1.0'
+meta:
+  date: '2026-04-30'
+  timestamp: '09:57'
+  update_seq: 1
+  contract: ESM6
+  futures_last: 7630
+  cash_last: 7600
+  basis: 30
+  execution_instrument: US500.cash
+volatility:
+  dvs: 70.87
+  dvs_prior: 0
+  skew: 141.88
+  regime: elevated
+vwap:
+  value: 7900
+  updated_at: '10:38'
+  source: manual
+ranges:
+  range_1_up: 7239.75
+  range_1_down: 7102.25
+  range_2_up: 7219.75
+  range_2_down: 7122.25
+levels:
+  level_time: null
+  max_sell_1: null
+  max_sell_2: null
+  max_buy_1: null
+  max_buy_2: null
+  supporto: null
+  resistenza: null
+  additional: []
+levels_recal:
+  level_time: null
+  max_sell_1: null
+  max_sell_2: null
+  max_buy_1: null
+  max_buy_2: null
+  supporto: null
+  resistenza: null
+  additional: []
+invalidation:
+  void_above: 7900
+  void_below: 7600
+  expiry: '10:38'

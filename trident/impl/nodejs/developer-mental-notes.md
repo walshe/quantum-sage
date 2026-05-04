@@ -1,4 +1,4 @@
-# Developer Mental Notes — Trident Signal Engine
+# Developer Mental Notes — Trident Engine
 
 A plain-English walkthrough of the codebase, starting from `src/index.ts` and
 following the flow outward. Written for the developer who built it and wants a
@@ -41,7 +41,7 @@ Where the process starts. Boot order:
      tokens back into `.env` via `writeEnvKey`.
    - If `--signal <path>` was passed, load it directly.
    - Start `watchSignalDir` for live drops, then `scanSignalDirOnce` so a
-     signal written while the engine was down still gets picked up.
+     setup written while the engine was down still gets picked up.
 
 6. **Shutdown**: SIGINT/SIGTERM trigger `shutdown()` which stops the watcher,
    closes the web server, and disconnects the feed. A 5s `setTimeout(...).unref()`
@@ -69,11 +69,25 @@ position sizes later.
 > means you can tune parameters — midpoint offset, time exit, stop distance —
 > without touching code.
 
+### Position sizing model (current + future)
+
+**Current model:** The engine is purely advisory — it outputs percentage instructions and the trader places orders manually at the broker.
+
+- `starting_capital_eur` × `daily_risk_pct` = total daily risk budget (e.g. €80k × 0.5% = €400 soft stop).
+- Entry allocation splits (32.5/35/32.5%) are *weights* dividing that budget across the three scale-in entries — not independently-sized positions.
+- `size_adaptation` multipliers (0.5× after one losing day, 0.25× after two) are wired into config but **not yet implemented** in the engine — they belong in the daily P&L tracking pass, which doesn't exist yet.
+- Notifications say "32.5% size"; the trader manually converts that to lots at the broker.
+
+**Future — contract count advice:** When the engine starts computing suggested lot counts it will need:
+- A `point_value_eur` config field: the notional EUR value per index point per lot for the execution instrument (e.g. ~€1/pt for the US500.cash Pepperstone CFD — confirm with FB).
+- Formula: `contracts = floor((capital × risk_pct × entry_alloc_pct) / (stop_loss_points × point_value_eur))`.
+- At that point `starting_capital_eur` will drift as P&L accumulates and produce stale sizing advice. The correct fix is to pull **live account equity from cTrader** via an account-info API call (separate from the price-feed subscription, which is read-only ticks). Implement static config first, add live balance once the API surface is understood.
+
 ---
 
-## Signal file — `src/signal/`
+## Setup file — `src/signal/`
 
-The signal file is the daily YAML that the analyst (FB) drops in. It carries the
+The setup file is the daily YAML that the analyst (FB) submits. It carries the
 levels, VWAP, DVS, bias, and invalidation boundaries for that session. This whole
 folder is about reading and trusting (or rejecting) that file.
 
@@ -90,13 +104,13 @@ trust checks: schema version, required sections, range/buy/sell ordering,
 price sanity (within 20% of `futures_last`), basis range and basis math,
 DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
 enum values (regime/instrument/direction/confidence), timestamp before
-expiry, signal staleness, and VWAP staleness (warning only). Returns
+expiry, setup staleness, and VWAP staleness (warning only). Returns
 `{ valid, errors, warnings }` — errors block trading, warnings just log.
 
 The validator runs in two places that matter:
 - The web server's `POST /signals` endpoint, so a bad submission is rejected
-  before it's ever written to `signals/`.
-- `TridentEngine.loadSignal`, so a hand-written or fs.watch-detected file
+  before it's ever written to `setups/`.
+- `TridentEngine.loadSignal`, so a hand-written or fs.watch-detected setup file
   that bypasses the web UI gets the same treatment.
 
 The validator is the only place where untrusted external data (the YAML) gets
@@ -107,12 +121,12 @@ Three functions:
 - `loadSignalFile(path)` — reads a YAML file off disk and returns a raw
   `SignalFile`. No validation here, just parsing.
 - `watchSignalDir(dir, callback)` — sets up a filesystem watcher on the
-  `signals/` directory. Whenever a file matching `qs_signal_*.yaml` appears or
+  `setups/` directory. Whenever a file matching `qs_setup_*.yaml` appears or
   changes, it calls `loadSignalFile` and fires the callback. Returns a cleanup
   function to stop watching.
 - `scanSignalDirOnce(dir, callback)` — one-shot scan over today's existing
-  files. Runs at boot so a YAML written during a downtime window isn't orphaned
-  by `fs.watch`'s "events from now on only" semantics.
+  setup files. Runs at boot so a YAML written during a downtime window isn't
+  orphaned by `fs.watch`'s "events from now on only" semantics.
 
 > **Mental model:** the loader is just a pipe. It gets bytes off disk and turns
 > them into objects. The validator decides if those objects are trustworthy.
@@ -288,7 +302,7 @@ The data structures the engine lives in:
 
 ### `calculator.ts`
 Pure functions, no state, no side effects. Easy to unit test in isolation.
-- `calculateEntries()` — takes the two levels from the signal (inner and outer)
+- `calculateEntries()` — takes the two levels from the setup (inner and outer)
   and produces the three entry prices: Entry 1 = inner, Entry 3 = outer, Entry 2
   = midpoint ± the configured offset.
 - `calculateAvgEntry()` — weighted average of fills so far.
@@ -308,8 +322,8 @@ The state machine. The most important file in the project.
 **State it holds:**
 - Which state it's in (`idle` → `watching` → `in_trade` → `closed`, plus
   `blocked` for DVS-gated days)
-- The current signal (levels, VWAP, invalidation)
-- The active levels resolved from the signal (morning or recal)
+- The current setup (levels, VWAP, invalidation)
+- The active levels resolved from the setup (morning or recal)
 - The trade setup (three calculated entry prices)
 - The active position (fills, avg entry, stop, breakeven flag)
 - Whether today is locked (one winning trade already closed)
@@ -324,7 +338,7 @@ deadline already passed during downtime, the next price tick force-closes
 as `time_exit`. After every meaningful state transition the engine calls
 `persist()` to write a fresh snapshot atomically.
 
-**`loadSignal(signal, filePath)`** — called whenever a new signal file arrives.
+**`loadSignal(signal, filePath)`** — called whenever a new setup file arrives.
 Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
 `setupTrade()`. If a trade is already active, ignores the new levels (doesn't
 disrupt the open trade). If daily lock is on, also ignores.
@@ -340,7 +354,7 @@ the main loop. In order:
 2. If not watching or in trade, returns immediately.
 3. Checks invalidation boundaries — if price breaks out of the void range, closes
    everything.
-4. Checks expiry — if past the signal's expiry time, closes everything.
+4. Checks expiry — if past the setup's expiry time, closes everything.
 5. If `watching`: checks whether Entry 1 has been triggered.
 6. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
    breakeven), then checks pending entries (Entry 2, Entry 3).
@@ -387,18 +401,18 @@ Express app with four endpoints plus a WebSocket:
 
 - `GET /` — serves `public/index.html`.
 - `GET /assets/...` — static files from `public/`.
-- `POST /signals` — accepts a JSON `SignalFile`, runs `validateSignal`, and
+- `POST /signals` — accepts a JSON setup payload, runs `validateSignal`, and
   on success writes the YAML atomically (tmp + rename) into `signalsDir`.
   Filename is derived from `meta.date` + `meta.timestamp`. Validation errors
   come back as `{ valid: false, errors, warnings }` with status 400.
-- `GET /signals/latest` — returns the most recent same-day YAML for the
+- `GET /signals/latest` — returns the most recent same-day setup YAML for the
   Pre-fill button. 204 if there isn't one.
 - `POST /signals/screenshots` — raw binary upload (one file per call) that
   saves the image into `screenshots/` with a timestamped filename. Used by
   the Import-from-screenshots flow.
 - `POST /signals/extract` — JSON `{ filenames: [...] }` (max 3). Loads the
   saved screenshots, runs them through the configured `SignalExtractor`,
-  and returns the partial `SignalFile` plus notes/warnings. 503 if the
+  and returns the partial setup payload plus notes/warnings. 503 if the
   provider isn't configured (no API key); the UI degrades to "AI
   extraction unavailable" without breaking.
 - `GET ws://.../events` — engine event stream + bootstrap envelope. Backed
@@ -413,26 +427,26 @@ discover the misconfiguration mid-session when an analyst clicks Import.
 The vanilla-JS, no-build dashboard. `index.html`, `styles.css`, `app.js`,
 and `i18n.js` (English ↔ Italian dictionary). The client opens the `/events`
 WebSocket on load, populates the status band from the bootstrap envelope, and
-appends every subsequent event to the live log. The signal form lives in a
-modal triggered by the top-bar buttons (`New signal`, `Update during session`,
+appends every subsequent event to the live log. The setup form lives in a
+modal triggered by the top-bar buttons (`New setup`, `Update during session`,
 `Pre-fill from latest`, `Import from screenshots`, `Status`).
 
 > **Mental model:** the web server is read-mostly: the engine is authoritative,
 > the dashboard is a window onto it. The only writes from the UI are
-> `POST /signals` (which goes through the same validator the engine uses) and
-> the screenshot uploads.
+> `POST /signals` (setup submission, which goes through the same validator the
+> engine uses) and the screenshot uploads.
 
 ---
 
 ## AI extraction — `src/ai/`
 
 Optional. Reads chart screenshots through a vision LLM and returns a partial
-`SignalFile` for the analyst to review. Off by default — Trident still loads
-YAML signals via the manual flow if AI is unavailable.
+setup payload for the analyst to review. Off by default — Trident still loads
+YAML setups via the manual flow if AI is unavailable.
 
 ### `types.ts`
 Three contracts: `ImageInput` (`{ bytes, mimeType, filename? }`),
-`ExtractionResult` (partial signal + notes + warnings + provider/model/usage),
+`ExtractionResult` (partial setup + notes + warnings + provider/model/usage),
 and `VisionProvider` (`{ name, model, extractSignal(images, systemPrompt) }`).
 Provider implementations swap the SDK without changing anything upstream.
 
@@ -470,7 +484,7 @@ shape is in place so per-IP rate limits, daily budget caps, or content
 filters can land without touching the extractor or providers.
 
 > **Mental model:** AI is a strictly optional pre-fill helper. The validator,
-> not the model, decides whether a signal can be loaded. The model's job is
+> not the model, decides whether a setup can be loaded. The model's job is
 > to save the analyst typing — never to bypass review.
 
 ---
@@ -487,11 +501,11 @@ index.ts boots
                             appends WebSocketNotifier to MultiNotifier
   → CTraderPriceFeed        connect-with-retry, refresh tokens to .env
   → scanSignalDirOnce()     pick up any signal written during downtime
-  → watchSignalDir()        fs.watch on signals/ directory
+  → watchSignalDir()        fs.watch on setups/ directory
 
-FB submits via dashboard (POST /signals)
-  → server validates the SignalFile
-  → on success writes qs_signal_<date>_<time>.yaml atomically
+FB submits setup via dashboard (POST /signals)
+  → server validates the setup payload
+  → on success writes qs_setup_<date>_<time>.yaml atomically
   → fs.watch fires
   → loadSignalFile()        parses YAML
   → engine.loadSignal()     validates → DVS check → resolve levels → setupTrade()
@@ -528,21 +542,21 @@ Price feed delivers ticks to engine.onPriceUpdate()
 
 - **The engine never imports a concrete feed or notifier.** Only interfaces. Swap
   implementations in `index.ts` without touching strategy logic.
-- **The validator is the only trust boundary.** Once a signal passes validation,
+- **The validator is the only trust boundary.** Once a setup passes validation,
   the engine treats all values as correct.
 - **Calculator functions are pure.** All the maths is side-effect free and tested
   independently of the engine.
 - **One engine instance per day.** `engine.reset()` clears the daily lock,
-  position, signal, and snapshot file — fresh start. Normally not called
+  position, loaded setup, and snapshot file — fresh start. Normally not called
   manually; the snapshot's date stamp causes `loadSnapshot` to reject and
   unlink anything from a prior day.
 - **The notifier and the logger serve different audiences.** Notifier = trader
   (what happened). Logger = developer/operator (why it happened).
 - **The dashboard is a thin window over the engine.** No business logic in the
   browser. The only state the client owns is the live event log and form
-  inputs; everything else (status band, currently loaded signal, position) is
+  inputs; everything else (status band, currently loaded setup, position) is
   reconstituted from the WebSocket bootstrap envelope on every connect.
-- **AI is optional and never authoritative.** The signal extractor pre-fills
+- **AI is optional and never authoritative.** The setup extractor pre-fills
   the form; the analyst always reviews; the validator gates entry into the
   engine. Removing `OPENAI_API_KEY` reverts the dashboard to manual entry —
   nothing else changes.

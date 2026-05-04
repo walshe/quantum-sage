@@ -26,7 +26,7 @@
       <span class="chip-value" id="price-chip-value">—</span>
     </div>
     <div class="signal-card" id="signal-card">
-      <span class="chip-label">Current setup <i class="info" data-tip="Filename and key fields of the setup file the engine is currently operating on.&#10;&#10;Shows 'None loaded' until one arrives.&#10;&#10;Updates when a new setup is picked up from the signals/ folder or submitted through this form."></i></span>
+      <span class="chip-label">Current setup <i class="info" data-tip="Filename and key fields of the setup file the engine is currently operating on.&#10;&#10;Shows 'None loaded' until one arrives.&#10;&#10;Updates when a new setup is picked up from the setups/ folder or submitted through this form."></i></span>
       <span class="signal-card-body" id="signal-card-body">None loaded</span>
     </div>
     <details class="history">
@@ -41,7 +41,7 @@
     <button type="button" id="btn-status">Status <i class="info" data-tip="Open a read-only view of what the engine is currently doing.&#10;&#10;Shows: connection, state machine, daily lock, currently loaded setup (full values), and any open position.&#10;&#10;Useful while the form modal is closed."></i></button>
     <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session."></i></button>
     <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
-    <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the signals/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
+    <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
     <button type="button" id="btn-import-screenshots">✨ Import from screenshots <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).&#10;&#10;Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.&#10;&#10;(AI extraction is not wired up yet — for now the upload just stores the images.)"></i></button>
     <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
   </div>
@@ -53,7 +53,7 @@
           <h2>Live log</h2>
           <p class="log-sub">Events stream in as the engine fires them — setup load, trade plan, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.</p>
         </div>
-        <button type="button" id="btn-clear-log">Clear <i class="info info--end" data-tip="Wipe the log pane in this browser tab. Does not affect the engine, the signals/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events."></i></button>
+        <button type="button" id="btn-clear-log">Clear <i class="info info--end" data-tip="Wipe the log pane in this browser tab. Does not affect the engine, the setups/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events."></i></button>
       </div>
       <ol id="log"></ol>
     </section>

@@ -19,7 +19,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const NOW_TIME = new Date().toTimeString().slice(0, 5);
 
 const config: QSConfig = {
-  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5, soft_daily_stop_eur: 400, hard_daily_stop_eur: 800 },
+  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5 },
   trident: {
     entry_1_allocation_pct: 32.5,
     entry_2_allocation_pct: 35.0,
@@ -106,7 +106,7 @@ describe('persistence — unit', () => {
       state: 'in_trade',
       dailyLocked: false,
       currentSignal: makeSignal(),
-      signalFilePath: '/tmp/qs_signal_test.yaml',
+      signalFilePath: '/tmp/qs_setup_test.yaml',
       activeLevels: {
         level_time: NOW_TIME,
         max_sell_1: 6616, max_sell_2: 6582, max_buy_1: null, max_buy_2: 6467,
@@ -126,7 +126,7 @@ describe('persistence — unit', () => {
     expect(restored!.position!.fills[0].filledAt.toISOString()).toBe(filledAt.toISOString());
     expect(restored!.position!.lastFillTime).toBeInstanceOf(Date);
     expect(restored!.position!.avgEntry).toBe(6582);
-    expect(restored!.signalFilePath).toBe('/tmp/qs_signal_test.yaml');
+    expect(restored!.signalFilePath).toBe('/tmp/qs_setup_test.yaml');
   });
 
   it('returns null when snapshot file does not exist', () => {
@@ -189,7 +189,7 @@ describe('persistence — engine hydration', () => {
     const notifier = new ConsoleNotifier(false);
 
     const engineA = new TridentEngine(config, notifier, { snapshotPath });
-    await engineA.loadSignal(makeSignal(), '/tmp/qs_signal_test.yaml');
+    await engineA.loadSignal(makeSignal(), '/tmp/qs_setup_test.yaml');
     expect(engineA.getState()).toBe('watching');
 
     // Fire a price past MAX SELL 2 to trigger Entry 1 on the short side.
@@ -232,7 +232,7 @@ describe('persistence — engine hydration', () => {
 
   it('persistence can be disabled by passing snapshotPath: null', async () => {
     const engine = new TridentEngine(config, new ConsoleNotifier(false), { snapshotPath: null });
-    await engine.loadSignal(makeSignal(), '/tmp/qs_signal_test.yaml');
+    await engine.loadSignal(makeSignal(), '/tmp/qs_setup_test.yaml');
     await engine.onPriceUpdate(6582.5);
     expect(existsSync(snapshotPath)).toBe(false);
   });

@@ -114,7 +114,7 @@ export class TridentEngine {
   // ---------------------------------------------------------------------------
 
   async loadSignal(signal: SignalFile, filePath: string): Promise<void> {
-    log.info('Signal received', {
+    log.info('Setup received', {
       filePath,
       date: signal.meta?.date,
       update_seq: signal.meta?.update_seq,
@@ -130,7 +130,7 @@ export class TridentEngine {
     });
 
     if (!result.valid) {
-      log.error('Signal rejected — validation failed', { errors: result.errors });
+      log.error('Setup rejected — validation failed', { errors: result.errors });
       await this.notifier.notify({ type: 'SIGNAL_INVALID', filePath, errors: result.errors });
       return;
     }
@@ -154,12 +154,12 @@ export class TridentEngine {
     log.info('DVS gate passed', { dvs, gate, margin: (gate - dvs).toFixed(2) });
 
     if (this.dailyLocked) {
-      log.info('Daily lock active — ignoring new signal', { filePath });
+      log.info('Daily lock active — ignoring new setup', { filePath });
       return;
     }
 
     if (this.state === 'in_trade') {
-      log.info('Trade already active — ignoring level update from new signal', {
+      log.info('Trade already active — ignoring level update from new setup', {
         update_seq: signal.meta.update_seq,
       });
       return;
@@ -217,7 +217,7 @@ export class TridentEngine {
 
     // Expiry check
     if (isPastExpiry(this.currentSignal.meta.date, expiry)) {
-      log.warn('Signal expiry reached', { expiry });
+      log.warn('Setup expiry reached', { expiry });
       await this.closePosition(price, 'expiry');
       return;
     }

@@ -26,7 +26,7 @@ export function loadConfig(path: string): QSConfig {
     dvs_gate: parsed.trident.dvs_gate,
     stop_loss_points: parsed.trident.stop_loss_points,
     time_exit_minutes: parsed.trident.time_exit_minutes,
-    soft_daily_stop_eur: parsed.capital.soft_daily_stop_eur,
+    daily_risk_pct: parsed.capital.daily_risk_pct,
   });
 
   return parsed;

@@ -8,7 +8,7 @@
  * Log levels (set via LOG_LEVEL env var, default: info):
  *   error  — something broke; trading may be affected
  *   warn   — degraded state; DVS gate, stale data, validation issues
- *   info   — normal operational milestones (signal loaded, entry filled, trade closed)
+ *   info   — normal operational milestones (setup loaded, entry filled, trade closed)
  *   debug  — detailed decision trace; price ticks, trigger checks, state transitions
  *
  * Usage:

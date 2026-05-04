@@ -60,8 +60,8 @@ afterEach(() => {
 
 describe('scanSignalDirOnce', () => {
   it('invokes callback for the most recent today-file by mtime', () => {
-    const older = join(tmp, `qs_signal_${TODAY}_0900.yaml`);
-    const newer = join(tmp, `qs_signal_${TODAY}_1500.yaml`);
+    const older = join(tmp, `qs_setup_${TODAY}_0900.yaml`);
+    const newer = join(tmp, `qs_setup_${TODAY}_1500.yaml`);
     writeFileSync(older, signalYaml(TODAY, '09:00'), 'utf8');
     writeFileSync(newer, signalYaml(TODAY, NOW_HHMM), 'utf8');
     // Age `older` so mtime ordering is deterministic.
@@ -80,7 +80,7 @@ describe('scanSignalDirOnce', () => {
 
   it('ignores files from yesterday', () => {
     const yesterday = '2020-01-01';
-    const stale = join(tmp, `qs_signal_${yesterday}_0900.yaml`);
+    const stale = join(tmp, `qs_setup_${yesterday}_0900.yaml`);
     writeFileSync(stale, signalYaml(yesterday, '09:00'), 'utf8');
 
     let called = false;
@@ -90,7 +90,7 @@ describe('scanSignalDirOnce', () => {
 
   it('ignores files whose name does not match the signal pattern', () => {
     writeFileSync(join(tmp, 'notes.yaml'), 'hello', 'utf8');
-    writeFileSync(join(tmp, `qs_signal_${TODAY}_0900.txt`), 'hello', 'utf8');
+    writeFileSync(join(tmp, `qs_setup_${TODAY}_0900.txt`), 'hello', 'utf8');
     let called = false;
     scanSignalDirOnce(tmp, () => { called = true; });
     expect(called).toBe(false);
@@ -105,7 +105,7 @@ describe('scanSignalDirOnce', () => {
   });
 
   it('skips unparseable files without throwing', () => {
-    writeFileSync(join(tmp, `qs_signal_${TODAY}_0900.yaml`), ':: not yaml ::', 'utf8');
+    writeFileSync(join(tmp, `qs_setup_${TODAY}_0900.yaml`), ':: not yaml ::', 'utf8');
     let called = false;
     expect(() =>
       scanSignalDirOnce(tmp, () => { called = true; })
