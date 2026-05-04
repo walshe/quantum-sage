@@ -29,6 +29,8 @@ window.TRIDENT_I18N = {
     '✨ Import from screenshots': '✨ Importa da screenshot',
     '(optional)': '(opzionale)',
     '(paired)': '(accoppiato)',
+    'now': 'adesso',
+    'today': 'oggi',
     'Provide as complete pairs (both MAX BUY 1+2, or both MAX SELL 1+2, or both). At least one pair is required — the engine skips a side whose pair is incomplete.':
       'Fornisci come coppie complete (entrambi MAX BUY 1+2, o entrambi MAX SELL 1+2, o entrambe). È richiesta almeno una coppia — il motore salta il lato la cui coppia è incompleta.',
 

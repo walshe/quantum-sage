@@ -40,7 +40,9 @@
       "Bash(openspec instructions *)",
       "Bash(npm start *)",
       "Bash(npm run *)",
-      "Bash(pkill -f \"dist/index.js\")"
+      "Bash(pkill -f \"dist/index.js\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill *)"
     ]
   }
 }

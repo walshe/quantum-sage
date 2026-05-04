@@ -1070,6 +1070,27 @@ function hhmmToMin(s) {
 document.addEventListener('DOMContentLoaded', () => {
   $('#signal-form').addEventListener('submit', submitForm);
 
+  // Quick-fill buttons: stamp "today" or "now" into the target field.
+  $('#signal-form').addEventListener('click', e => {
+    const btn = e.target.closest('[data-quick-fill]');
+    if (!btn) return;
+    const kind = btn.dataset.quickFill;
+    const target = btn.dataset.target;
+    const input = $('#signal-form').elements[target];
+    if (!input) return;
+    const now = new Date();
+    if (kind === 'today') {
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      input.value = `${y}-${m}-${d}`;
+    } else if (kind === 'now') {
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      input.value = `${hh}:${mm}`;
+    }
+  });
+
   // Top-strip action buttons each mutate the form then open the modal.
   $('#btn-status').addEventListener('click', () => { showStatusDialog().catch(console.error); });
   $('#btn-new').addEventListener('click', () => { resetForNewSignal(); openFormModal(); });

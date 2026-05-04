@@ -127,6 +127,29 @@ details[open].history summary::before { content: '▼ '; }
   line-height: 1.4;
   font-style: italic;
 }
+.input-with-btn {
+  display: flex;
+  align-items: stretch;
+}
+.input-with-btn input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+.quick-fill-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 0 4px 4px 0;
+  padding: 0 7px;
+  font-size: 10px;
+  color: var(--fg-dim);
+  font-style: italic;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.quick-fill-btn:hover { color: var(--accent); border-color: var(--accent); }
 button {
   background: linear-gradient(to bottom, #2d3542, #232a35);
   color: var(--fg);
