@@ -30,52 +30,101 @@ matches the schema described in the tool. You MUST call the
      futures last price.
    - Right panel:
      * "Prev. Ref.", "Change %"
-     * "SPX Index Last" → \`meta.cash_last\`
-     * "Delta p.ti Fut ES-SPX" → \`meta.basis\`
+     * "SPX Index Last" — **IGNORE**. Unreliable (shows 0.00 when SPX feed
+       is unavailable). Do not populate \`meta.cash_last\` from this chart.
+     * "Delta p.ti Fut ES-SPX" — **IGNORE**. Derived from SPX feed; equally
+       unreliable. Do not populate \`meta.basis\` from this chart.
      * "SKEW Index Close" → \`volatility.skew\`
-   - Right panel DVS box: green box value → \`volatility.dvs\` (current),
-     purple box value → \`volatility.dvs_prior\` (prior/realtime).
+   - Right panel DVS box: green box value → \`volatility.dvs\` (today's
+     current DVS). Purple box value → \`volatility.dvs_prior\` — this is
+     **yesterday's closing DVS**, not a same-day recalibration value.
+     **Set \`dvs_prior\` to \`null\` unless a value is explicitly labeled as
+     "yesterday", "previous session", or similar prior-day terminology.**
    - Right panel ranges: Range 1 up/down + Range 2 up/down. **Use the LEFT
-     column values** (these are session values; the right column is the
-     prior/realtime comparison). All four are in **ES futures** terms.
+     column values** (today's session values; the right column is the
+     prior-session comparison used only for ranges). All four are in
+     **ES futures** terms. Note: this left/right column rule applies to the
+     ranges panel only — do NOT apply it to the DVS box.
+
+   **Important — multiple IV Smile screenshots:**
+   FB sometimes uploads two IV Smile charts (morning and afternoon). Both
+   belong to **today's session** — the second chart is the afternoon
+   recalibration, not a prior-day chart. \`dvs_prior\` is still \`null\` unless
+   explicitly labeled as yesterday's value in one of the charts.
+
+   **Important — two-column data panel:**
+   Some IV Smile charts show a two-column data panel. The **left column**
+   contains the morning session reading; the **right column** contains the
+   afternoon/recalibrated reading. Both columns are today's data. The
+   right-column DVS value MUST NOT be assigned to \`dvs_prior\`.
 
 2. **SPX intraday execution chart** — a price chart with horizontal level
-   lines labeled like:
-   - "10:00 MAX SELL 1" / "10:00 MAX SELL 2"
-   - "10:00 MAX BUY 1"  / "10:00 MAX BUY 2"
-   - "15:30 MAX SELL 1" / "15:30 MAX SELL 2" (afternoon recal, optional)
-   - "15:30 MAX BUY 1"  / "15:30 MAX BUY 2"  (afternoon recal, optional)
-   - "SUPPORTO" / "RESISTENZA" (optional, options-derived pivots)
-   - "CALL", "CASH", "PUT" → IGNORE these, not used by Trident.
+   lines. **This is the ONLY source of \`levels.*\` and \`levels_recal.*\`
+   data. IV Smile chart timestamps have NO effect on levels routing.**
+
+   Each label is a **separate horizontal line** with a text label in the
+   format "HH:MM LABEL". All four level labels share the same HH:MM prefix.
+   From bottom to top on the price axis (lowest price to highest):
+   - "HH:MM MAX BUY 1"   ← outer support (lowest price, furthest from centre)
+   - "HH:MM MAX BUY 2"   ← inner support (closer to centre)
+   - "HH:MM MAX SELL 2"  ← inner resistance (closer to centre)
+   - "HH:MM MAX SELL 1"  ← outer resistance (highest price, furthest from centre)
+
+   All four must be extracted. Scan every labeled horizontal line on the
+   chart carefully — do not stop after finding the most obvious two.
+
+   A second set of the same four labels at a **different (later) HH:MM**
+   may also appear on the same chart (afternoon recalibration, optional).
+
+   Additionally on the chart:
+   - "SUPPORTO" / "RESISTENZA" — optional, extract if present
+   - "CALL", "CASH", "PUT" — IGNORE as standalone values, not used by Trident.
+     **Critical:** in FB's charts the CALL label is drawn at the **exact
+     same price** as MAX SELL 2. If you see "CALL NNNN", then
+     \`max_sell_2\` = NNNN. Do not skip this line.
+     The PUT label is drawn at the SUPPORTO level, **not** at MAX SELL 2.
+     Do NOT use PUT's price as \`max_buy_2\`. Find the "MAX BUY 2" label
+     text directly — it sits between MAX BUY 1 and the centre of the
+     chart, above MAX BUY 1 in price.
 
    **All values from this chart are in SPX cash, NOT futures.** Trident's
    engine adds the basis when comparing to live futures price.
-
-   The HH:MM prefix on each label gives \`levels.level_time\` (or
-   \`levels_recal.level_time\` for the afternoon set).
 
 3. **Range Intraday summary table** (optional) — shows DVS and ranges for
    ES, NQ, DAX. Use it only as a cross-check against the IV Smile.
 
 ## Hard rules
 
-- **Levels (max_buy_1/2, max_sell_1/2, supporto, resistenza)** → \`levels.*\`
-  in **SPX cash** terms. Read off the SPX intraday execution chart.
-- **If both 10:00 and 15:30 sets are visible**, the 10:00 set goes in
-  \`levels.*\` and the 15:30 set goes in \`levels_recal.*\`. Do NOT overwrite
-  the morning levels with afternoon ones.
+- **Levels come exclusively from the SPX intraday chart labels.**
+  \`levels.*\` and \`levels_recal.*\` are NEVER populated from IV Smile chart
+  data. IV chart timestamps are irrelevant to level routing.
+- The HH:MM prefix on the intraday label text gives \`levels.level_time\`.
+  If the SPX intraday chart shows labeled lines at **only one HH:MM time**,
+  populate \`levels.*\` and leave \`levels_recal.*\` entirely null.
+  If the SPX intraday chart shows labeled lines at **two different HH:MM
+  times**, the earlier set → \`levels.*\`, the later set → \`levels_recal.*\`.
+  Do NOT overwrite the earlier levels with the later ones.
+- **All four level labels must be extracted**: MAX BUY 1, MAX BUY 2, MAX SELL 1,
+  MAX SELL 2. If a label is visible on the chart, extract it — silently dropping
+  one is an error. Use \`null\` only when the label is genuinely absent from the chart.
 - **Ranges (range_1_up/down, range_2_up/down)** → \`ranges.*\` in **ES futures**.
-- **Skip CALL, CASH, PUT lines** entirely.
+- **CALL price = max_sell_2.** CALL is FB's annotation co-located with
+  MAX SELL 2 — read its price and assign to \`max_sell_2\`. CASH is ignored.
+  PUT is co-located with SUPPORTO, **not** with MAX BUY 2 — never assign
+  PUT's price to \`max_buy_2\`, and never assign SUPPORTO's price to
+  \`max_buy_2\`. If the MAX BUY 2 label text is not clearly legible, set
+  \`max_buy_2\` to \`null\` and add a warning.
 - **Missing values must be \`null\`** — never guess, interpolate, or carry
   over a stale value. If a level isn't visible, set it to \`null\` and add a
   warning saying that side will not trade.
 - **Always set \`execution_instrument\` to \`"US500.cash"\`**. The screenshots
   do not show this — it's the broker leg.
 - **Date format**: YYYY-MM-DD. **Time format**: HH:MM 24-hour.
-- **Do not invent**: \`vwap\`, \`bias\`, \`invalidation.void_above/below\`, or
-  \`invalidation.expiry\` — these are not on the screenshots. Set
-  \`vwap.value\` to \`null\`, \`bias.direction\` to \`null\`, etc. The analyst
-  fills them in manually.
+- **Do not invent**: \`vwap\`, \`bias\`, \`invalidation.void_above/below\`,
+  \`invalidation.expiry\`, \`meta.cash_last\`, or \`meta.basis\` — leave all
+  as \`null\`. The analyst fills them in manually or they are calculated from
+  a live price source. \`cash_last\` and \`basis\` from the IV Smile are
+  explicitly unreliable (per analyst — confirmed 2026-05-04).
 - **Regime classification** (from \`volatility.dvs\`):
   * dvs < 50            → \`"compressed"\`
   * 50 ≤ dvs < 65       → \`"normal"\`
@@ -93,8 +142,10 @@ After extraction, add concise human-readable strings:
   "Levels (10:00, SPX cash): MAX BUY 1 5183, MAX BUY 2 5198, MAX SELL 2 5230, MAX SELL 1 5247"
 - \`warnings\`: trigger any of these that apply:
   * "DVS above 75 — Trident's DVS gate will block all trades today"
-  * "MAX BUY 1/2 missing — Trident will not take any long entries"
-  * "MAX SELL 1/2 missing — Trident will not take any short entries"
+  * "MAX BUY 1 missing — Trident will not take any long entries"
+  * "MAX BUY 2 could not be read from the chart — enter manually (approx. Range 2 down − basis). Long entries limited to single target until set."
+  * "MAX SELL 1 missing — Trident will not take any short entries"
+  * "MAX SELL 2 missing — short entries limited to single target"
   * "VWAP / bias / invalidation must be entered manually before submitting"
   * "Levels appear to be in ES futures, not SPX cash — please double-check"
     (only if labels look numerically off vs SPX index last)

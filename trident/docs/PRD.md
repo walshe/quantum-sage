@@ -427,12 +427,11 @@ Summary of sections:
   (range_1_down < range_2_down < range_2_up <
   range_1_up)
 - All prices positive and within 20% of futures_last
-- Basis math: futures_last - cash_last ≈ basis
-  (±5 tolerance -- wide enough to handle the
-  analyst reading futures and cash prices at
-  slightly different times, tight enough to catch
-  fat-finger errors like 143 instead of 43. May
-  tighten to ±2 or ±3 after observing real data.)
+- Basis math: if `cash_last` and `basis` are both
+  present, futures_last - cash_last ≈ basis
+  (±5 tolerance). If either is null (e.g. imported
+  from screenshots where SPX feed was unavailable),
+  skip this check entirely — do not block submission.
 - DVS within 0-200 range
 - DVS gate: if DVS > 75, QS should flag "no trade
   day" immediately
@@ -979,9 +978,20 @@ needed in Trident at all.
 
 | Field(s) | Upstream source | What FB currently sends | How confirmed |
 |----------|-----------------|-------------------------|---------------|
-| `ranges.range_1_*`, `ranges.range_2_*` | LIVELLI table (ES futures) | ES futures | IV Smile / LIVELLI table shows "ESM6" in the header |
-| `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | Levels table (ES futures) | SPX cash (FB converts upstream values to plot on his SPX chart, then reads back) | FB chat 2026-04-23: "this is SPX cash, us500.cash" + data-flow explanation |
+| `ranges.range_1_*`, `ranges.range_2_*` | IV Smile chart (ES futures) | ES futures | FB confirmed 2026-05-04: "expressed in futures prices" |
+| `volatility.dvs` | IV Smile chart — LEFT column only | As shown | FB confirmed 2026-05-04: use left column values |
+| `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | SPX intraday chart | SPX cash | FB chat 2026-04-23: "this is SPX cash, us500.cash" |
+| `meta.cash_last` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: SPX feed unreliable, shows 0.00 |
+| `meta.basis` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: derived from unreliable SPX feed |
 | `vwap.value` | TBD | TBD | See Q1 below |
+
+> **[FB resolved 2026-05-04]** `cash_last` and `basis` must NOT be
+> extracted from the IV Smile chart. The "SPX Index Last" and
+> "Delta p.ti Fut ES-SPX" fields on the IV Smile are unreliable —
+> they show 0.00 / garbage when the SPX feed is unavailable (common
+> at the US market open). These fields should be left null on screenshot
+> import and entered manually or sourced from a live price feed if needed.
+> Q3 below is therefore resolved: do not use the IV Smile for basis at all.
 
 **TODO FB:**
 
@@ -1000,16 +1010,6 @@ needed in Trident at all.
   and avoids rounding drift. Does that work for
   your workflow, or do you strongly prefer
   reading back from your SPX chart?
-
-- **Q3. Missing basis.** Sometimes the IV Smile
-  chart shows `SPX Index - Last = 0.00` (empty).
-  When this happens, where do you get the basis
-  number from? Do you wait until the SPX feed
-  returns, or use yesterday's basis, or another
-  method? (Only matters if we keep cash-terms
-  levels; if Q2 lands on "futures", this question
-  becomes moot for levels -- but basis is still
-  useful as a sanity check.)
 
 **Plan (EW -- depends on FB's answer to Q2):**
 

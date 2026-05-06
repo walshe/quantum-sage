@@ -464,7 +464,7 @@ async function uploadScreenshots(evt) {
 
   showAiBusy(
     tx('AI is reading the screenshots…'),
-    tx('Extracting levels, ranges, DVS, and basis. This usually takes 5–20 seconds.'),
+    tx('Extracting levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.'),
   );
 
   let extracted;

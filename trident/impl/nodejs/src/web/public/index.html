@@ -42,7 +42,7 @@
     <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session."></i></button>
     <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
     <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
-    <button type="button" id="btn-import-screenshots">✨ Import from screenshots <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).&#10;&#10;Trident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.&#10;&#10;(AI extraction is not wired up yet — for now the upload just stores the images.)"></i></button>
+    <button type="button" id="btn-import-screenshots">✨ Import from screenshots <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one or more analyst chart screenshots (IV Smile / SPX intraday chart).&#10;&#10;Trident will run them through an AI vision model that extracts levels, ranges, DVS, and VWAP, then pre-fills this form so you can review and submit.&#10;&#10;Cash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability."></i></button>
     <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
   </div>
 
@@ -80,8 +80,8 @@
         <label>update_seq <i class="info" data-tip="1 for the morning setup. Bump to 2 (or higher) for an afternoon recalibration the same day. The engine uses this to distinguish a new setup from a level update."></i> <input name="meta.update_seq" type="number" min="1" step="1" value="1" required></label>
         <label>Contract <span class="optional">(optional)</span> <i class="info" data-tip="Optional — audit trail only. Front-month ES futures contract code (e.g. ESM6 = June 2026, ESU6 = September 2026). The engine doesn't act on this value; it's stored in the YAML so you can tell months later which contract the setup was written against. Leave blank if you don't have it handy."></i> <input name="meta.contract" type="text" placeholder="ESM6"></label>
         <label>Futures last [ES futures] <i class="info" data-tip="Most recent ES futures price at setup creation time."></i> <input name="meta.futures_last" type="number" step="0.01" required></label>
-        <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at setup creation time. Used to cross-check basis."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
-        <label>Basis [points] <i class="info" data-tip="ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points. Validation: must match within ±5 of the computed difference."></i> <input name="meta.basis" type="number" step="0.01" required></label>
+        <label>Cash last [SPX cash] <i class="info" data-tip="Most recent SPX cash index price at setup creation time. Used to cross-check basis.&#10;&#10;Not extracted from screenshots — the IV Smile's SPX feed can show 0.00 when unavailable. Enter manually if needed, or leave empty."></i> <input name="meta.cash_last" type="number" step="0.01" required></label>
+        <label>Basis [points] <i class="info" data-tip="ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points.&#10;&#10;Not extracted from screenshots — the IV Smile's SPX feed is unreliable. Enter manually if needed, or leave empty.&#10;&#10;Validation (±5 check) is skipped when this field or Cash last is empty."></i> <input name="meta.basis" type="number" step="0.01" required></label>
         <label>Execution instrument <i class="info" data-tip="Which instrument the trade will actually be executed on. US500.cash = Pepperstone CFD."></i>
           <select name="meta.execution_instrument" required>
             <option value="US500.cash" selected>US500.cash</option>
@@ -204,7 +204,7 @@
             <dt>Pre-fill from latest</dt>
             <dd>Load today's most recent setup file into the form so you can tweak only what's changed.</dd>
             <dt>✨ Import from screenshots <span class="ai-badge">AI</span></dt>
-            <dd>Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form. <strong>Always review every value</strong> before submitting the setup.</dd>
+            <dd>Upload up to 3 chart screenshots (IV Smile / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, and VWAP and pre-fills the form. Cash last and basis are not extracted — enter manually if needed. <strong>Always review every value</strong> before submitting the setup.</dd>
           </dl>
         </section>
 
@@ -217,7 +217,7 @@
             <dt>Range / level ordering invalid</dt>
             <dd>Check the inequalities printed in the error message.</dd>
             <dt>Basis math mismatch</dt>
-            <dd><code>futures_last − cash_last</code> must be within ±5 of the basis you entered.</dd>
+            <dd><code>futures_last − cash_last</code> must be within ±5 of the basis you entered. This check is skipped if Cash last or Basis is left empty.</dd>
             <dt>Invalidation boundaries</dt>
             <dd>Void values must be in ES futures terms, not SPX cash terms.</dd>
           </dl>

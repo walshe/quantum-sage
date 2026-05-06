@@ -121,8 +121,8 @@ window.TRIDENT_I18N = {
       "Nome del file e campi principali del setup attualmente in uso dal motore.\n\nMostra 'Nessuno caricato' finché non ne arriva uno.\n\nSi aggiorna quando un nuovo setup viene preso dalla cartella setups/ o inviato tramite questo form.",
     "Every setup file loaded or rejected today.\n\nCount rises with each SIGNAL or INVALID event. The currently loaded setup is always shown even if it was loaded before this tab opened.\n\nClick to expand the list and see timestamps + filenames.\n\nResets when you reload the page — does not persist across tabs.":
       "Ogni file setup caricato o rifiutato oggi.\n\nIl contatore sale a ogni evento SIGNAL o INVALID. Il setup attualmente caricato viene sempre mostrato anche se era stato caricato prima dell'apertura di questo tab.\n\nClicca per espandere la lista con timestamp e nome file.\n\nSi azzera al ricaricamento della pagina — non persiste tra i tab.",
-    "Upload one or more analyst chart screenshots (IV Smile / LIVELLI table / SPX intraday chart).\n\nTrident will run them through an AI vision model that extracts levels, ranges, DVS, VWAP, and basis, then pre-fills this form so you can review and submit.\n\nYou'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.\n\n(AI extraction is not wired up yet — for now the upload just stores the images.)":
-      "Carica uno o più screenshot dei grafici dell'analista (IV Smile / tabella LIVELLI / grafico SPX intraday).\n\nTrident li passerà a un modello AI di visione che estrae livelli, range, DVS, VWAP e basis, poi precompila questo form per la revisione.\n\nAvrai sempre la possibilità di verificare ogni valore prima di inviarlo al motore. I file vengono salvati sul server per tracciabilità.\n\n(L'estrazione AI non è ancora collegata — per ora il caricamento salva solo le immagini.)",
+    "Upload one or more analyst chart screenshots (IV Smile / SPX intraday chart).\n\nTrident will run them through an AI vision model that extracts levels, ranges, DVS, and VWAP, then pre-fills this form so you can review and submit.\n\nCash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.\n\nYou'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability.":
+      "Carica uno o più screenshot dei grafici dell'analista (IV Smile / grafico SPX intraday).\n\nTrident li passerà a un modello AI di visione che estrae livelli, range, DVS e VWAP, poi precompila questo form per la revisione.\n\nCash last e basis NON vengono estratti — il feed SPX dell'IV Smile è inaffidabile e può mostrare 0.00. Inseriscili manualmente se necessario.\n\nAvrai sempre la possibilità di verificare ogni valore prima di inviarlo al motore. I file vengono salvati sul server per tracciabilità.",
     "Open a read-only view of what the engine is currently doing.\n\nShows: connection, state machine, daily lock, currently loaded setup (full values), and any open position.\n\nUseful while the form modal is closed.":
       "Apre una vista in sola lettura di ciò che il motore sta facendo in questo momento.\n\nMostra: connessione, macchina a stati, lock giornaliero, setup attualmente caricato (valori completi) e l'eventuale posizione aperta.\n\nUtile quando il form è chiuso.",
     "Clear the form to start a brand-new morning setup from scratch.\n\nResets every field, sets update_seq back to 1, and fills today's date.\n\nUse this once per trading day when FB sends the first setup of the session.":
@@ -141,10 +141,10 @@ window.TRIDENT_I18N = {
       "Opzionale — solo per tracciabilità. Codice del contratto ES front-month (es. ESM6 = giugno 2026, ESU6 = settembre 2026). Il motore non usa questo valore; viene salvato nello YAML per poter sapere mesi dopo a quale contratto il setup faceva riferimento. Lascia vuoto se non lo hai a portata di mano.",
     "Most recent ES futures price at setup creation time.":
       "Ultimo prezzo ES futures al momento della creazione del setup.",
-    "Most recent SPX cash index price at setup creation time. Used to cross-check basis.":
-      "Ultimo valore dell'indice SPX cash al momento della creazione del setup. Usato per verificare il basis.",
-    "ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points. Validation: must match within ±5 of the computed difference.":
-      "Spread ES–SPX: futures_last − cash_last. Range recente: 40–75 punti. Validazione: deve corrispondere alla differenza calcolata entro ±5.",
+    "Most recent SPX cash index price at setup creation time. Used to cross-check basis.\n\nNot extracted from screenshots — the IV Smile's SPX feed can show 0.00 when unavailable. Enter manually if needed, or leave empty.":
+      "Ultimo valore dell'indice SPX cash al momento della creazione del setup. Usato per verificare il basis.\n\nNon estratto dagli screenshot — il feed SPX dell'IV Smile può mostrare 0.00 se non disponibile. Inserisci manualmente se necessario, o lascia vuoto.",
+    "ES–SPX spread: futures_last − cash_last. Recent range: 40–75 points.\n\nNot extracted from screenshots — the IV Smile's SPX feed is unreliable. Enter manually if needed, or leave empty.\n\nValidation (±5 check) is skipped when this field or Cash last is empty.":
+      "Spread ES–SPX: futures_last − cash_last. Range recente: 40–75 punti.\n\nNon estratto dagli screenshot — il feed SPX dell'IV Smile è inaffidabile. Inserisci manualmente se necessario, o lascia vuoto.\n\nLa validazione (controllo ±5) viene saltata se questo campo o Cash last è vuoto.",
     "Which instrument the trade will actually be executed on. US500.cash = Pepperstone CFD.":
       "Strumento su cui verrà effettivamente eseguito il trade. US500.cash = CFD Pepperstone.",
     "Directional Volatility Score (0–200).\n\n• > 75 — DVS GATE blocks all trades today\n• 50–75 — normal range\n• < 50 — ideal mean-reversion conditions":
@@ -219,8 +219,8 @@ window.TRIDENT_I18N = {
       'incrementato — per una ricalibrazione intra-day.',
     "Load today's most recent setup file into the form so you can tweak only what's changed.":
       "Carica nel form il setup più recente di oggi così puoi modificare solo ciò che è cambiato.",
-    'Upload up to 3 chart screenshots (IV Smile / LIVELLI / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, VWAP, and basis and pre-fills the form.':
-      "Carica fino a 3 screenshot dei grafici (IV Smile / LIVELLI / SPX intraday). Se l'AI è configurata, Trident estrae livelli, range, DVS, VWAP e basis e precompila il form.",
+    'Upload up to 3 chart screenshots (IV Smile / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, and VWAP and pre-fills the form. Cash last and basis are not extracted — enter manually if needed.':
+      "Carica fino a 3 screenshot dei grafici (IV Smile / SPX intraday). Se l'AI è configurata, Trident estrae livelli, range, DVS e VWAP e precompila il form. Cash last e basis non vengono estratti — inseriscili manualmente se necessario.",
     'Always review every value': 'Verifica sempre ogni valore',
     'before submitting.': 'prima di inviare.',
     'Anything with': 'Tutto ciò che contiene',
@@ -255,8 +255,8 @@ window.TRIDENT_I18N = {
     'Check the inequalities printed in the error message.':
       "Controlla le disuguaglianze stampate nel messaggio di errore.",
     'Basis math mismatch': 'Basis math non coerente',
-    'must be within ±5 of the basis you entered.':
-      'deve corrispondere entro ±5 al basis che hai inserito.',
+    'must be within ±5 of the basis you entered. This check is skipped if Cash last or Basis is left empty.':
+      'deve corrispondere entro ±5 al basis inserito. Il controllo viene saltato se Cash last o Basis è vuoto.',
     'Invalidation boundaries': 'Limiti di invalidazione',
     'Void values must be in ES futures terms, not SPX cash terms.':
       'I valori void devono essere in termini ES futures, non SPX cash.',
@@ -356,7 +356,7 @@ window.TRIDENT_I18N = {
     'Sending {n} image(s) to the server.': 'Invio di {n} immagine/i al server.',
     'Image {i} of {n}: {name}': 'Immagine {i} di {n}: {name}',
     'AI is reading the screenshots…': "L'AI sta leggendo gli screenshot…",
-    'Extracting levels, ranges, DVS, and basis. This usually takes 5–20 seconds.':
-      'Estrazione di livelli, range, DVS e basis. In genere richiede 5–20 secondi.',
+    'Extracting levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.':
+      'Estrazione di livelli, range, DVS e VWAP. In genere richiede 5–20 secondi.',
   },
 };

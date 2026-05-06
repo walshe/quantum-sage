@@ -42,7 +42,11 @@
       "Bash(npm run *)",
       "Bash(pkill -f \"dist/index.js\")",
       "Bash(lsof -ti:3000)",
-      "Bash(xargs kill *)"
+      "Bash(xargs kill *)",
+      "Bash(openspec list *)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(pkill -f \"node dist/index.js\")",
+      "Bash(node /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/dist/index.js)"
     ]
   }
 }
