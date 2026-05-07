@@ -46,7 +46,9 @@
       "Bash(openspec list *)",
       "Bash(echo \"started pid $!\")",
       "Bash(pkill -f \"node dist/index.js\")",
-      "Bash(node /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/dist/index.js)"
+      "Bash(node /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/dist/index.js)",
+      "Bash(xargs ls -la)",
+      "Bash(textutil -convert txt -stdout \"/Users/Emmett/dev/quantum-sage/trident/docs/research/three_level_vwap_reversion_system_rules.docx\")"
     ]
   }
 }

@@ -922,9 +922,49 @@ function synthesiseAction(signal) {
   return { tone: 'ok', text: tx('Engine will load this as the active setup and start watching for Entry 1.') };
 }
 
+function buildTradePlanNote(signal) {
+  const l = signal.levels, inv = signal.invalidation, bias = signal.bias;
+  const dir  = bias?.direction?.toLowerCase();
+  const conf = bias?.confidence ? ` (${bias.confidence})` : '';
+
+  const has = v => v != null && v !== '';
+  const parts = [];
+
+  parts.push(dir ? `Bias: ${dir}${conf}.` : 'Two-sided setup (no directional bias).');
+
+  if (dir !== 'bearish' && has(l.max_buy_2)) {
+    let s = `Buy entry: watching for ${fmtNum(l.max_buy_2)} SPX (Entry 1, inner)`;
+    if (has(l.max_buy_1)) s += `; scale-in against position at ${fmtNum(l.max_buy_1)} (Entry 3, outer) if price drops further`;
+    parts.push(s + ' → engine enters long.');
+  }
+  if (dir !== 'bullish' && has(l.max_sell_2)) {
+    let s = `Sell entry: watching for ${fmtNum(l.max_sell_2)} SPX (Entry 1, inner)`;
+    if (has(l.max_sell_1)) s += `; scale-in against position at ${fmtNum(l.max_sell_1)} (Entry 3, outer) if price rallies further`;
+    parts.push(s + ' → engine enters short.');
+  }
+
+  if (has(signal.vwap?.value)) {
+    parts.push(`Profit target: VWAP at ${fmtNum(signal.vwap.value)} — entire position closes when price reaches VWAP.`);
+  }
+
+  const voidParts = [];
+  if (has(inv?.void_below)) voidParts.push(`below ${fmtNum(inv.void_below)}`);
+  if (has(inv?.void_above)) voidParts.push(`above ${fmtNum(inv.void_above)}`);
+  let voidStr = voidParts.length ? `Void if price ${voidParts.join(' or ')} before entry` : '';
+  if (inv?.expiry) voidStr += (voidStr ? `, or after ${inv.expiry}` : `Expires ${inv.expiry}`) + '.';
+  else if (voidStr) voidStr += '.';
+  if (voidStr) parts.push(voidStr);
+
+  const note = el('div', { class: 'trade-plan-note' });
+  note.append(el('span', { class: 'trade-plan-label', text: 'Trade plan — ' }));
+  note.append(document.createTextNode(parts.join('  ')));
+  return note;
+}
+
 function buildSummarySection(signal) {
   const sec = el('section', { class: 'confirm-section' });
   sec.append(el('h3', { text: tx('Setup summary') }));
+  sec.append(buildTradePlanNote(signal));
   const grid = el('div', { class: 'confirm-grid' });
   const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels, inv = signal.invalidation;
 

@@ -686,6 +686,18 @@ label.has-error { color: var(--err); }
 .confirm-headline.is-warn { border-left-color: var(--warn); }
 .confirm-headline.is-err  { border-left-color: var(--err); }
 .confirm-headline.is-ok   { border-left-color: var(--ok); }
+.trade-plan-note {
+  font-size: 12.5px;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  color: var(--fg);
+  margin-bottom: 0.6rem;
+  line-height: 1.6;
+}
+.trade-plan-label { font-weight: 600; color: var(--accent); }
 .check {
   display: flex; gap: 0.5rem; padding: 4px 0; font-size: 12.5px;
   align-items: flex-start; line-height: 1.4;
