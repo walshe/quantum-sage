@@ -16,7 +16,25 @@ You only need to do this once.
 
 ---
 
-## 2. First-time setup (first time only)
+## 2. Authenticate with the image registry (first time only)
+
+The Trident image is hosted privately on GitHub. You need to log in once so Docker can pull it.
+
+You'll need a GitHub Personal Access Token with `read:packages` scope:
+
+1. Go to `https://github.com/settings/tokens` → **Generate new token (classic)**
+2. Tick **read:packages**, generate and copy the token
+3. Run (replace `YOUR_TOKEN`):
+
+```bash
+echo YOUR_TOKEN | docker login ghcr.io -u walshe --password-stdin
+```
+
+You should see `Login Succeeded`. You only need to do this once per machine.
+
+---
+
+## 4. First-time setup (first time only)
 
 Open a terminal and navigate to the Trident folder:
 
@@ -53,7 +71,7 @@ You only need to do this once. Your credentials stay on your machine and never g
 
 ---
 
-## 3. Daily start
+## 5. Daily start
 
 Make sure Docker Desktop is running (whale icon in menu bar / system tray), then:
 
@@ -69,7 +87,7 @@ The **first time** this will download the image, which takes a minute or two dep
 
 ---
 
-## 4. Open the dashboard
+## 6. Open the dashboard
 
 Once the container is running, open your browser and go to:
 
@@ -77,18 +95,24 @@ Once the container is running, open your browser and go to:
 
 ---
 
-## 5. Daily stop
+## 7. Daily stop
 
 ```bash
 cd trident/impl/nodejs
 docker compose down
 ```
 
-Your setup files and logs are saved locally in the `setups/` and `logs/` folders — they are not affected by stopping the container.
+Your data is saved locally in the same folder as `docker-compose.yml` and is never affected by stopping the container:
+
+| Folder | Contents |
+|---|---|
+| `setups/` | Setup YAML files submitted via the dashboard |
+| `logs/` | Engine audit log (`trident.log`) and crash-recovery snapshot |
+| `screenshots/` | Chart images uploaded via Import from screenshots |
 
 ---
 
-## 6. Updating to a new version
+## 8. Updating to a new version
 
 When Emmett has published an update, the same two commands handle it:
 

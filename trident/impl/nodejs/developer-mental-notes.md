@@ -538,6 +538,30 @@ Price feed delivers ticks to engine.onPriceUpdate()
 
 ---
 
+## Docker distribution
+
+The app is distributed as a pre-built image on GitHub Container Registry:
+
+- **Image:** `ghcr.io/walshe/trident:latest`
+- **Built by:** `.github/workflows/docker-publish.yml` — triggers automatically on pushes to `main` that touch `src/`, `Dockerfile`, `package*.json`, or `tsconfig.json`
+- **Two compose files:**
+  - `docker-compose.yml` — uses the registry image (FB's file)
+  - `docker-compose.override.yml` — adds `build: .` on top (dev only, auto-merged by Compose)
+
+**Bind mounts** — all data directories are mounted from the host so they survive container restarts and image updates:
+
+| Host path | Container path | Notes |
+|---|---|---|
+| `./config.yaml` | `/app/config.yaml` | Read-only |
+| `./.env` | `/app/.env` | Writable — cTrader token refresh updates this |
+| `./setups/` | `/app/setups/` | Setup YAMLs from dashboard |
+| `./logs/` | `/app/logs/` | Winston log + engine snapshot |
+| `./screenshots/` | `/app/screenshots/` | Chart images from Import flow |
+
+**Static assets gotcha:** `src/web/public/` (HTML/CSS/JS) is not compiled by `tsc` — it must be explicitly copied in the Dockerfile runner stage (`COPY --from=builder /build/src/web/public ./src/web/public`). The web server resolves `publicDir` as `src/web/public` relative to CWD (`/app`).
+
+---
+
 ## Key design decisions worth remembering
 
 - **The engine never imports a concrete feed or notifier.** Only interfaces. Swap

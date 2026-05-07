@@ -9,6 +9,14 @@
 | Analyst guide (Phase 1) | `trident/docs/PHASE_1_ANALYST_GUIDE.md` |
 | FAQ | `trident/impl/nodejs/FAQ.md` |
 
+## Distribution
+
+The app runs in Docker. FB (the analyst) pulls a pre-built image from `ghcr.io/walshe/trident:latest` and runs it with `docker compose up`. He only needs `docker-compose.yml`, `.env`, and `config.yaml` — no source code.
+
+- Dev compose setup: `trident/impl/nodejs/docker-compose.yml` + `docker-compose.override.yml` (builds locally)
+- Image is published automatically by `.github/workflows/docker-publish.yml` on pushes to `main` that touch source files
+- FB's operator guide: `trident/impl/nodejs/RUNNING.md`
+
 ## Before starting any implementation
 
 Read `trident/impl/nodejs/developer-mental-notes.md` before writing code. It contains non-obvious constraints, past decisions, and known gotchas that are not visible from the code alone. Skipping this risks repeating mistakes or violating invariants the team has already resolved.
