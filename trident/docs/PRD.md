@@ -1383,6 +1383,13 @@ daily. Recent range: 40-75 points.
   first draft specification (02/04/2026)
 - FB's PR review comments (April 2026)
 
+### Appendix G: Related Documents
+
+- [Phase 1 Analyst Guide](PHASE_1_ANALYST_GUIDE.md) —
+  step-by-step walkthrough of the analyst workflow:
+  reading the IV Smile, filling the dashboard form,
+  and submitting a setup to the engine.
+
 ---
 
 *End of document. This PRD is a living document
