@@ -1,0 +1,11 @@
+# Force LF line endings in the container — prevents CRLF breakage on Windows clones
+* text=auto eol=lf
+
+# Binaries — no line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary

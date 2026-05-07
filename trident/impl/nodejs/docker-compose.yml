@@ -1,0 +1,13 @@
+services:
+  trident:
+    image: ghcr.io/walshe/trident:latest
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./.env:/app/.env
+      - ./setups:/app/setups
+      - ./logs:/app/logs
+      - ./screenshots:/app/screenshots
+    restart: unless-stopped

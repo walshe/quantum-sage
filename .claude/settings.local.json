@@ -48,7 +48,11 @@
       "Bash(pkill -f \"node dist/index.js\")",
       "Bash(node /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/dist/index.js)",
       "Bash(xargs ls -la)",
-      "Bash(textutil -convert txt -stdout \"/Users/Emmett/dev/quantum-sage/trident/docs/research/three_level_vwap_reversion_system_rules.docx\")"
+      "Bash(textutil -convert txt -stdout \"/Users/Emmett/dev/quantum-sage/trident/docs/research/three_level_vwap_reversion_system_rules.docx\")",
+      "Bash(docker compose *)",
+      "Bash(lsof *)",
+      "Bash(sudo lsof -i :3000)",
+      "Bash(git remote *)"
     ]
   }
 }

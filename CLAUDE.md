@@ -9,6 +9,10 @@
 | Analyst guide (Phase 1) | `trident/docs/PHASE_1_ANALYST_GUIDE.md` |
 | FAQ | `trident/impl/nodejs/FAQ.md` |
 
+## Before starting any implementation
+
+Read `trident/impl/nodejs/developer-mental-notes.md` before writing code. It contains non-obvious constraints, past decisions, and known gotchas that are not visible from the code alone. Skipping this risks repeating mistakes or violating invariants the team has already resolved.
+
 ## After every code change
 
 1. **Run the test suite** from `trident/impl/nodejs/`:
