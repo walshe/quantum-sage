@@ -1385,6 +1385,10 @@ daily. Recent range: 40-75 points.
 
 ### Appendix G: Related Documents
 
+- [Architecture](../../ARCHITECTURE.md) —
+  component map, data flow, technology stack, and
+  key design invariants for the qs-signal-engine.
+
 - [Phase 1 Analyst Guide](PHASE_1_ANALYST_GUIDE.md) —
   step-by-step walkthrough of the analyst workflow:
   reading the IV Smile, filling the dashboard form,
