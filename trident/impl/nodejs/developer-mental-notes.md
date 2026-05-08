@@ -212,6 +212,16 @@ backoff. The cTrader demo server drops idle connections after ~60s, so this
 matters for development. Indefinite retry, no exponential backoff —
 deliberately simple.
 
+> **Blind-during-disconnect risk**: `TridentEngine` is never torn down on feed
+> loss — state (`watching`, `in_trade`, etc.) is preserved across reconnects.
+> But while disconnected the engine receives no ticks, so stop/target/invalidation
+> checks are frozen. The 180-minute time-exit timer keeps running. If it fires
+> during an outage, `closePosition()` executes using the last known price, not
+> the actual market price. For short outages (seconds) this is fine. For longer
+> ones (minutes) while a trade is open, the trader should check the position
+> manually. There is no alerting for this today — the `trident_feed_connected`
+> metric (added in the observability layer) is the intended signal.
+
 > **Mental model:** the feed does the whole cTrader ceremony so the engine
 > doesn't have to know anything about WebSockets or OAuth. Once `connect()`
 > resolves, it's just a stream of numbers — identical to the mock from the
@@ -236,6 +246,18 @@ The simple implementation. Handles each event type with a `switch`, formats it
 into a readable line, and `console.log`s it. Timestamps every line. The
 `showPriceTicks` flag controls whether every price update is printed (off by
 default, very noisy).
+
+### `LoggerNotifier.ts`
+Sits on the `MultiNotifier` chain alongside `ConsoleNotifier` — always active.
+Logs every engine event as structured JSON via winston (suppressing `PRICE_UPDATE`).
+Each entry carries `event` (the event type) as the primary discriminator, plus
+the relevant fields. Broker-action events (`ENTRY_TRIGGERED`, `BREAKEVEN_TRIGGERED`,
+`POSITION_CLOSED`) also carry an `action` field with the broker instruction text.
+
+Key design choice: `event` is the discriminator, not a boolean `action_required`.
+This survives Phase 2 (auto-execution) cleanly — the three event types still fire
+when execution transitions from manual to automatic; only the `action` text evolves.
+Loki alert query: `{service="trident"} | json | event =~ "ENTRY_TRIGGERED|BREAKEVEN_TRIGGERED|POSITION_CLOSED"`.
 
 ### `MultiNotifier.ts`
 Fan-out wrapper. `notify(event)` runs every child's `notify` via
@@ -272,8 +294,10 @@ filled"). The logger is for **operator/developer visibility** ("why did the engi
 make that decision, what did it read, what did it check").
 
 Uses Winston with two outputs:
-- **Console** — colored, timestamped, module-labelled. Controlled by `LOG_LEVEL`
-  env var (default: `info`).
+- **Console** — format depends on the runtime context:
+  - **TTY (local terminal)**: colored, timestamped, module-labelled — readable for `npm run dev`.
+  - **Non-TTY (Docker container, pipe)**: JSON lines — each field (level, module, message, metadata) is queryable in Loki / Grafana Logs Drilldown.
+  Controlled by `LOG_LEVEL` env var (default: `info`).
 - **File** — JSON lines written to `logs/trident.log`. Full audit trail, every
   decision recorded.
 
@@ -282,6 +306,11 @@ can see in the output exactly which part of the code logged what.
 
 Set `LOG_LEVEL=debug` to see every price tick and trigger check. Set
 `LOG_LEVEL=warn` to suppress system logs and see only clean notifier output.
+
+**Note:** `console.log` calls in `src/index.ts` for operational startup messages
+have been converted to `log.info/warn/error` so they also appear as structured
+JSON in Docker. The `ConsoleNotifier` (trader-facing events) still uses
+`console.log` with its own formatting — intentionally separate.
 
 ---
 
@@ -372,7 +401,8 @@ activate breakeven (move stop, cancel pending entries, don't close).
 
 **Time exit timer** — reset every time a new entry fills (the 180 minutes counts
 from the *last* fill, per the PRD). If it fires, closes the position at whatever
-the latest price is.
+the latest price is. Note: the timer keeps running during a feed disconnection —
+see the *Blind-during-disconnect risk* note in the `CTraderPriceFeed` section.
 
 ### `persistence.ts`
 Engine-state crash-recovery. Writes a versioned JSON snapshot
@@ -584,3 +614,18 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   the form; the analyst always reviews; the validator gates entry into the
   engine. Removing `OPENAI_API_KEY` reverts the dashboard to manual entry —
   nothing else changes.
+- **Observability is optional and lives entirely in `index.ts`.**
+  `src/observability/` defines the `MetricsBackend` interface, `NoopBackend`
+  (the default), `PrometheusBackend` (`prom-client` + `/metrics` endpoint),
+  and `OtelBackend` (OTLP gRPC export). The engine and feed classes import
+  none of these — instrumentation hooks are wired in `index.ts` only.
+  Activated via `--observability=prometheus|otel` CLI flag or
+  `TRIDENT_OBSERVABILITY` env var (Docker-friendly alias).
+
+  `MetricsNotifier` is a `Notifier` implementation that translates
+  `NotificationEvent` types into `MetricsBackend` calls and sits on the
+  `MultiNotifier` children list alongside `ConsoleNotifier`. This is the
+  preferred pattern for coarse engine-level metrics (state transitions, entries,
+  closes). Fine-grained feed metrics (tick count, tick rate, connection state)
+  are recorded directly in `index.ts` at the feed callback boundary — they
+  happen at much higher frequency and don't belong in the notifier chain.

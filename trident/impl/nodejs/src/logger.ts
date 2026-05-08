@@ -53,16 +53,28 @@ const consoleFormat = winston.format.printf(({ level, message, module, timestamp
 });
 
 // ── Base logger ────────────────────────────────────────────────────────────
+// When stdout is a TTY (local terminal), use the coloured human-readable
+// format. When it is not (Docker container, pipe), emit JSON so that Loki
+// can parse fields and surface them in Grafana Logs Drilldown.
 
-const base = winston.createLogger({
-  level: LEVEL,
-  transports: [
-    new winston.transports.Console({
+const consoleTransport = process.stdout.isTTY
+  ? new winston.transports.Console({
       format: winston.format.combine(
         winston.format.timestamp({ format: 'HH:mm:ss' }),
         consoleFormat
       ),
-    }),
+    })
+  : new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+    });
+
+const base = winston.createLogger({
+  level: LEVEL,
+  transports: [
+    consoleTransport,
     new winston.transports.File({
       filename: 'logs/trident.log',
       format: winston.format.combine(

@@ -23,6 +23,7 @@ export interface StartWebServerOpts {
   signalsDir: string;
   publicDir: string;
   getBootstrap: () => Bootstrap;
+  metricsHandler?: (req: Request, res: Response) => Promise<void>;
 }
 
 export interface WebServerHandle {
@@ -42,6 +43,10 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
   app.use(express.json({ limit: '128kb' }));
 
   const screenshotsDir = resolve(opts.signalsDir, '..', 'screenshots');
+
+  if (opts.metricsHandler) {
+    app.get('/metrics', opts.metricsHandler);
+  }
 
   app.get('/', (_req: Request, res: Response) => {
     res.sendFile(resolve(opts.publicDir, 'index.html'));

@@ -2,11 +2,13 @@
  * Trident — qs-signal-engine entry point
  *
  * Usage:
- *   npx tsx src/index.ts [--config <path>] [--mock]
+ *   npx tsx src/index.ts [--config <path>] [--mock] [--observability <mode>]
  *
  * Flags:
- *   --config <path>   Path to config.yaml (default: ./config.yaml)
- *   --mock            Use MockPriceFeed with a built-in demo scenario
+ *   --config <path>           Path to config.yaml (default: ./config.yaml)
+ *   --mock                    Use MockPriceFeed with a built-in demo scenario
+ *   --observability <mode>    Enable metrics: 'prometheus' or 'otel'
+ *                             (also readable from TRIDENT_OBSERVABILITY env var)
  */
 
 import { resolve } from 'path';
@@ -17,32 +19,54 @@ import { watchSignalDir, loadSignalFile, scanSignalDirOnce } from './signal/load
 import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
+import { LoggerNotifier } from './notifier/LoggerNotifier.js';
 import { MultiNotifier } from './notifier/MultiNotifier.js';
 import { TridentEngine } from './strategy/TridentEngine.js';
 import { startWebServer } from './web/server.js';
+import { buildMetricsBackend } from './observability/index.js';
+import { MetricsNotifier } from './observability/MetricsNotifier.js';
+import { PrometheusBackend } from './observability/PrometheusBackend.js';
+import { OtelBackend } from './observability/OtelBackend.js';
+import { getLogger } from './logger.js';
+
+const log = getLogger('Trident');
 import type { Bootstrap } from './notifier/WebSocketNotifier.js';
 import type { Notifier } from './notifier/Notifier.js';
 
-const args = process.argv.slice(2); // process.argv[0] — the path to the node executable ,process.argv[1] — the path to the script being run
+const args = process.argv.slice(2);
 const configPath = argValue(args, '--config') ?? './config.yaml';
 const useMock = args.includes('--mock');
-const signalPath = argValue(args, '--signal'); // load a specific signal file directly
+const signalPath = argValue(args, '--signal');
 const webPort = Number(process.env.TRIDENT_WEB_PORT ?? 3000);
+// CLI flag takes precedence; env var is the Docker-friendly fallback
+const observabilityMode = argValueEquals(args, '--observability') ?? process.env.TRIDENT_OBSERVABILITY;
 
 const config = loadConfig(resolve(configPath));
+const metricsBackend = buildMetricsBackend(observabilityMode);
+
 const consoleNotifier = new ConsoleNotifier(/* showPriceTicks = */ false);
 // MultiNotifier's children list is mutable so the WebSocket notifier can be
 // appended once the web server boots. Engine events go to console immediately
 // and to browser clients from the moment the server starts listening.
-const notifierChildren: Notifier[] = [consoleNotifier];
+const notifierChildren: Notifier[] = [consoleNotifier, new LoggerNotifier()];
+if (observabilityMode) {
+  notifierChildren.push(new MetricsNotifier(metricsBackend));
+}
 const notifier = new MultiNotifier(notifierChildren);
 // Mock runs are ephemeral demos — don't pollute (or restore from) the live snapshot.
 const engine = new TridentEngine(config, notifier, {
   snapshotPath: useMock ? null : 'logs/engine-state.json',
 });
 
-console.log('Trident qs-signal-engine starting...');
-console.log(`Config: ${resolve(configPath)}`);
+log.info('Starting');
+log.info('Config', { path: resolve(configPath) });
+
+if (observabilityMode === 'prometheus') {
+  log.info('Prometheus metrics', { url: `http://localhost:${webPort}/metrics` });
+} else if (observabilityMode === 'otel') {
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4317';
+  log.info('OTel exporting', { endpoint });
+}
 
 if (useMock) {
   // -------------------------------------------------------------------
@@ -100,7 +124,11 @@ if (useMock) {
 // of broker connectivity), then connect cTrader + watch the signals dir.
 // -------------------------------------------------------------------
 const signalDir = resolve(config.signal.watch_dir);
-console.log(`Watching for setups in: ${signalDir}`);
+log.info('Watching', { dir: signalDir });
+
+const metricsHandler = metricsBackend instanceof PrometheusBackend
+  ? metricsBackend.metricsHandler()
+  : undefined;
 
 const webServer = await startWebServer({
   port: webPort,
@@ -108,13 +136,27 @@ const webServer = await startWebServer({
   signalsDir: signalDir,
   publicDir: resolve('src/web/public'),
   getBootstrap: buildBootstrap,
+  metricsHandler,
 });
 notifierChildren.push(webServer.notifier);
-console.log(`Trident UI: http://localhost:${webServer.port}\n`);
+log.info('UI ready', { url: `http://localhost:${webServer.port}` });
 
 // Wire up the real price feed if cTrader credentials are present in the environment
 const env = process.env;
 let liveFeed: CTraderPriceFeed | null = null;
+
+// Tick-rate tracking: count ticks in the current 60s window, report every 60s
+let tickWindowCount = 0;
+const tickRateInterval = setInterval(() => {
+  metricsBackend.setTickRate(tickWindowCount);
+  tickWindowCount = 0;
+}, 60_000);
+tickRateInterval.unref();
+
+if (!env.CTRADER_CLIENT_ID || !env.CTRADER_CLIENT_SECRET || !env.CTRADER_ACCESS_TOKEN) {
+  log.warn('No cTrader credentials — price feed inactive');
+  log.info('Run auth:ctrader to configure credentials, or use --mock for a demo');
+}
 
 if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOKEN) {
   const symbolName = env.CTRADER_SYMBOL ?? 'US500';
@@ -133,41 +175,41 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
       writeEnvKey('CTRADER_ACCESS_TOKEN',     accessToken);
       writeEnvKey('CTRADER_REFRESH_TOKEN',    refreshToken);
       writeEnvKey('CTRADER_TOKEN_EXPIRES_AT', String(expiresAt));
-      console.log('Refreshed tokens written to .env');
+      log.info('Tokens refreshed');
     },
   };
   liveFeed = new CTraderPriceFeed(feedConfig);
 
-  liveFeed.subscribe(price => engine.onPriceUpdate(price));
+  liveFeed.subscribe(price => {
+    metricsBackend.recordTick(price);
+    tickWindowCount++;
+    engine.onPriceUpdate(price);
+  });
 
-  // Connect with automatic reconnect. The demo server closes idle connections
-  // after ~60s; the live server may disconnect on network blips. We reconnect
-  // indefinitely with a short delay so the engine stays live.
   const connectWithRetry = async () => {
     while (true) {
       try {
-        console.log(`Connecting to cTrader (symbol: ${symbolName})...`);
+        log.info('Connecting to cTrader', { symbol: symbolName });
         await liveFeed!.connect();
-        console.log('cTrader price feed connected.\n');
-        return; // success — hand off to the running process
+        metricsBackend.recordConnectionState(true);
+        log.info('cTrader connected');
+        return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        // "closed before ready" means the server dropped us before the handshake
-        // completed (idle timeout, bad symbolId, etc.) — retry after a short pause.
-        console.error(`cTrader connection failed: ${msg}`);
-        console.log('Retrying in 5 seconds...');
+        metricsBackend.recordConnectionState(false);
+        log.error('cTrader connection failed, retrying', { error: msg, retryMs: 5000 });
         await new Promise(r => setTimeout(r, 5000));
-        // Re-create the feed so internal state (ws, counters) is fresh
         liveFeed = new CTraderPriceFeed(feedConfig);
-        liveFeed.subscribe(price => engine.onPriceUpdate(price));
+        liveFeed.subscribe(price => {
+          metricsBackend.recordTick(price);
+          tickWindowCount++;
+          engine.onPriceUpdate(price);
+        });
       }
     }
   };
 
   await connectWithRetry();
-} else {
-  console.log('No cTrader credentials found in environment — price feed inactive.');
-  console.log('Run `npm run auth:ctrader` to set up credentials, or use --mock for a demo.\n');
 }
 
 // Load a specific signal file immediately if provided
@@ -186,44 +228,48 @@ scanSignalDirOnce(signalDir, async (signal, filePath) => {
   await engine.loadSignal(signal, filePath);
 });
 
-// Graceful shutdown — also handles SIGTERM (e.g. when the parent kills us).
+// Graceful shutdown
 let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) {
-    // Second Ctrl-C in a row: bail immediately, the orderly path is taking too long.
-    console.log(`\nReceived second ${signal} — forcing exit.`);
+    log.warn('Second signal received — forcing exit', { signal });
     process.exit(130);
   }
   shuttingDown = true;
-  console.log(`\nShutting down (${signal})...`);
+  log.info('Shutting down', { signal });
 
-  // Hard fallback: if any close() handler hangs, kill the process anyway
-  // after 5 seconds so the terminal returns. unref() so this timer doesn't
-  // keep the event loop alive on its own.
   const force = setTimeout(() => {
-    console.error('Shutdown timed out after 5s — forcing exit.');
+    log.error('Shutdown timed out — forcing exit');
     process.exit(1);
   }, 5000);
   force.unref();
 
+  clearInterval(tickRateInterval);
   try { stopWatching(); } catch { /* ignore */ }
   try { await webServer.close(); } catch { /* ignore */ }
   try { await liveFeed?.disconnect(); } catch { /* ignore */ }
+  if (metricsBackend instanceof OtelBackend) {
+    try { await metricsBackend.shutdown(); } catch { /* ignore */ }
+  }
   process.exit(0);
 }
 
 process.on('SIGINT',  () => { shutdown('SIGINT').catch(() => process.exit(1)); });
 process.on('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1)); });
 
-// Helper
+// Helper: --flag=value or --flag value form
 function argValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   return idx !== -1 ? args[idx + 1] : undefined;
 }
 
-// Snapshot of engine state sent to each browser client on WS connect so a
-// freshly-opened tab reflects current reality instead of waiting for the
-// next event. Read directly from the engine — no caching, no duplication.
+// Helper: --flag=value form only (for flags that use = separator)
+function argValueEquals(args: string[], flag: string): string | undefined {
+  const prefix = `${flag}=`;
+  const match = args.find(a => a.startsWith(prefix));
+  return match ? match.slice(prefix.length) : undefined;
+}
+
 function buildBootstrap(): Bootstrap {
   const signal = engine.getCurrentSignal();
   const signalPath = engine.getSignalFilePath();
@@ -253,7 +299,6 @@ function buildBootstrap(): Bootstrap {
   };
 }
 
-// Updates a single key in .env without touching other lines.
 function writeEnvKey(key: string, value: string): void {
   const envFile = '.env';
   const existing = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
