@@ -1,0 +1,147 @@
+{
+  "title": "Trident Engine",
+  "uid": "trident-main",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Feed Connected",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ]
+        }
+      },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_feed_connected", "legendFormat": "" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Engine State",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": {
+              "0": { "text": "idle",     "color": "blue"   },
+              "1": { "text": "blocked",  "color": "orange" },
+              "2": { "text": "watching", "color": "yellow" },
+              "3": { "text": "in_trade", "color": "green"  },
+              "4": { "text": "closed",   "color": "purple" }
+            }}
+          ]
+        }
+      },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_engine_state", "legendFormat": "" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Last P&L (points)",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "colorMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_pnl_points", "legendFormat": "" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "Tick Rate (ticks/min)",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 120,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "green", "value": 30 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_tick_rate", "legendFormat": "" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tick Rate Over Time",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list" } },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_tick_rate", "legendFormat": "ticks/min" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Total Ticks",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list" } },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_ticks_total", "legendFormat": "ticks" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Entries & Closes",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list" } },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "sum(trident_entries_total)", "legendFormat": "entries" },
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "sum(trident_closes_total)", "legendFormat": "closes" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Signal Loads (valid / invalid)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list" } },
+      "targets": [
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_signal_loads_total{valid=\"true\"}", "legendFormat": "valid" },
+        { "datasource": { "uid": "trident-prometheus" }, "expr": "trident_signal_loads_total{valid=\"false\"}", "legendFormat": "invalid" }
+      ]
+    }
+  ]
+}

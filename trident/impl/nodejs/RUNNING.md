@@ -126,6 +126,72 @@ docker compose up -d
 
 ---
 
+---
+
+## Observability (optional)
+
+Trident can export real-time metrics — connection status, tick rate, engine state, entries, closes, and P&L — to a monitoring dashboard. Two paths are available:
+
+### Self-hosted (Prometheus + Grafana, recommended for local use)
+
+1. Add the following line to your `.env` file:
+   ```
+   TRIDENT_OBSERVABILITY=prometheus
+   ```
+
+2. Start Trident with the observability profile:
+   ```bash
+   docker compose --profile observability up -d
+   ```
+
+   This starts three containers: `trident` (as normal), `prometheus` (scrapes metrics every 15s), and `grafana` (pre-provisioned dashboard).
+
+3. Open Grafana at **[http://localhost:3001](http://localhost:3001)**
+   - Username: `admin` / Password: `trident`
+   - The **Trident Engine** dashboard is pre-loaded under Dashboards
+
+   The `/metrics` endpoint on the Trident container is at **[http://localhost:3000/metrics](http://localhost:3000/metrics)** if you want to inspect raw metrics.
+
+4. To stop:
+   ```bash
+   docker compose --profile observability down
+   ```
+
+---
+
+### Grafana Cloud (free tier, recommended for remote/VPS deployments)
+
+Grafana Cloud's free tier includes hosted Prometheus storage, dashboards, alerting, and 14-day retention at no cost — no self-hosted infrastructure needed.
+
+**One-time setup:**
+
+1. Create a free account at [https://grafana.com/auth/sign-up](https://grafana.com/auth/sign-up) and create a stack (e.g. `mystack`).
+
+2. In Grafana Cloud, go to **Home → Connections → Add new connection → OpenTelemetry (OTLP)**.
+   Copy the endpoint URL and generate a token with **MetricsPublisher** role.
+
+3. Add these lines to your `.env` file (replace with your actual values):
+   ```
+   TRIDENT_OBSERVABILITY=otel
+   OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-eu-west-0.grafana.net/otlp
+   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64-encoded-instanceid:token>
+   OTEL_SERVICE_NAME=trident
+   ```
+   > The endpoint and token format are shown on the Grafana Cloud OTLP connection page.
+
+4. Restart normally (no extra profile needed — the standard `docker compose up -d` applies):
+   ```bash
+   docker compose up -d
+   ```
+   Metrics will appear in Grafana Cloud within ~2 minutes.
+
+5. Import the pre-built dashboard:
+   - In Grafana Cloud, go to **Dashboards → New → Import**
+   - Upload `docker/grafana/dashboards/trident.json` from this folder
+   - Select your Prometheus datasource when prompted
+
+---
+
 ## Troubleshooting
 
 **Dashboard not loading?**
@@ -134,11 +200,17 @@ Check the container is running:
 docker compose ps
 ```
 
-**See what the app is doing:**
+**See what the app is doing (raw terminal):**
 ```bash
 docker compose logs -f
 ```
 Press `Ctrl+C` to stop following the logs.
+
+**See structured logs in Grafana (when observability profile is running):**
+
+Open **[http://localhost:3001/a/grafana-lokiexplore-app/](http://localhost:3001/a/grafana-lokiexplore-app/)**, select the **Loki** datasource, then filter by `service = trident`. All log lines from the app appear here with structured fields (level, module, message, and any metadata) that you can filter and search.
+
+> Logs are collected by Promtail from the Docker container's stdout and shipped to Loki automatically — no extra configuration needed when the observability profile is active.
 
 **Something broken, want a clean restart:**
 ```bash
