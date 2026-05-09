@@ -57,9 +57,30 @@ Rationale: the logged content is structured extraction output from a financial c
 
 Rationale: `ExtractionResult` is a known internal type. Adding a JSON Schema library (`zod`, `ajv`) for one type is over-engineering. The extraction prompt already constrains the model to return nulls for unknown fields — validation just needs to confirm the shape and that numeric fields are in plausible ranges (prices within 20% of a reference, DVS 0–200, etc.).
 
-### 5. Quality metrics emitted at extractor shutdown / session summary
+### 5. Cost rate table is keyed by model ID and ships with DeepSeek rates from day one
 
-**Decision: accumulate per-call stats in `SignalExtractor` and emit a summary log entry when `server.ts` shuts down (or on demand via a `/ai/stats` endpoint).**
+A DeepSeek provider is planned as a cheaper alternative to GPT-4o. The rate table must therefore support multiple providers out of the box rather than being GPT-4o-only.
+
+**Decision: rate table keyed by model ID (string), provider-agnostic.**
+
+Each entry: `{ inputPer1MTokens: number, outputPer1MTokens: number }`. Initial entries:
+
+| Model ID | Input ($/1M) | Output ($/1M) |
+|---|---|---|
+| `gpt-4o-2024-11-20` | $2.50 | $10.00 |
+| `gpt-4o-mini` | $0.15 | $0.60 |
+| `deepseek-chat` (DeepSeek-V3) | $0.27 | $1.10 |
+| `deepseek-reasoner` (DeepSeek-R1) | $0.55 | $2.19 |
+
+Model IDs that do not appear in the table produce `estimatedCostUsd: null` with a warning — operators will notice and add the rate rather than silently getting zero cost data.
+
+### 6. Quality metrics are log-only — no `/ai/stats` endpoint in Phase 1
+
+Options: emit metrics as a structured log entry on shutdown, or expose them via a `/ai/stats` HTTP endpoint.
+
+**Decision: log-only. Accumulate per-call stats in `SignalExtractor` and emit a single `AI_SESSION_METRICS` log entry on shutdown (SIGINT/SIGTERM) or via `SignalExtractor.flushMetrics()`.**
+
+Rationale: Grafana Logs Drilldown can query `{service="trident"} | json | event = "AI_SESSION_METRICS"` and extract all numeric fields for dashboarding — no extra HTTP surface needed. Adding an endpoint introduces a new route, authentication considerations, and client tooling for something Grafana already handles. If a pull-based metrics API becomes necessary later, it can be added as a thin wrapper over `guardrail.getMetrics()` without changing the log structure.
 
 This keeps metrics in the same log stream as everything else and avoids a separate metrics sink.
 
@@ -79,5 +100,4 @@ This keeps metrics in the same log stream as everything else and avoids a separa
 
 ## Open Questions
 
-- Should the `/ai/stats` endpoint be added to `server.ts`, or is a log-only summary sufficient for now? (Recommend log-only for Phase 1 — Grafana can query it.)
-- Are there any non-GPT-4o providers planned soon that have different token pricing? (If so, the cost-rate map needs expanding before implementation.)
+None — all open questions resolved before implementation.

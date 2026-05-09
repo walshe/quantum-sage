@@ -493,29 +493,69 @@ the response into an `ExtractionResult`. Model and base URL overridable via
 `OPENAI_MODEL` / `OPENAI_BASE_URL`.
 
 ### `signalExtractor.ts`
-Orchestration layer. `extract()`:
-1. Calls `checkBeforeCall` on the guardrail (currently a no-op stub —
-   future home for rate-limiting / budget caps).
-2. Calls the provider with the canonical `SIGNAL_EXTRACTION_PROMPT`.
-3. `normalise()` stamps the fields the model isn't allowed to invent —
+Orchestration layer. `extract()` runs the full safety pipeline:
+1. `checkBeforeCall` (guardrail) — screens `callerKey` for injection patterns.
+   Throws `ExtractionBlockedError` if blocked (→ server returns 400).
+2. Provider call with the canonical `SIGNAL_EXTRACTION_PROMPT`.
+3. `validateExtractionResult()` — runtime shape + range check on the raw
+   model response. Throws `OutputValidationError` on failure (→ 502 to client).
+4. `normalise()` stamps the fields the model isn't allowed to invent —
    `schema_version: '1.0'`, `meta.execution_instrument: 'US500.cash'`,
    `meta.update_seq: 1`, `levels.additional: []`, `vwap.source: 'manual'` —
    so the result is always loadable into the form.
-4. Calls `recordUsage` on the guardrail for telemetry.
+5. `logLlmCall()` emits a structured `LLM_CALL` log (no raw prompt/response).
+6. `recordUsage()` accumulates session metrics.
+
+`flushMetrics()` is called by the shutdown hook in `index.ts` and emits an
+`AI_SESSION_METRICS` log entry queryable in Grafana:
+```
+{service="trident"} | json | event = "AI_SESSION_METRICS"
+```
+
+### `guardrail.ts`
+Module-level state accumulates per-call stats across the process lifetime.
+`checkBeforeCall` now does real injection screening (multi-word phrase matching,
+case-insensitive, e.g. "ignore previous instructions") and increments
+`injectionBlocks` and `totalCalls`. `recordUsage` accumulates latency samples
+and cost for p50/p95 computation. `getMetrics()` returns the full
+`SessionMetrics` shape used by `flushMetrics()`.
+
+The `{ allowed: boolean; reason?: string }` decision shape replaces the old
+`{ allow: boolean }` — note the field name change if you're reading old git history.
+
+### `outputValidator.ts`
+Runtime defence against schema violations that slip through the OpenAI tool
+schema enforcement. Checks: numeric fields are not strings, enum fields use
+valid values (`bias.direction`, `bias.confidence`, `volatility.regime`),
+`dvs` is 0–200, price levels are positive. Emits `OUTPUT_VALIDATION_FAILED`
+log entry with `errors: string[]` before throwing.
+
+`VolatilityRegime` values the validator accepts: `compressed`, `normal`,
+`elevated`, `extreme` (matches the TypeScript type — the spec doc said `low`
+which was incorrect).
+
+### `llmLogger.ts`
+Emits one structured `LLM_CALL` log entry per extraction attempt. The cost
+rate table (`COST_RATES`) is keyed by model ID — add new models here when a
+new provider is wired up. Known models: `gpt-4o-2024-11-20`, `gpt-4o-mini`,
+`deepseek-chat`, `deepseek-reasoner`. Unknown models log a `warn` and produce
+`estimatedCostUsd: null` — operators will notice in Grafana and add the rate.
+
+### `piiRedactor.ts`
+Pure function `piiRedact(text: string): string`. Applied to audit log content
+only — never to the actual model input. Patterns: email, formatted phone
+numbers, IBAN (min 15-char sequence), 10–19 consecutive digit strings.
+Trading prices (4–8 digit numbers with decimals) are not affected.
 
 ### `prompts/signalExtractionPrompt.ts`
 The system prompt that tells the model what fields to extract and explicitly
 forbids invention — missing data must come back `null`. Update this file (not
 the provider) to tune extraction behaviour.
 
-### `guardrail.ts`
-Stub policy layer. Both functions currently return "allow" / no-op, but the
-shape is in place so per-IP rate limits, daily budget caps, or content
-filters can land without touching the extractor or providers.
-
-> **Mental model:** AI is a strictly optional pre-fill helper. The validator,
-> not the model, decides whether a setup can be loaded. The model's job is
-> to save the analyst typing — never to bypass review.
+> **Mental model:** AI is a strictly optional pre-fill helper. The validator
+> (not the model) decides whether a setup can be loaded. Injection screening
+> and output validation run on every call — the model output is never trusted
+> as correct until it clears both.
 
 ---
 

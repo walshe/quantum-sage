@@ -246,6 +246,7 @@ async function shutdown(signal: string) {
 
   clearInterval(tickRateInterval);
   try { stopWatching(); } catch { /* ignore */ }
+  try { webServer.flushAiMetrics(); } catch { /* ignore */ }
   try { await webServer.close(); } catch { /* ignore */ }
   try { await liveFeed?.disconnect(); } catch { /* ignore */ }
   if (metricsBackend instanceof OtelBackend) {
