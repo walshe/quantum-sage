@@ -138,18 +138,28 @@ details[open].history summary::before { content: '▼ '; }
   border-right: none;
 }
 .quick-fill-btn {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
+  background: #1e3a5f;
+  border: 1px solid #2d5a9e;
   border-radius: 0 4px 4px 0;
-  padding: 0 7px;
+  padding: 0 8px;
   font-size: 10px;
-  color: var(--fg-dim);
-  font-style: italic;
+  color: #7eb8f7;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0.02em;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.quick-fill-btn:hover { color: var(--accent); border-color: var(--accent); }
+.quick-fill-btn:hover {
+  background: #2a4f7e;
+  color: #bdd8fb;
+  border-color: var(--accent);
+}
+.quick-fill-btn:active {
+  background: #163050;
+}
 button {
   background: linear-gradient(to bottom, #2d3542, #232a35);
   color: var(--fg);
@@ -261,8 +271,11 @@ fieldset {
   margin: 0 0 0.8rem;
   display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.8rem;
 }
+fieldset[hidden] { display: none !important; }
 legend { padding: 0 0.4rem; color: var(--fg-dim); text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
-label { display: flex; flex-direction: column; font-size: 11px; color: var(--fg-dim); gap: 2px; position: relative; }
+label { display: block; font-size: 11px; color: var(--fg-dim); position: relative; }
+label > input, label > select { display: block; margin-top: 2px; width: 100%; }
+label > .input-with-btn { margin-top: 2px; width: 100%; }
 label.wide { grid-column: 1 / -1; }
 
 /* ---------- Info tooltips ---------- */
@@ -323,6 +336,14 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 label.has-error > input,
 label.has-error > select { border-color: var(--err); }
 label.has-error { color: var(--err); }
+
+/* BUY / SELL level field tints */
+label.buy  { color: #4ade80; }
+label.sell { color: #f87171; }
+label.buy  > input { background: rgba(34, 197, 94, 0.06);  border-color: rgba(34, 197, 94, 0.35); }
+label.sell > input { background: rgba(239, 68, 68, 0.06);  border-color: rgba(239, 68, 68, 0.35); }
+label.buy  > input:focus,
+label.sell > input:focus { border-color: var(--accent); }
 .field-error {
   display: block;
   color: var(--err);
@@ -534,12 +555,13 @@ label.has-error { color: var(--err); }
 .form-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .form-dialog form {
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
   padding-right: 0.3rem;
 }
 /* Inside the form modal a wider grid lets us pack three columns by default,
-   except `.paired` fieldsets (Ranges, Levels) where keeping pairs on the
+   except `.paired` fieldsets (Levels) where keeping pairs on the
    same row is more important than density. */
 .form-dialog fieldset {
   grid-template-columns: 1fr 1fr 1fr;
@@ -556,8 +578,12 @@ label.has-error { color: var(--err); }
 .form-dialog fieldset:not(.paired) > label:nth-of-type(3n):not(.wide) .info::after {
   left: auto; right: 0;
 }
-/* For paired (2-col) fieldsets, restore the original right-column flip. */
+/* Paired (2-col) fieldset: after the wide Level-time label, even = left col,
+   odd = right col. Explicitly reset left-col (even) and flip right-col (odd). */
 .form-dialog fieldset.paired > label:nth-of-type(even):not(.wide) .info::after {
+  left: 0; right: auto;
+}
+.form-dialog fieldset.paired > label:nth-of-type(odd):not(.wide) .info::after {
   left: auto; right: 0;
 }
 

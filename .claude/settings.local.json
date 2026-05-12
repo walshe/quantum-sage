@@ -69,7 +69,8 @@
       "Bash(date -v-1H +%s)",
       "Bash(git commit *)",
       "Bash(gh pr *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(git *)"
     ]
   }
 }

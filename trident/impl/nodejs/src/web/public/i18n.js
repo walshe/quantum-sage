@@ -31,15 +31,15 @@ window.TRIDENT_I18N = {
     '(paired)': '(accoppiato)',
     'now': 'adesso',
     'today': 'oggi',
-    'Provide as complete pairs (both MAX BUY 1+2, or both MAX SELL 1+2, or both). At least one pair is required — the engine skips a side whose pair is incomplete.':
-      'Fornisci come coppie complete (entrambi MAX BUY 1+2, o entrambi MAX SELL 1+2, o entrambe). È richiesta almeno una coppia — il motore salta il lato la cui coppia è incompleta.',
+    'Provide as complete pairs (both BUY OUTER+INNER, or both SELL OUTER+INNER, or both). At least one pair is required — the engine skips a side whose pair is incomplete.':
+      'Fornisci come coppie complete (entrambi BUY OUTER+INNER, o entrambi SELL OUTER+INNER, o entrambe). È richiesta almeno una coppia — il motore salta il lato la cui coppia è incompleta.',
 
     // ---------- Fieldset legends ----------
     'Meta': 'Meta',
     'Volatility': 'Volatilità',
     'VWAP': 'VWAP',
     'Ranges [ES futures]': 'Range [ES futures]',
-    'Levels [SPX cash]': 'Livelli [SPX cash]',
+    'Levels [ES futures]': 'Livelli [ES futures]',
     'Bias': 'Bias',
     'Invalidation [ES futures]': 'Invalidazione [ES futures]',
 
@@ -77,10 +77,10 @@ window.TRIDENT_I18N = {
 
     // ---------- Levels fields ----------
     'Level time': 'Ora livelli',
-    'MAX SELL 1': 'MAX SELL 1',
-    'MAX SELL 2': 'MAX SELL 2',
-    'MAX BUY 1': 'MAX BUY 1',
-    'MAX BUY 2': 'MAX BUY 2',
+    'SELL OUTER': 'SELL OUTER',
+    'SELL INNER': 'SELL INNER',
+    'BUY OUTER': 'BUY OUTER',
+    'BUY INNER': 'BUY INNER',
     'Support': 'Supporto',
     'Resistance': 'Resistenza',
 
@@ -171,14 +171,14 @@ window.TRIDENT_I18N = {
       "Limite inferiore esterno ricavato dall'IV smile. Tasso di rientro del 75%. Termini ES futures.",
     "Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal.":
       "Ora di calcolo dei livelli. Il selettore mostra il formato del tuo sistema (AM/PM o 24h) ma il valore viene salvato come HH:MM 24h. Opzionale — utile per tracciabilità. Aggiornalo quando invii una ricalibrazione.",
-    "Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures.":
-      "Resistenza esterna. Innesca Short Entry 3 (ultima/piu' profonda entrata sul lato short). Letto dal grafico intraday SPX in termini SPX cash — Trident aggiungerà il basis per convertire in futures.",
-    "Inner resistance. Triggers Short Entry 1 — this is the first touch that opens a short. Entry 2 is the midpoint of MAX SELL 1 and MAX SELL 2. SPX cash terms.":
-      "Resistenza interna. Innesca Short Entry 1 — è il primo tocco che apre uno short. Entry 2 è il punto medio tra MAX SELL 1 e MAX SELL 2. Termini SPX cash.",
-    "Outer support. Triggers Long Entry 3 (last / deepest scale-in on the long side). SPX cash terms.":
-      "Supporto esterno. Innesca Long Entry 3 (ultima/piu' profonda entrata sul lato long). Termini SPX cash.",
-    "Inner support. Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of MAX BUY 2 and MAX BUY 1. SPX cash terms.":
-      "Supporto interno. Innesca Long Entry 1 — primo tocco che apre un long. Entry 2 è il punto medio tra MAX BUY 2 e MAX BUY 1. Termini SPX cash.",
+    "Outer resistance (Range 1 up from the IV Smile). Triggers Short Entry 3 — last / deepest scale-in on the short side. ES futures terms.":
+      "Resistenza esterna (Range 1 up dall'IV Smile). Innesca Short Entry 3 — ultima/piu' profonda entrata sul lato short. Termini ES futures.",
+    "Inner resistance (Range 2 up from the IV Smile). Triggers Short Entry 1 — the first touch that opens a short. Entry 2 is the midpoint of SELL OUTER and SELL INNER. ES futures terms.":
+      "Resistenza interna (Range 2 up dall'IV Smile). Innesca Short Entry 1 — primo tocco che apre uno short. Entry 2 è il punto medio tra SELL OUTER e SELL INNER. Termini ES futures.",
+    "Outer support (Range 1 down from the IV Smile). Triggers Long Entry 3 — last / deepest scale-in on the long side. ES futures terms.":
+      "Supporto esterno (Range 1 down dall'IV Smile). Innesca Long Entry 3 — ultima/piu' profonda entrata sul lato long. Termini ES futures.",
+    "Inner support (Range 2 down from the IV Smile). Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of BUY INNER and BUY OUTER. ES futures terms.":
+      "Supporto interno (Range 2 down dall'IV Smile). Innesca Long Entry 1 — primo tocco che apre un long. Entry 2 è il punto medio tra BUY INNER e BUY OUTER. Termini ES futures.",
     "Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
       "Pivot di supporto derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
     "Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
@@ -219,8 +219,8 @@ window.TRIDENT_I18N = {
       'incrementato — per una ricalibrazione intra-day.',
     "Load today's most recent setup file into the form so you can tweak only what's changed.":
       "Carica nel form il setup più recente di oggi così puoi modificare solo ciò che è cambiato.",
-    'Upload up to 3 chart screenshots (IV Smile / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, and VWAP and pre-fills the form. Cash last and basis are not extracted — enter manually if needed.':
-      "Carica fino a 3 screenshot dei grafici (IV Smile / SPX intraday). Se l'AI è configurata, Trident estrae livelli, range, DVS e VWAP e precompila il form. Cash last e basis non vengono estratti — inseriscili manualmente se necessario.",
+    'Upload one IV Smile chart screenshot. If AI is configured, Trident extracts BUY INNER/OUTER and SELL INNER/OUTER levels, ranges, DVS, and VWAP from the range panel and pre-fills the form. Cash last and basis are not extracted — enter manually if needed.':
+      "Carica uno screenshot del grafico IV Smile. Se l'AI è configurata, Trident estrae i livelli BUY INNER/OUTER e SELL INNER/OUTER, range, DVS e VWAP dal pannello dei range e precompila il form. Cash last e basis non vengono estratti — inseriscili manualmente se necessario.",
     'Always review every value': 'Verifica sempre ogni valore',
     'before submitting.': 'prima di inviare.',
     'Anything with': 'Tutto ciò che contiene',
@@ -248,8 +248,8 @@ window.TRIDENT_I18N = {
     'Fields outlined in red show exactly what\'s wrong. Most common causes:':
       "I campi evidenziati in rosso mostrano esattamente il problema. Cause più comuni:",
     'Required levels are missing': 'Livelli richiesti mancanti',
-    'Provide both MAX BUY 1+2 or both MAX SELL 1+2 (or both pairs).':
-      'Fornisci sia MAX BUY 1+2 sia MAX SELL 1+2 (o entrambe le coppie).',
+    'Provide both BUY OUTER+INNER or both SELL OUTER+INNER (or both pairs).':
+      'Fornisci sia BUY OUTER+INNER sia SELL OUTER+INNER (o entrambe le coppie).',
     'Range / level ordering invalid':
       'Ordine di range / livelli non valido',
     'Check the inequalities printed in the error message.':
@@ -295,7 +295,7 @@ window.TRIDENT_I18N = {
     'Futures / Cash / Basis': 'Futures / Cash / Basis',
     'DVS / regime': 'DVS / regime',
     'Ranges (ES futures)': 'Range (ES futures)',
-    'Levels (SPX cash)': 'Livelli (SPX cash)',
+    'Levels (ES futures)': 'Livelli (ES futures)',
     'Support / Resistance': 'Supporto / Resistenza',
     'Invalidation (futures)': 'Invalidazione (futures)',
     'PRD sanity checks': 'Controlli PRD',
@@ -308,12 +308,12 @@ window.TRIDENT_I18N = {
       'Atteso: range_1_down < range_2_down < range_2_up < range_1_up',
     'Level ordering correct': 'Ordine dei livelli corretto',
     'Level ordering broken': 'Ordine dei livelli non valido',
-    'Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1':
-      'Atteso: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1',
+    'Expected: BUY OUTER < BUY INNER < SELL INNER < SELL OUTER':
+      'Atteso: BUY OUTER < BUY INNER < SELL INNER < SELL OUTER',
     'No tradeable level pair — engine will not enter':
       'Nessuna coppia di livelli operativa — il motore non entrerà',
-    'Provide both MAX BUY 1+2 or both MAX SELL 1+2.':
-      'Fornisci sia MAX BUY 1+2 sia MAX SELL 1+2 (almeno una coppia).',
+    'Provide both BUY OUTER+INNER or both SELL OUTER+INNER.':
+      'Fornisci sia BUY OUTER+INNER sia SELL OUTER+INNER (almeno una coppia).',
     'Only one side has levels — engine will trade that side only':
       'Solo un lato ha livelli — il motore tradera solo quel lato',
     'DVS above 75 — gate will block all trades today':
@@ -324,8 +324,8 @@ window.TRIDENT_I18N = {
     'VWAP older than 90 minutes vs setup time':
       'VWAP più vecchio di 90 minuti rispetto al timestamp del setup',
     'VWAP fresh (≤90 min)': 'VWAP fresco (≤90 min)',
-    'Cash → futures conversion preview (engine compares ES live to these)':
-      'Anteprima conversione cash → futures (il motore confronta ES live con questi)',
+    'Levels summary (ES futures)':
+      'Riepilogo livelli (ES futures)',
     'Date is not today — engine will reject': 'La data non è oggi — il motore rifiuterà',
 
     // ---------- Form / Status modal chrome ----------
@@ -350,13 +350,12 @@ window.TRIDENT_I18N = {
       'Estrazione AI fallita — compila il form manualmente.',
     'Form pre-filled from screenshots.': 'Form precompilato dagli screenshot.',
     'Extraction details': 'Dettagli estrazione',
-    'Too many screenshots — pick up to 3 (IV Smile, intraday chart, optional summary).':
-      'Troppi screenshot — selezionane al massimo 3 (IV Smile, grafico intraday, riepilogo opzionale).',
-    'Uploading screenshots…': 'Caricamento screenshot…',
-    'Sending {n} image(s) to the server.': 'Invio di {n} immagine/i al server.',
-    'Image {i} of {n}: {name}': 'Immagine {i} di {n}: {name}',
-    'AI is reading the screenshots…': "L'AI sta leggendo gli screenshot…",
-    'Extracting levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.':
-      'Estrazione di livelli, range, DVS e VWAP. In genere richiede 5–20 secondi.',
+    'Only one screenshot is supported — upload the IV Smile chart.':
+      'È supportato un solo screenshot — carica il grafico IV Smile.',
+    'Uploading screenshot…': 'Caricamento screenshot…',
+    'Sending image to the server.': 'Invio immagine al server.',
+    'AI is reading the screenshot…': "L'AI sta leggendo lo screenshot…",
+    'Extracting BUY/SELL levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.':
+      'Estrazione livelli BUY/SELL, range, DVS e VWAP. In genere richiede 5–20 secondi.',
   },
 };

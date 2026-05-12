@@ -100,7 +100,7 @@ trimmed-down version of the levels section that the engine actually works with
 ### `validator.ts`
 This is the gatekeeper. Takes a parsed `SignalFile` and runs the full set of
 trust checks: schema version, required sections, range/buy/sell ordering,
-**at least one tradeable level pair (both MAX BUY 1+2 or both MAX SELL 1+2)**,
+**at least one tradeable level pair (both BUY INNER+OUTER or both SELL INNER+OUTER)**,
 price sanity (within 20% of `futures_last`), basis range and basis math,
 DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
 enum values (regime/instrument/direction/confidence), timestamp before
@@ -466,6 +466,20 @@ modal triggered by the top-bar buttons (`New setup`, `Update during session`,
 > `POST /signals` (setup submission, which goes through the same validator the
 > engine uses) and the screenshot uploads.
 
+**Bias filter in `buildTradePlanNote()` (app.js):** the friendly trade-plan
+summary skips buy entries when `bias.direction === 'short'` and sell entries
+when `bias.direction === 'long'`. The values are `'long'`/`'short'`/`'neutral'`
+— never `'bullish'`/`'bearish'`. A past bug used `'bearish'`/`'bullish'` so
+the filter never fired; fixed 2026-05-12.
+
+**`cash_last` / `basis` HTML required vs validator null-guard:** both fields
+carry `required` in the HTML, so the browser prevents blank submission. The
+validator's Rule 8 (basis math) has no null-guard — if `cash_last` is `null`
+it coerces to 0, making the check always fail. The `required` attribute is
+load-bearing; removing it without adding a null-guard to Rule 8 would expose
+the bug. The tooltip text ("leave empty to skip") is aspirational — it describes
+intended future behaviour, not the current implementation.
+
 ---
 
 ## AI extraction — `src/ai/`
@@ -552,6 +566,18 @@ The system prompt that tells the model what fields to extract and explicitly
 forbids invention — missing data must come back `null`. Update this file (not
 the provider) to tune extraction behaviour.
 
+**Single-chart workflow (2026-05-12):** analyst uploads ONE IV Smile screenshot.
+The model reads the right-panel range rows and populates both `ranges.*` and
+`levels.*` from the same four values:
+- Range 1 up   → `ranges.range_1_up`   + `levels.max_sell_1` (SELL OUTER)
+- Range 2 up   → `ranges.range_2_up`   + `levels.max_sell_2` (SELL INNER)
+- Range 2 down → `ranges.range_2_down` + `levels.max_buy_2`  (BUY INNER)
+- Range 1 down → `ranges.range_1_down` + `levels.max_buy_1`  (BUY OUTER)
+
+All values are in ES futures terms. The SPX intraday chart is no longer
+uploaded; `levels.*` are no longer in SPX cash. The MAX_SCREENSHOTS client
+constant is 1 and the HTML file input no longer carries `multiple`.
+
 > **Mental model:** AI is a strictly optional pre-fill helper. The validator
 > (not the model) decides whether a setup can be loaded. Injection screening
 > and output validation run on every call — the model output is never trusted
@@ -584,7 +610,7 @@ FB submits setup via dashboard (POST /signals)
 
 Price feed delivers ticks to engine.onPriceUpdate()
   → each tick: check invalidation, check expiry, check Entry 1 trigger
-  → price hits MAX SELL 2 (6582)
+  → price hits SELL INNER/max_sell_2 (6582)
   → fillEntry(entry1)       position opened, timer started
   → notifier fires ENTRY_TRIGGERED
 
@@ -592,7 +618,7 @@ Price feed delivers ticks to engine.onPriceUpdate()
   → fillEntry(entry2)       avg entry recalculated, stop recalculated, timer reset
   → notifier fires ENTRY_TRIGGERED
 
-  → price hits MAX SELL 1 (6616)
+  → price hits SELL OUTER/max_sell_1 (6616)
   → fillEntry(entry3)       fully scaled in, timer reset
   → notifier fires ENTRY_TRIGGERED
 

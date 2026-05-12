@@ -58,6 +58,8 @@ const SIGNAL_TOOL_SCHEMA = {
           },
           required: ['value', 'updated_at', 'source'],
         },
+        // TODO: remove ranges from tool schema once confirmed with FB that ranges.* are
+        // redundant with levels.* (auto-derived since 2026-05-12 single-IV-chart workflow).
         ranges: {
           type: 'object',
           additionalProperties: false,

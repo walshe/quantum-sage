@@ -109,7 +109,7 @@ you to do.
 | `[SIGNAL WARNING]` | — | Setup loaded with warnings (e.g. stale VWAP). Still trading. |
 | `[DVS GATE]` | — | DVS > 75. **No trades today.** Engine stays idle. |
 | `[SETUP]` | — | Trade plan ready. Waiting for Entry 1. |
-| `[NO SETUP]` | — | Bias + your levels don't give a valid trade (e.g. bias=long but no MAX BUY 1+2 pair). Submission validation usually catches this first; you'd only see it from a hand-edited YAML or a bias/levels mismatch. |
+| `[NO SETUP]` | — | Bias + your levels don't give a valid trade (e.g. bias=long but no BUY INNER+OUTER pair). Submission validation usually catches this first; you'd only see it from a hand-edited YAML or a bias/levels mismatch. |
 | `[ENTRY 1]` | **Yes** | Open the position at the relevant broker at the stated size and stop. |
 | `[ENTRY 2/3]` | **Yes** | Scale in at the relevant broker and update your stop to the new avg-entry-based level. |
 | `[BREAKEVEN]` | **Yes** | Move your broker stop to the stated level; cancel any unfilled entry orders. |
@@ -191,8 +191,8 @@ back into `.env`, so you should rarely need to re-run this.
 
 ### 5b. (Optional) AI screenshot extraction
 
-The dashboard has an **Import from screenshots** button that can read your
-IV Smile / LIVELLI / SPX charts and pre-fill the form. To enable it, add
+The dashboard has an **Import from screenshot** button that can read your
+IV Smile chart and pre-fill the form. To enable it, add
 this line to `.env`:
 
 ```
@@ -251,11 +251,13 @@ in a modal by clicking one of the top buttons:
   `update_seq` for an intra-day recalibration.
 - **Pre-fill from latest** — loads today's most recent setup file into
   the form so you can tweak only what's changed.
-- **Import from screenshots** *(AI)* — upload up to 3 chart screenshots
-  (IV Smile / LIVELLI table / SPX intraday). If `OPENAI_API_KEY` is set,
-  Trident extracts levels, ranges, DVS, VWAP, and basis from the images
-  and pre-fills the form. **Always review every value** before
-  submitting — extraction is best-effort, not authoritative.
+- **Import from screenshot** *(AI)* — upload one IV Smile chart screenshot.
+  If `OPENAI_API_KEY` is set, Trident reads the chart's range panel
+  (Range 1/2 up/down) to extract BUY INNER/OUTER, SELL INNER/OUTER levels,
+  ranges, DVS, and skew, then pre-fills the form. **Always review every
+  value** before submitting — extraction is best-effort, not authoritative.
+  VWAP, cash last, basis, and invalidation fields are never extracted and
+  must be filled in manually.
 - **Status** — opens a read-only view of the engine right now (state,
   connection, daily lock, currently loaded setup, any open position).
 
@@ -329,15 +331,16 @@ it). Go back to Setup step 1.
 
 The engine rejected the setup. Common issues:
 
-- **"Required levels are missing — provide both MAX BUY 1+2 or both
-  MAX SELL 1+2"** — at least one full pair is needed; otherwise the
-  engine has no entries to compute.
-- **"Sell level ordering invalid"** — remember `max_sell_2` (inner) must be
-  *lower than* `max_sell_1` (outer).
-- **"Range ordering invalid"** —
-  `range_1_down < range_2_down < range_2_up < range_1_up`.
-- **"Basis math mismatch"** — `futures_last - cash_last` must be within ±5
-  of `basis`.
+- **"Required levels are missing — provide BUY INNER+OUTER or SELL INNER+OUTER"**
+  — at least one full pair is needed; otherwise the engine has no entries
+  to compute.
+- **"Sell level ordering invalid"** — SELL INNER (`max_sell_2`) must be
+  *lower than* SELL OUTER (`max_sell_1`).
+- **"Basis math mismatch"** — `futures_last − cash_last` must equal `basis`
+  within ±5. Quick fix: set `basis = futures_last − cash_last` (e.g.
+  futures 7409, cash 7360 → basis 49). If you don't have a reliable SPX
+  cash price, enter consistent made-up values or ask Emmett to remove the
+  `required` constraint from those fields.
 - **"Invalidation boundaries must bracket futures_last"** —
   `void_below < futures_last < void_above`. Common cause: a void value
   is in SPX cash terms instead of ES futures terms.
