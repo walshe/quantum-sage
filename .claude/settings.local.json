@@ -52,7 +52,24 @@
       "Bash(docker compose *)",
       "Bash(lsof *)",
       "Bash(sudo lsof -i :3000)",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(gh release *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git -C /Users/Emmett/dev/quantum-sage add .github/workflows/docker-publish.yml)",
+      "Bash(git -C /Users/Emmett/dev/quantum-sage commit -m ' *)",
+      "Bash(git -C /Users/Emmett/dev/quantum-sage push)",
+      "Bash(git checkout *)",
+      "Bash(node -e \"const m = require\\('@opentelemetry/sdk-metrics'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.match\\(/counter|gauge|observable/i\\)\\)\\)\")",
+      "Bash(node -e \"const m = require\\('@opentelemetry/api'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.match\\(/counter|gauge|observable/i\\)\\)\\)\")",
+      "Bash(node *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(date -v-15M +%s)",
+      "Bash(date -v-1H +%s)",
+      "Bash(git commit *)",
+      "Bash(gh pr *)",
+      "Bash(git pull *)"
     ]
   }
 }
