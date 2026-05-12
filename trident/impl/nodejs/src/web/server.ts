@@ -10,7 +10,7 @@ import type { SignalFile } from '../signal/types.js';
 import { validateSignal } from '../signal/validator.js';
 import { loadSignalFile } from '../signal/loader.js';
 import { WebSocketNotifier, type Bootstrap } from '../notifier/WebSocketNotifier.js';
-import { buildVisionProvider, SignalExtractor, type ImageInput } from '../ai/index.js';
+import { buildVisionProvider, SignalExtractor, ExtractionBlockedError, type ImageInput } from '../ai/index.js';
 import { getLogger } from '../logger.js';
 
 const log = getLogger('WebServer');
@@ -30,6 +30,8 @@ export interface WebServerHandle {
   notifier: WebSocketNotifier;
   close: () => Promise<void>;
   port: number;
+  /** Flushes AI session metrics to the log. No-op if AI extraction is not configured. */
+  flushAiMetrics: () => void;
 }
 
 /**
@@ -138,6 +140,9 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
       const result = await ex.extract(images, { callerKey: req.ip });
       res.json(result);
     } catch (err) {
+      if (err instanceof ExtractionBlockedError) {
+        return res.status(400).json({ error: err.message });
+      }
       log.error('Extraction failed', { error: (err as Error).message });
       res.status(502).json({ error: `Extraction failed: ${(err as Error).message}` });
     }
@@ -187,6 +192,7 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
   return {
     notifier,
     port: actualPort,
+    flushAiMetrics: () => extractor?.flushMetrics(),
     close: () =>
       new Promise<void>(resolveClose => {
         // Forcibly drop any connected browsers — `wss.close()` only stops

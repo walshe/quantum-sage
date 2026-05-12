@@ -413,7 +413,7 @@ function openScreenshotPicker() {
   $('#screenshot-input').click();
 }
 
-const MAX_SCREENSHOTS = 3;
+const MAX_SCREENSHOTS = 1;
 
 async function uploadScreenshots(evt) {
   const input = evt.target;
@@ -421,7 +421,7 @@ async function uploadScreenshots(evt) {
   if (files.length === 0) return;
   if (files.length > MAX_SCREENSHOTS) {
     setSubmitStatus(
-      tx('Too many screenshots — pick up to 3 (IV Smile, intraday chart, optional summary).'),
+      tx('Only one screenshot is supported — upload the IV Smile chart.'),
       'err',
     );
     input.value = '';
@@ -431,8 +431,8 @@ async function uploadScreenshots(evt) {
   clearAiBanner();
   openFormModal();
   showAiBusy(
-    tx('Uploading screenshots…'),
-    tx('Sending {n} image(s) to the server.').replace('{n}', String(files.length)),
+    tx('Uploading screenshot…'),
+    tx('Sending image to the server.'),
   );
 
   const results = [];
@@ -441,8 +441,8 @@ async function uploadScreenshots(evt) {
     for (const f of files) {
       idx++;
       showAiBusy(
-        tx('Uploading screenshots…'),
-        tx('Image {i} of {n}: {name}').replace('{i}', String(idx)).replace('{n}', String(files.length)).replace('{name}', f.name),
+        tx('Uploading screenshot…'),
+        f.name,
       );
       const res = await fetch('/signals/screenshots', {
         method: 'POST',
@@ -463,8 +463,8 @@ async function uploadScreenshots(evt) {
   }
 
   showAiBusy(
-    tx('AI is reading the screenshots…'),
-    tx('Extracting levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.'),
+    tx('AI is reading the screenshot…'),
+    tx('Extracting BUY/SELL levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.'),
   );
 
   let extracted;
@@ -667,6 +667,15 @@ function collectForm() {
   }
   // levels.additional must be an array.
   signal.levels.additional = [];
+  // TODO: remove once ranges.* confirmed redundant with FB — auto-derive from levels so the
+  // hidden Ranges fieldset (and manual-entry path) never sends null ranges to the validator.
+  const lv = signal.levels;
+  if (!signal.ranges.range_1_up && lv.max_sell_1 != null) {
+    signal.ranges.range_1_up   = lv.max_sell_1; // SELL OUTER
+    signal.ranges.range_2_up   = lv.max_sell_2; // SELL INNER
+    signal.ranges.range_2_down = lv.max_buy_2;  // BUY INNER
+    signal.ranges.range_1_down = lv.max_buy_1;  // BUY OUTER
+  }
   // Drop empty optional fields so the YAML stays clean.
   if (signal.meta.contract == null || signal.meta.contract === '') delete signal.meta.contract;
   if (!signal.bias?.direction) delete signal.bias;
@@ -709,7 +718,7 @@ function fieldsForError(msg) {
     fields.add('meta.timestamp'); fields.add('invalidation.expiry');
   }
   if (/Setup is stale/.test(msg)) {
-    fields.add('meta.timestamp'); fields.add('meta.date');
+    fields.add('meta.timestamp');
   }
   return [...fields];
 }
@@ -932,14 +941,18 @@ function buildTradePlanNote(signal) {
 
   parts.push(dir ? `Bias: ${dir}${conf}.` : 'Two-sided setup (no directional bias).');
 
-  if (dir !== 'bearish' && has(l.max_buy_2)) {
-    let s = `Buy entry: watching for ${fmtNum(l.max_buy_2)} SPX (Entry 1, inner)`;
-    if (has(l.max_buy_1)) s += `; scale-in against position at ${fmtNum(l.max_buy_1)} (Entry 3, outer) if price drops further`;
+  if (dir !== 'short' && has(l.max_buy_2)) {
+    const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
+    let s = `Buy entry: watching for ${fmtNum(l.max_buy_2)} BUY INNER (Entry 1)`;
+    if (midBuy != null) s += ` → ${fmtNum(midBuy)} mid (Entry 2, derived)`;
+    if (has(l.max_buy_1)) s += ` → ${fmtNum(l.max_buy_1)} BUY OUTER (Entry 3)`;
     parts.push(s + ' → engine enters long.');
   }
-  if (dir !== 'bullish' && has(l.max_sell_2)) {
-    let s = `Sell entry: watching for ${fmtNum(l.max_sell_2)} SPX (Entry 1, inner)`;
-    if (has(l.max_sell_1)) s += `; scale-in against position at ${fmtNum(l.max_sell_1)} (Entry 3, outer) if price rallies further`;
+  if (dir !== 'long' && has(l.max_sell_2)) {
+    const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
+    let s = `Sell entry: watching for ${fmtNum(l.max_sell_2)} SELL INNER (Entry 1)`;
+    if (midSell != null) s += ` → ${fmtNum(midSell)} mid (Entry 2, derived)`;
+    if (has(l.max_sell_1)) s += ` → ${fmtNum(l.max_sell_1)} SELL OUTER (Entry 3)`;
     parts.push(s + ' → engine enters short.');
   }
 
@@ -976,9 +989,11 @@ function buildSummarySection(signal) {
   row(tx('Futures / Cash / Basis'), `${fmtNum(m.futures_last)}  /  ${fmtNum(m.cash_last)}  /  ${fmtNum(m.basis)}`);
   row(tx('DVS / regime'), `${fmtNum(v.dvs)} (${tx(v.regime)})  • prior ${fmtNum(v.dvs_prior)}`);
   row(tx('VWAP'), `${fmtNum(w.value)} @ ${w.updated_at}`);
-  row(tx('Ranges (ES futures)'), `${fmtNum(r.range_1_down)}  ${fmtNum(r.range_2_down)}  …  ${fmtNum(r.range_2_up)}  ${fmtNum(r.range_1_up)}`);
-  row(tx('Levels (SPX cash)'),
-    `B1 ${fmtNum(l.max_buy_1)}  B2 ${fmtNum(l.max_buy_2)}  S2 ${fmtNum(l.max_sell_2)}  S1 ${fmtNum(l.max_sell_1)}`);
+  // TODO: remove ranges summary row once ranges.* confirmed redundant with FB
+  const _midSell = (l.max_sell_1 != null && l.max_sell_2 != null) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
+  const _midBuy  = (l.max_buy_1  != null && l.max_buy_2  != null) ? (Number(l.max_buy_1)  + Number(l.max_buy_2))  / 2 : null;
+  row(tx('SELL levels'), `INNER ${fmtNum(l.max_sell_2)}  →  mid ${fmtNum(_midSell)} (derived)  →  OUTER ${fmtNum(l.max_sell_1)}`);
+  row(tx('BUY levels'),  `INNER ${fmtNum(l.max_buy_2)}  →  mid ${fmtNum(_midBuy)} (derived)  →  OUTER ${fmtNum(l.max_buy_1)}`);
   if (l.supporto != null || l.resistenza != null) {
     row(tx('Support / Resistance'), `${fmtNum(l.supporto)}  /  ${fmtNum(l.resistenza)}`);
   }
@@ -1024,21 +1039,16 @@ function computeChecks(signal) {
     }
   }
 
-  // 2. Range ordering r1d < r2d < r2u < r1u
-  if ([r.range_1_down, r.range_2_down, r.range_2_up, r.range_1_up].every(x => x != null)) {
-    const ok = r.range_1_down < r.range_2_down && r.range_2_down < r.range_2_up && r.range_2_up < r.range_1_up;
-    out.push(ok
-      ? { status: 'ok',  title: tx('Range ordering correct'), detail: 'range_1_down < range_2_down < range_2_up < range_1_up' }
-      : { status: 'err', title: tx('Range ordering broken'),  detail: tx('Expected: range_1_down < range_2_down < range_2_up < range_1_up') });
-  }
+  // TODO: remove range ordering check once ranges.* confirmed redundant with FB
+  // (ranges are auto-derived from levels so ordering is guaranteed; the check is noise)
 
-  // 3. Level ordering (cash) max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1
+  // 3. Level ordering (ES futures) BUY OUTER < BUY INNER < SELL INNER < SELL OUTER
   const lvls = [l.max_buy_1, l.max_buy_2, l.max_sell_2, l.max_sell_1];
   if (lvls.every(x => x != null)) {
     const ok = l.max_buy_1 < l.max_buy_2 && l.max_buy_2 < l.max_sell_2 && l.max_sell_2 < l.max_sell_1;
     out.push(ok
-      ? { status: 'ok',  title: tx('Level ordering correct'), detail: 'max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1' }
-      : { status: 'err', title: tx('Level ordering broken'),  detail: tx('Expected: max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1') });
+      ? { status: 'ok',  title: tx('Level ordering correct'), detail: 'BUY OUTER < BUY INNER < SELL INNER < SELL OUTER' }
+      : { status: 'err', title: tx('Level ordering broken'),  detail: tx('Expected: BUY OUTER < BUY INNER < SELL INNER < SELL OUTER') });
   }
 
   // 3b. Tradeable pair coverage — engine needs at least one full pair.
@@ -1046,10 +1056,10 @@ function computeChecks(signal) {
   const hasSellPair = l.max_sell_1 != null && l.max_sell_2 != null;
   if (!hasBuyPair && !hasSellPair) {
     out.push({ status: 'err', title: tx('No tradeable level pair — engine will not enter'),
-      detail: tx('Provide both MAX BUY 1+2 or both MAX SELL 1+2.') });
+      detail: tx('Provide both BUY INNER+OUTER or both SELL INNER+OUTER.') });
   } else if (hasBuyPair !== hasSellPair) {
     out.push({ status: 'warn', title: tx('Only one side has levels — engine will trade that side only'),
-      detail: hasBuyPair ? 'MAX BUY 1+2 only (no shorts will fire)' : 'MAX SELL 1+2 only (no longs will fire)' });
+      detail: hasBuyPair ? 'BUY INNER+OUTER only (no shorts will fire)' : 'SELL INNER+OUTER only (no longs will fire)' });
   }
 
   // 4. DVS gate
@@ -1077,15 +1087,16 @@ function computeChecks(signal) {
     }
   }
 
-  // 6. Cash → futures preview using basis
-  if (m.basis != null && lvls.every(x => x != null)) {
-    const b = Number(m.basis);
-    const conv = (cash) => (Number(cash) + b).toFixed(2);
+  // 6. Level summary (ES futures — same units as engine price feed)
+  if (lvls.every(x => x != null)) {
+    const midSell = (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2;
+    const midBuy  = (Number(l.max_buy_1)  + Number(l.max_buy_2))  / 2;
     out.push({
       status: 'ok',
-      title: tx('Cash → futures conversion preview (engine compares ES live to these)'),
+      title: tx('Levels summary (ES futures)'),
       detail:
-        `B1 ${conv(l.max_buy_1)} • B2 ${conv(l.max_buy_2)} • S2 ${conv(l.max_sell_2)} • S1 ${conv(l.max_sell_1)} (basis ${b.toFixed(2)})`,
+        `SELL  INNER ${fmtNum(l.max_sell_2)} → mid ${fmtNum(midSell)} → OUTER ${fmtNum(l.max_sell_1)}` +
+        `  |  BUY  INNER ${fmtNum(l.max_buy_2)} → mid ${fmtNum(midBuy)} → OUTER ${fmtNum(l.max_buy_1)}`,
     });
   }
 

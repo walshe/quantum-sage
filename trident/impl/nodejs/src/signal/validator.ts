@@ -44,6 +44,8 @@ export function validateSignal(
 
   const ref = signal.meta.futures_last;
 
+  // TODO: remove Rule 3 and the entire ranges section once confirmed with FB that ranges.*
+  // are redundant (auto-derived from levels.* since the single-IV-chart workflow, 2026-05-12).
   // Rule 3: range ordering
   const { range_1_down, range_2_down, range_2_up, range_1_up } = signal.ranges;
   if (!(range_1_down < range_2_down && range_2_down < range_2_up && range_2_up < range_1_up)) {
@@ -53,19 +55,19 @@ export function validateSignal(
     );
   }
 
-  // Rule 4: buy level ordering (outer < inner, i.e. buy_1 < buy_2)
+  // Rule 4: buy level ordering (BUY OUTER < BUY INNER, i.e. buy_1 < buy_2)
   const { max_buy_1, max_buy_2 } = signal.levels;
   if (max_buy_1 !== null && max_buy_2 !== null && !(max_buy_1 < max_buy_2)) {
     errors.push(
-      `Buy level ordering invalid: max_buy_1 (${max_buy_1}) must be < max_buy_2 (${max_buy_2})`
+      `Buy level ordering invalid: BUY OUTER/max_buy_1 (${max_buy_1}) must be < BUY INNER/max_buy_2 (${max_buy_2})`
     );
   }
 
-  // Rule 5: sell level ordering (inner < outer, i.e. sell_2 < sell_1)
+  // Rule 5: sell level ordering (SELL INNER < SELL OUTER, i.e. sell_2 < sell_1)
   const { max_sell_1, max_sell_2 } = signal.levels;
   if (max_sell_1 !== null && max_sell_2 !== null && !(max_sell_2 < max_sell_1)) {
     errors.push(
-      `Sell level ordering invalid: max_sell_2 (${max_sell_2}) must be < max_sell_1 (${max_sell_1})`
+      `Sell level ordering invalid: SELL INNER/max_sell_2 (${max_sell_2}) must be < SELL OUTER/max_sell_1 (${max_sell_1})`
     );
   }
 
@@ -75,7 +77,7 @@ export function validateSignal(
   const hasSellPair = max_sell_1 !== null && max_sell_2 !== null;
   if (!hasBuyPair && !hasSellPair) {
     errors.push(
-      'Required levels are missing — provide both MAX BUY 1+2 or both MAX SELL 1+2 ' +
+      'Required levels are missing — provide BUY OUTER+INNER or SELL OUTER+INNER ' +
         '(or both pairs); otherwise the engine has no entries to trade.'
     );
   }

@@ -100,7 +100,7 @@ trimmed-down version of the levels section that the engine actually works with
 ### `validator.ts`
 This is the gatekeeper. Takes a parsed `SignalFile` and runs the full set of
 trust checks: schema version, required sections, range/buy/sell ordering,
-**at least one tradeable level pair (both MAX BUY 1+2 or both MAX SELL 1+2)**,
+**at least one tradeable level pair (both BUY INNER+OUTER or both SELL INNER+OUTER)**,
 price sanity (within 20% of `futures_last`), basis range and basis math,
 DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
 enum values (regime/instrument/direction/confidence), timestamp before
@@ -466,6 +466,20 @@ modal triggered by the top-bar buttons (`New setup`, `Update during session`,
 > `POST /signals` (setup submission, which goes through the same validator the
 > engine uses) and the screenshot uploads.
 
+**Bias filter in `buildTradePlanNote()` (app.js):** the friendly trade-plan
+summary skips buy entries when `bias.direction === 'short'` and sell entries
+when `bias.direction === 'long'`. The values are `'long'`/`'short'`/`'neutral'`
+— never `'bullish'`/`'bearish'`. A past bug used `'bearish'`/`'bullish'` so
+the filter never fired; fixed 2026-05-12.
+
+**`cash_last` / `basis` HTML required vs validator null-guard:** both fields
+carry `required` in the HTML, so the browser prevents blank submission. The
+validator's Rule 8 (basis math) has no null-guard — if `cash_last` is `null`
+it coerces to 0, making the check always fail. The `required` attribute is
+load-bearing; removing it without adding a null-guard to Rule 8 would expose
+the bug. The tooltip text ("leave empty to skip") is aspirational — it describes
+intended future behaviour, not the current implementation.
+
 ---
 
 ## AI extraction — `src/ai/`
@@ -493,29 +507,81 @@ the response into an `ExtractionResult`. Model and base URL overridable via
 `OPENAI_MODEL` / `OPENAI_BASE_URL`.
 
 ### `signalExtractor.ts`
-Orchestration layer. `extract()`:
-1. Calls `checkBeforeCall` on the guardrail (currently a no-op stub —
-   future home for rate-limiting / budget caps).
-2. Calls the provider with the canonical `SIGNAL_EXTRACTION_PROMPT`.
-3. `normalise()` stamps the fields the model isn't allowed to invent —
+Orchestration layer. `extract()` runs the full safety pipeline:
+1. `checkBeforeCall` (guardrail) — screens `callerKey` for injection patterns.
+   Throws `ExtractionBlockedError` if blocked (→ server returns 400).
+2. Provider call with the canonical `SIGNAL_EXTRACTION_PROMPT`.
+3. `validateExtractionResult()` — runtime shape + range check on the raw
+   model response. Throws `OutputValidationError` on failure (→ 502 to client).
+4. `normalise()` stamps the fields the model isn't allowed to invent —
    `schema_version: '1.0'`, `meta.execution_instrument: 'US500.cash'`,
    `meta.update_seq: 1`, `levels.additional: []`, `vwap.source: 'manual'` —
    so the result is always loadable into the form.
-4. Calls `recordUsage` on the guardrail for telemetry.
+5. `logLlmCall()` emits a structured `LLM_CALL` log (no raw prompt/response).
+6. `recordUsage()` accumulates session metrics.
+
+`flushMetrics()` is called by the shutdown hook in `index.ts` and emits an
+`AI_SESSION_METRICS` log entry queryable in Grafana:
+```
+{service="trident"} | json | event = "AI_SESSION_METRICS"
+```
+
+### `guardrail.ts`
+Module-level state accumulates per-call stats across the process lifetime.
+`checkBeforeCall` now does real injection screening (multi-word phrase matching,
+case-insensitive, e.g. "ignore previous instructions") and increments
+`injectionBlocks` and `totalCalls`. `recordUsage` accumulates latency samples
+and cost for p50/p95 computation. `getMetrics()` returns the full
+`SessionMetrics` shape used by `flushMetrics()`.
+
+The `{ allowed: boolean; reason?: string }` decision shape replaces the old
+`{ allow: boolean }` — note the field name change if you're reading old git history.
+
+### `outputValidator.ts`
+Runtime defence against schema violations that slip through the OpenAI tool
+schema enforcement. Checks: numeric fields are not strings, enum fields use
+valid values (`bias.direction`, `bias.confidence`, `volatility.regime`),
+`dvs` is 0–200, price levels are positive. Emits `OUTPUT_VALIDATION_FAILED`
+log entry with `errors: string[]` before throwing.
+
+`VolatilityRegime` values the validator accepts: `compressed`, `normal`,
+`elevated`, `extreme` (matches the TypeScript type — the spec doc said `low`
+which was incorrect).
+
+### `llmLogger.ts`
+Emits one structured `LLM_CALL` log entry per extraction attempt. The cost
+rate table (`COST_RATES`) is keyed by model ID — add new models here when a
+new provider is wired up. Known models: `gpt-4o-2024-11-20`, `gpt-4o-mini`,
+`deepseek-chat`, `deepseek-reasoner`. Unknown models log a `warn` and produce
+`estimatedCostUsd: null` — operators will notice in Grafana and add the rate.
+
+### `piiRedactor.ts`
+Pure function `piiRedact(text: string): string`. Applied to audit log content
+only — never to the actual model input. Patterns: email, formatted phone
+numbers, IBAN (min 15-char sequence), 10–19 consecutive digit strings.
+Trading prices (4–8 digit numbers with decimals) are not affected.
 
 ### `prompts/signalExtractionPrompt.ts`
 The system prompt that tells the model what fields to extract and explicitly
 forbids invention — missing data must come back `null`. Update this file (not
 the provider) to tune extraction behaviour.
 
-### `guardrail.ts`
-Stub policy layer. Both functions currently return "allow" / no-op, but the
-shape is in place so per-IP rate limits, daily budget caps, or content
-filters can land without touching the extractor or providers.
+**Single-chart workflow (2026-05-12):** analyst uploads ONE IV Smile screenshot.
+The model reads the right-panel range rows and populates both `ranges.*` and
+`levels.*` from the same four values:
+- Range 1 up   → `ranges.range_1_up`   + `levels.max_sell_1` (SELL OUTER)
+- Range 2 up   → `ranges.range_2_up`   + `levels.max_sell_2` (SELL INNER)
+- Range 2 down → `ranges.range_2_down` + `levels.max_buy_2`  (BUY INNER)
+- Range 1 down → `ranges.range_1_down` + `levels.max_buy_1`  (BUY OUTER)
 
-> **Mental model:** AI is a strictly optional pre-fill helper. The validator,
-> not the model, decides whether a setup can be loaded. The model's job is
-> to save the analyst typing — never to bypass review.
+All values are in ES futures terms. The SPX intraday chart is no longer
+uploaded; `levels.*` are no longer in SPX cash. The MAX_SCREENSHOTS client
+constant is 1 and the HTML file input no longer carries `multiple`.
+
+> **Mental model:** AI is a strictly optional pre-fill helper. The validator
+> (not the model) decides whether a setup can be loaded. Injection screening
+> and output validation run on every call — the model output is never trusted
+> as correct until it clears both.
 
 ---
 
@@ -544,7 +610,7 @@ FB submits setup via dashboard (POST /signals)
 
 Price feed delivers ticks to engine.onPriceUpdate()
   → each tick: check invalidation, check expiry, check Entry 1 trigger
-  → price hits MAX SELL 2 (6582)
+  → price hits SELL INNER/max_sell_2 (6582)
   → fillEntry(entry1)       position opened, timer started
   → notifier fires ENTRY_TRIGGERED
 
@@ -552,7 +618,7 @@ Price feed delivers ticks to engine.onPriceUpdate()
   → fillEntry(entry2)       avg entry recalculated, stop recalculated, timer reset
   → notifier fires ENTRY_TRIGGERED
 
-  → price hits MAX SELL 1 (6616)
+  → price hits SELL OUTER/max_sell_1 (6616)
   → fillEntry(entry3)       fully scaled in, timer reset
   → notifier fires ENTRY_TRIGGERED
 

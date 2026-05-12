@@ -42,8 +42,8 @@
     <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session."></i></button>
     <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
     <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
-    <button type="button" id="btn-import-screenshots">✨ Import from screenshots <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one or more analyst chart screenshots (IV Smile / SPX intraday chart).&#10;&#10;Trident will run them through an AI vision model that extracts levels, ranges, DVS, and VWAP, then pre-fills this form so you can review and submit.&#10;&#10;Cash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability."></i></button>
-    <input type="file" id="screenshot-input" accept="image/*" multiple hidden>
+    <button type="button" id="btn-import-screenshots">✨ Import from screenshot <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one IV Smile chart screenshot.&#10;&#10;Trident will run it through an AI vision model that extracts BUY INNER/OUTER and SELL INNER/OUTER levels, ranges, DVS, and VWAP from the chart's range panel, then pre-fills this form so you can review and submit.&#10;&#10;Cash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability."></i></button>
+    <input type="file" id="screenshot-input" accept="image/*" hidden>
   </div>
 
   <main class="main-area">
@@ -115,7 +115,11 @@
         </label>
       </fieldset>
 
-      <fieldset class="paired">
+      <!-- TODO: remove Ranges fieldset entirely once confirmed with FB that ranges.* are redundant
+           (they duplicate levels.* since the single-IV-chart workflow was adopted 2026-05-12).
+           Kept hidden for now so old YAML files still round-trip and the AI pre-fill still
+           populates the fields; collectForm() auto-derives them from levels when blank. -->
+      <fieldset class="paired" hidden>
         <legend>Ranges [ES futures]</legend>
         <label>Range 1 up <i class="info" data-tip="Outer upper boundary from the IV smile. Historical 75% re-entry rate — price comes back inside Range 1 three out of four times. Read off the LIVELLI table / IV Smile right panel — already in ES futures terms."></i> <input name="ranges.range_1_up" type="number" step="0.01" required></label>
         <label>Range 1 down <i class="info" data-tip="Outer lower boundary from the IV smile. 75% re-entry rate. ES futures terms."></i> <input name="ranges.range_1_down" type="number" step="0.01" required></label>
@@ -124,13 +128,13 @@
       </fieldset>
 
       <fieldset class="paired">
-        <legend>Levels [SPX cash]</legend>
-        <p class="field-note">Provide as complete pairs (both MAX BUY 1+2, or both MAX SELL 1+2, or both). At least one pair is required — the engine skips a side whose pair is incomplete.</p>
+        <legend>Levels [ES futures]</legend>
+        <p class="field-note">Provide as complete pairs (both BUY OUTER+INNER, or both SELL OUTER+INNER, or both). At least one pair is required — the engine skips a side whose pair is incomplete.</p>
         <label class="wide">Level time <span class="optional">(optional)</span> <i class="info" data-tip="Time the levels were calculated. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. Optional — useful for traceability. Bump it when you submit a recal."></i> <div class="input-with-btn"><input name="levels.level_time" type="time"><button type="button" class="quick-fill-btn" data-quick-fill="now" data-target="levels.level_time">now</button></div></label>
-        <label>MAX SELL 1 <span class="optional">(paired)</span> <i class="info" data-tip="Outer resistance. Triggers Short Entry 3 (last / deepest scale-in on the short side). Read off the SPX intraday chart in SPX cash terms — Trident will add basis to convert to futures."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
-        <label>MAX SELL 2 <span class="optional">(paired)</span> <i class="info" data-tip="Inner resistance. Triggers Short Entry 1 — this is the first touch that opens a short. Entry 2 is the midpoint of MAX SELL 1 and MAX SELL 2. SPX cash terms."></i> <input name="levels.max_sell_2" type="number" step="0.01"></label>
-        <label>MAX BUY 1 <span class="optional">(paired)</span> <i class="info" data-tip="Outer support. Triggers Long Entry 3 (last / deepest scale-in on the long side). SPX cash terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
-        <label>MAX BUY 2 <span class="optional">(paired)</span> <i class="info" data-tip="Inner support. Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of MAX BUY 2 and MAX BUY 1. SPX cash terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
+        <label class="sell">SELL INNER <span class="optional">(paired)</span> <i class="info" data-tip="Inner resistance (Range 2 up from the IV Smile). Triggers Short Entry 1 — the first touch that opens a short. Entry 2 is the midpoint of SELL INNER and SELL OUTER. ES futures terms."></i> <input name="levels.max_sell_2" type="number" step="0.01"></label>
+        <label class="sell">SELL OUTER <span class="optional">(paired)</span> <i class="info" data-tip="Outer resistance (Range 1 up from the IV Smile). Triggers Short Entry 3 — last / deepest scale-in on the short side. ES futures terms."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
+        <label class="buy">BUY INNER <span class="optional">(paired)</span> <i class="info" data-tip="Inner support (Range 2 down from the IV Smile). Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of BUY INNER and BUY OUTER. ES futures terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
+        <label class="buy">BUY OUTER <span class="optional">(paired)</span> <i class="info" data-tip="Outer support (Range 1 down from the IV Smile). Triggers Long Entry 3 — last / deepest scale-in on the long side. ES futures terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
         <label>Support <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.supporto" type="number" step="0.01"></label>
         <label>Resistance <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.resistenza" type="number" step="0.01"></label>
       </fieldset>
@@ -160,7 +164,7 @@
         <legend>Invalidation [ES futures]</legend>
         <label>Void above <i class="info" data-tip="Price above which the setup is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
         <label>Void below <i class="info" data-tip="Price below which the setup is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
-        <label>Expiry <i class="info" data-tip="Time-of-day after which the setup no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <input name="invalidation.expiry" type="time" required></label>
+        <label>Expiry <i class="info" data-tip="Time-of-day after which the setup no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time."></i> <div class="input-with-btn"><input name="invalidation.expiry" type="time" required><button type="button" class="quick-fill-btn" data-quick-fill="now" data-target="invalidation.expiry">now</button></div></label>
         <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
       </fieldset>
 
@@ -203,8 +207,8 @@
             <dd>Open the form keeping the current values, with <code>update_seq</code> bumped — for an intra-day recalibration.</dd>
             <dt>Pre-fill from latest</dt>
             <dd>Load today's most recent setup file into the form so you can tweak only what's changed.</dd>
-            <dt>✨ Import from screenshots <span class="ai-badge">AI</span></dt>
-            <dd>Upload up to 3 chart screenshots (IV Smile / SPX intraday). If AI is configured, Trident extracts levels, ranges, DVS, and VWAP and pre-fills the form. Cash last and basis are not extracted — enter manually if needed. <strong>Always review every value</strong> before submitting the setup.</dd>
+            <dt>✨ Import from screenshot <span class="ai-badge">AI</span></dt>
+            <dd>Upload one IV Smile chart screenshot. If AI is configured, Trident extracts BUY INNER/OUTER and SELL INNER/OUTER levels, ranges, DVS, and VWAP from the range panel and pre-fills the form. Cash last and basis are not extracted — enter manually if needed. <strong>Always review every value</strong> before submitting the setup.</dd>
           </dl>
         </section>
 
@@ -213,11 +217,11 @@
           <p class="help-sub">Fields outlined in red show exactly what's wrong. Most common causes:</p>
           <dl>
             <dt>Required levels are missing</dt>
-            <dd>Provide both MAX BUY 1+2 or both MAX SELL 1+2 (or both pairs).</dd>
-            <dt>Range / level ordering invalid</dt>
-            <dd>Check the inequalities printed in the error message.</dd>
+            <dd>Provide both BUY INNER+OUTER or both SELL INNER+OUTER (or both pairs).</dd>
+            <dt>Level ordering invalid</dt>
+            <dd>Check the inequalities printed in the error message. Expected: BUY OUTER &lt; BUY INNER &lt; SELL INNER &lt; SELL OUTER.</dd>
             <dt>Basis math mismatch</dt>
-            <dd><code>futures_last − cash_last</code> must be within ±5 of the basis you entered. This check is skipped if Cash last or Basis is left empty.</dd>
+            <dd><code>futures_last − cash_last</code> must equal <code>basis</code> within ±5. Quick fix: set basis = futures_last − cash_last (e.g. futures 7409, cash 7360 → basis 49).</dd>
             <dt>Invalidation boundaries</dt>
             <dd>Void values must be in ES futures terms, not SPX cash terms.</dd>
           </dl>

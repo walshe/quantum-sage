@@ -35,6 +35,8 @@ export interface SignalVwap {
   source: VwapSource;
 }
 
+// TODO: remove SignalRanges and ranges field on SignalFile once confirmed with FB that
+// ranges.* are fully redundant with levels.* (auto-derived since 2026-05-12 single-IV-chart workflow).
 export interface SignalRanges {
   range_1_up: number;
   range_2_up: number;

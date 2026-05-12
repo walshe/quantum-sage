@@ -501,22 +501,29 @@ High DVS = more likely to break out and stay out.
 
 ### 6.4 Key Levels (Entry Triggers)
 
-| Level      | Role               | Description       |
-|------------|--------------------|-------------------|
-| MAX SELL 1 | Resistance (outer) | Short Entry 3     |
-| MAX SELL 2 | Resistance (inner) | Short Entry 1     |
-| MAX BUY 2  | Support (inner)    | Long Entry 1      |
-| MAX BUY 1  | Support (outer)    | Long Entry 3      |
-| SUPPORTO   | Support pivot      | Options-derived   |
-| RESISTENZA | Resistance pivot   | Options-derived   |
+Levels are read from the IV Smile chart's range panel (ES futures terms) and
+map to the following display names and schema fields:
 
-> **[FB resolved]** Level mapping is confirmed:
-> MAX BUY 2 = Long Entry 1 (inner, first touched)
-> MAX BUY 1 = Long Entry 3 (outer, last touched)
-> Long Entry 2 = midpoint of MAX BUY 2 and MAX BUY 1
+| IV chart label | Display name | Schema field   | Role               | Entry     |
+|----------------|--------------|----------------|--------------------|-----------|
+| Range 1 up     | SELL OUTER   | `max_sell_1`   | Resistance (outer) | Short E3  |
+| Range 2 up     | SELL INNER   | `max_sell_2`   | Resistance (inner) | Short E1  |
+| Range 2 down   | BUY INNER    | `max_buy_2`    | Support (inner)    | Long E1   |
+| Range 1 down   | BUY OUTER    | `max_buy_1`    | Support (outer)    | Long E3   |
+| SUPPORTO       | Support      | `supporto`     | Support pivot      | Optional  |
+| RESISTENZA     | Resistance   | `resistenza`   | Resistance pivot   | Optional  |
+
+Price ordering invariant (low to high):
+`BUY OUTER < BUY INNER < SELL INNER < SELL OUTER`
+(`max_buy_1 < max_buy_2 < max_sell_2 < max_sell_1`)
+
+> **[FB resolved 2026-05-12]** Level mapping confirmed with new terminology:
+> BUY INNER = Long Entry 1 (inner, first touched)
+> BUY OUTER = Long Entry 3 (outer, last touched)
+> Long Entry 2 = midpoint of BUY INNER and BUY OUTER
 > The same logic applies on the sell side using
-> MAX SELL 2 (Short Entry 1) and MAX SELL 1
-> (Short Entry 3).
+> SELL INNER (Short Entry 1) and SELL OUTER (Short Entry 3).
+> Previously called MAX BUY 2/1 and MAX SELL 2/1 respectively.
 
 > **[FB resolved]** CALL and CASH have been removed
 > from this table. They are personal tools the
@@ -594,7 +601,7 @@ The position is built in three entries:
 - Sell side: midpoint - 2 points
 
 > **IMPORTANT:** Only Entry 1 and Entry 3 come from
-> the setup file (as MAX BUY/SELL levels). Entry 2
+> the setup file (as BUY/SELL INNER/OUTER levels). Entry 2
 > is **calculated by qs-signal-engine** at runtime
 > from those two levels. It does not appear in the
 > YAML.
@@ -620,7 +627,7 @@ third entry.
 
 > **[FB resolved]** If the required levels are not
 > available in the setup file (e.g. one of the
-> MAX BUY or MAX SELL levels is null),
+> BUY OUTER/INNER or SELL OUTER/INNER levels is null),
 > qs-signal-engine should **skip the trade
 > entirely**. No fallback, no two-entry mode -- the
 > safest and most prudent approach is to take no
@@ -631,12 +638,12 @@ third entry.
 
 > **[FB resolved]** Example confirmed by analyst.
 
-Given MAX BUY 2 = 6467 and MAX BUY 1 = 6440:
+Given BUY INNER = 6467 and BUY OUTER = 6440:
 
-- Entry 1: 6467.00 (MAX BUY 2, 32.5%)
+- Entry 1: 6467.00 (BUY INNER, 32.5%)
 - Midpoint: (6467 + 6440) / 2 + 2 = 6455.50
 - Entry 2: 6455.50 (35.0%)
-- Entry 3: 6440.00 (MAX BUY 1, 32.5%)
+- Entry 3: 6440.00 (BUY OUTER, 32.5%)
 - Stop: 40 points below average entry price
 - Target: VWAP
 
@@ -891,9 +898,10 @@ no longer need action:
 - ✅ **VWAP source** -- FB will manually update VWAP
   in an external file. Engineer may also retrieve
   externally if possible. (Section 6.2)
-- ✅ **Level mapping (BUY 2 / BUY 1)** -- confirmed:
-  MAX BUY 2 = Long Entry 1, MAX BUY 1 = Long Entry
-  3. Same logic mirrored for SELL side. (Section 6.4)
+- ✅ **Level mapping (BUY INNER / BUY OUTER)** -- confirmed:
+  BUY INNER (`max_buy_2`) = Long Entry 1, BUY OUTER (`max_buy_1`) = Long
+  Entry 3. SELL INNER (`max_sell_2`) = Short Entry 1, SELL OUTER
+  (`max_sell_1`) = Short Entry 3. (Section 6.4)
 - ✅ **CALL and CASH levels** -- removed from
   schema. These are personal tools used by the
   analyst, not part of Trident's logic. (Section 6.4)
@@ -980,7 +988,7 @@ needed in Trident at all.
 |----------|-----------------|-------------------------|---------------|
 | `ranges.range_1_*`, `ranges.range_2_*` | IV Smile chart (ES futures) | ES futures | FB confirmed 2026-05-04: "expressed in futures prices" |
 | `volatility.dvs` | IV Smile chart — LEFT column only | As shown | FB confirmed 2026-05-04: use left column values |
-| `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | SPX intraday chart | SPX cash | FB chat 2026-04-23: "this is SPX cash, us500.cash" |
+| `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | IV Smile chart — range panel (Range 1/2 down/up) | ES futures | Changed 2026-05-12: analyst now uploads single IV Smile chart; levels are populated from the same range panel as `ranges.*` |
 | `meta.cash_last` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: SPX feed unreliable, shows 0.00 |
 | `meta.basis` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: derived from unreliable SPX feed |
 | `vwap.value` | TBD | TBD | See Q1 below |
@@ -1295,8 +1303,14 @@ for price ticks) to also send orders:
 | SPX        | S&P 500 cash index                  |
 | Basis      | ES minus SPX spread (cost of carry) |
 | IV Smile   | IV curve across option strikes      |
-| MAX SELL   | Options-derived resistance level    |
-| MAX BUY    | Options-derived support level       |
+| SELL OUTER | Outer resistance level (Range 1 up) |
+|            | → Short Entry 3. Formerly MAX SELL 1|
+| SELL INNER | Inner resistance (Range 2 up)       |
+|            | → Short Entry 1. Formerly MAX SELL 2|
+| BUY INNER  | Inner support (Range 2 down)        |
+|            | → Long Entry 1. Formerly MAX BUY 2  |
+| BUY OUTER  | Outer support (Range 1 down)        |
+|            | → Long Entry 3. Formerly MAX BUY 1  |
 | SUPPORTO   | Options-derived support pivot       |
 | RESISTENZA | Options-derived resistance pivot    |
 | SKEW       | Tail risk premium index             |
@@ -1304,7 +1318,7 @@ for price ticks) to also send orders:
 |            | primary take-profit target          |
 | Range 1    | Outer expected price boundaries     |
 | Range 2    | Inner expected price boundaries     |
-| Coast to   | Full move from MAX BUY/SELL to VWAP |
+| Coast to   | Full move from BUY/SELL levels to VWAP |
 | Coast      |                                     |
 | CFD        | Contract for Difference             |
 | Setup      | YAML file -- QS's sole input        |
