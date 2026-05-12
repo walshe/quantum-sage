@@ -190,6 +190,27 @@ only fires the subscriber once both are known.
 **Keep-alive**: sends a heartbeat (`payloadType 0`) every 10 seconds as required
 by the API. Stopped on `disconnect()`.
 
+**`getTodayBars(): Promise<OhlcvBar[]>`** — fetches today's M1 bars for VWAP
+calculation. Uses the same authenticated WebSocket connection as the spot stream —
+no second auth handshake needed. Implementation details:
+- Sends `ProtoOAGetTrendbarsReq` (payloadType **2137**) for `PERIOD_M1` (value **1**)
+  from midnight UTC to now. Response is `GET_TRENDBAR_RES` (payloadType **2138**).
+- Correlation: a `pendingBarRequests: Map<clientMsgId, {resolve, reject, timer}>` entry
+  is stored before the message is sent. When `handleMessage()` sees a `GET_TRENDBAR_RES`
+  with a matching `clientMsgId`, it resolves the entry and clears the timeout.
+- Bar price encoding: `low` is the absolute low price (×100,000). `deltaOpen`,
+  `deltaClose`, `deltaHigh` are deltas from `low` (also ×100,000).
+  `utcTimestampInMinutes` × 60,000 gives the Unix ms timestamp.
+- Throws `"feed not connected"` if the WebSocket isn't open and authenticated.
+- Throws `"bar request timed out"` after 10 s with no response.
+- On WebSocket close/error mid-request, all pending requests are rejected immediately.
+- Only safe with one outstanding call at a time (the `/api/vwap` endpoint serialises
+  this naturally — one HTTP request per tab at a time).
+
+> **Open question resolved**: payloadType 2137/2138 and PERIOD_M1=1 are from the
+> public cTrader .proto definitions. Verify against the live JSON port on the first
+> real run — easy to confirm with a test send.
+
 **`disconnect()`** — sends an unsubscribe message to cancel the spot stream
 cleanly, then closes the WebSocket.
 

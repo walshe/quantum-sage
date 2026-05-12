@@ -12,6 +12,7 @@ import { loadSignalFile } from '../signal/loader.js';
 import { WebSocketNotifier, type Bootstrap } from '../notifier/WebSocketNotifier.js';
 import { buildVisionProvider, SignalExtractor, ExtractionBlockedError, type ImageInput } from '../ai/index.js';
 import { getLogger } from '../logger.js';
+import { CTraderPriceFeed, type OhlcvBar } from '../price-feed/CTraderPriceFeed.js';
 
 const log = getLogger('WebServer');
 
@@ -24,6 +25,8 @@ export interface StartWebServerOpts {
   publicDir: string;
   getBootstrap: () => Bootstrap;
   metricsHandler?: (req: Request, res: Response) => Promise<void>;
+  /** Returns the live cTrader feed instance, or null/undefined if not active. */
+  getPriceFeed?: () => CTraderPriceFeed | null;
 }
 
 export interface WebServerHandle {
@@ -146,6 +149,41 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
       log.error('Extraction failed', { error: (err as Error).message });
       res.status(502).json({ error: `Extraction failed: ${(err as Error).message}` });
     }
+  });
+
+  app.get('/api/vwap', async (_req, res) => {
+    const feed = opts.getPriceFeed?.() ?? null;
+    if (!(feed instanceof CTraderPriceFeed)) {
+      return res.status(503).json({ error: 'feed not connected' });
+    }
+    let bars: OhlcvBar[];
+    try {
+      bars = await feed.getTodayBars();
+    } catch (err) {
+      const msg = (err as Error).message ?? 'unknown error';
+      return res.status(503).json({ error: msg });
+    }
+    if (bars.length === 0) {
+      return res.status(503).json({ error: 'no bars available' });
+    }
+    const totalVolume = bars.reduce((s, b) => s + b.volume, 0);
+    let vwap: number;
+    let volumeWarning = false;
+    if (totalVolume > 0) {
+      const numerator = bars.reduce((s, b) => s + ((b.high + b.low + b.close) / 3) * b.volume, 0);
+      vwap = numerator / totalVolume;
+    } else {
+      vwap = bars.reduce((s, b) => s + (b.high + b.low + b.close) / 3, 0) / bars.length;
+      volumeWarning = true;
+    }
+    const result: Record<string, unknown> = {
+      vwap: Math.round(vwap * 100) / 100,
+      barsUsed: bars.length,
+      asOf: new Date().toISOString(),
+    };
+    if (volumeWarning) result.volumeWarning = true;
+    log.info('VWAP calculated', { vwap: result.vwap, barsUsed: bars.length, volumeWarning });
+    return res.json(result);
   });
 
   app.post('/signals', (req, res) => {

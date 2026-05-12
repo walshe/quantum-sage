@@ -95,10 +95,18 @@ const PT = {
   SUBSCRIBE_SPOTS_RES: 2128,
   UNSUBSCRIBE_SPOTS_REQ: 2129, // sent on disconnect to clean up server-side
   SPOT_EVENT:         2131,    // incoming tick: { bid?, ask?, timestamp? }
+  GET_TRENDBAR_REQ:   2137,    // request historical M1 bars (for VWAP calculation)
+  GET_TRENDBAR_RES:   2138,    // response: array of OHLCV bars
   GET_ACCOUNTS_REQ:   2149,    // step 2: list accounts linked to this access token
   GET_ACCOUNTS_RES:   2150,
   ERROR_RES:          2142,    // any API-level error
 } as const;
+
+// cTrader period enum value for 1-minute bars
+const PERIOD_M1 = 1;
+
+// Timeout for getTodayBars() if the API doesn't reply
+const BAR_REQUEST_TIMEOUT_MS = 10_000;
 
 // cTrader encodes all prices as integers: actual_price × 100,000.
 // e.g. 6598.67 is sent as 659867000. Divide by this to get the real number.
@@ -128,6 +136,35 @@ interface CTraderAccount {
 interface CTraderSymbol {
   symbolId:   number; // integer ID used in spot subscriptions and order requests
   symbolName: string; // e.g. "US500", "USTEC", "EURUSD"
+}
+
+// cTrader trendbar wire format (JSON port).
+// Prices: `low` is the absolute low (×100,000). deltas are (price − low) ×100,000.
+interface RawTrendbar {
+  volume?:               number;
+  low?:                  number;
+  deltaOpen?:            number;
+  deltaClose?:           number;
+  deltaHigh?:            number;
+  utcTimestampInMinutes?: number;
+}
+
+// A pending getTodayBars() call waiting for GET_TRENDBAR_RES
+interface PendingBarRequest {
+  resolve: (bars: OhlcvBar[]) => void;
+  reject:  (err: Error) => void;
+  timer:   ReturnType<typeof setTimeout>;
+}
+
+// ── Public types ─────────────────────────────────────────────────────────────
+
+export interface OhlcvBar {
+  open:      number;
+  high:      number;
+  low:       number;
+  close:     number;
+  volume:    number;
+  timestamp: number; // Unix milliseconds (start of bar)
 }
 
 // ── Public config ───────────────────────────────────────────────────────────
@@ -188,9 +225,11 @@ export class CTraderPriceFeed implements PriceFeed {
   private symbolId:  number | null = null;
 
   // Simple incrementing counter — gives each outbound message a unique clientMsgId.
-  // We don't actually use the IDs to correlate responses (the handshake is strictly
-  // sequential), but the API requires the field to be present.
+  // Used for clientMsgId correlation in getTodayBars() as well as the handshake.
   private msgCounter = 0;
+
+  // Outstanding getTodayBars() calls, keyed by clientMsgId
+  private pendingBarRequests = new Map<string, PendingBarRequest>();
 
   // Last seen raw (integer-encoded) bid and ask. Tracked separately because
   // cTrader sometimes sends bid-only or ask-only SPOT_EVENTs as partial updates.
@@ -211,6 +250,52 @@ export class CTraderPriceFeed implements PriceFeed {
 
   getLatestPrice(): number | null {
     return this.latestPrice;
+  }
+
+  /**
+   * Fetches today's M1 bars (midnight UTC → now) via the existing authenticated
+   * connection and resolves with the full OHLCV array. Only one outstanding call
+   * is safe at a time; concurrent callers should serialise externally.
+   *
+   * Throws "feed not connected" if the WebSocket isn't open and authenticated.
+   * Throws "bar request timed out" if no response arrives within 10 seconds.
+   */
+  async getTodayBars(): Promise<OhlcvBar[]> {
+    if (
+      !this.ws ||
+      this.ws.readyState !== WebSocket.OPEN ||
+      this.accountId === null ||
+      this.symbolId === null
+    ) {
+      throw new Error('feed not connected');
+    }
+
+    const nowMs      = Date.now();
+    const midnightMs = new Date(nowMs).setUTCHours(0, 0, 0, 0);
+    const msgId      = String(++this.msgCounter);
+
+    return new Promise<OhlcvBar[]>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingBarRequests.delete(msgId);
+        reject(new Error('bar request timed out'));
+      }, BAR_REQUEST_TIMEOUT_MS);
+
+      this.pendingBarRequests.set(msgId, { resolve, reject, timer });
+
+      const msg: CTraderMessage = {
+        clientMsgId: msgId,
+        payloadType: PT.GET_TRENDBAR_REQ,
+        payload: {
+          ctidTraderAccountId: this.accountId,
+          symbolId:            this.symbolId,
+          period:              PERIOD_M1,
+          fromTimestamp:       midnightMs,
+          toTimestamp:         nowMs,
+        },
+      };
+      this.ws!.send(JSON.stringify(msg));
+      log.debug('Sent GET_TRENDBAR_REQ', { msgId, fromTimestamp: midnightMs, toTimestamp: nowMs });
+    });
   }
 
   /**
@@ -284,12 +369,14 @@ export class CTraderPriceFeed implements PriceFeed {
 
       ws.on('error', (err: Error) => {
         log.error('WebSocket error', { message: err.message });
+        this.rejectPendingBarRequests(err);
         settle(err);
       });
 
       ws.on('close', (code: number, reason: Buffer) => {
         log.info('WebSocket closed', { code, reason: reason.toString() });
         this.stopHeartbeat();
+        this.rejectPendingBarRequests(new Error(`WebSocket closed (code ${code})`));
         // If the socket closes before the handshake finished, treat it as an error
         settle(new Error(`WebSocket closed before ready (code ${code})`));
       });
@@ -438,6 +525,34 @@ export class CTraderPriceFeed implements PriceFeed {
         break;
       }
 
+      // ── Historical bar response (for getTodayBars / VWAP) ─────────────
+      case PT.GET_TRENDBAR_RES: {
+        const pending = msg.clientMsgId
+          ? this.pendingBarRequests.get(msg.clientMsgId)
+          : undefined;
+        if (!pending) {
+          log.debug('Received GET_TRENDBAR_RES with no pending request', { clientMsgId: msg.clientMsgId });
+          break;
+        }
+        clearTimeout(pending.timer);
+        this.pendingBarRequests.delete(msg.clientMsgId!);
+
+        const rawBars = (msg.payload?.trendbar ?? []) as RawTrendbar[];
+        const bars: OhlcvBar[] = rawBars.map(b => {
+          const low        = (b.low        ?? 0) / PRICE_DIVISOR;
+          const open       = low + (b.deltaOpen  ?? 0) / PRICE_DIVISOR;
+          const close      = low + (b.deltaClose ?? 0) / PRICE_DIVISOR;
+          const high       = low + (b.deltaHigh  ?? 0) / PRICE_DIVISOR;
+          const volume     = b.volume ?? 0;
+          const timestamp  = (b.utcTimestampInMinutes ?? 0) * 60_000;
+          return { open, high, low, close, volume, timestamp };
+        });
+
+        log.debug('GET_TRENDBAR_RES received', { barsCount: bars.length, clientMsgId: msg.clientMsgId });
+        pending.resolve(bars);
+        break;
+      }
+
       // ── Step 5 response: subscription confirmed ────────────────────────
       case PT.SUBSCRIBE_SPOTS_RES: {
         log.info('Spot subscription active', { symbol: this.cfg.symbolName });
@@ -467,6 +582,18 @@ export class CTraderPriceFeed implements PriceFeed {
       case PT.ERROR_RES: {
         const errorCode   = msg.payload?.errorCode   ?? 'UNKNOWN';
         const description = String(msg.payload?.description ?? '');
+
+        // Check if this error is a reply to a pending getTodayBars() request
+        if (msg.clientMsgId) {
+          const barPending = this.pendingBarRequests.get(msg.clientMsgId);
+          if (barPending) {
+            clearTimeout(barPending.timer);
+            this.pendingBarRequests.delete(msg.clientMsgId);
+            barPending.reject(new Error(`cTrader error ${errorCode}: ${description}`));
+            break;
+          }
+        }
+
         // The server internally triggers a SymbolsForConversion lookup when a spot
         // subscription is created (for P&L currency conversion). Demo environments
         // don't support this message but it does not affect the price stream — ignore it.
@@ -602,6 +729,14 @@ export class CTraderPriceFeed implements PriceFeed {
       ...msg,
     };
     this.ws.send(JSON.stringify(full));
+  }
+
+  private rejectPendingBarRequests(err: Error): void {
+    for (const [, pending] of this.pendingBarRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(err);
+    }
+    this.pendingBarRequests.clear();
   }
 
   private startHeartbeat(): void {

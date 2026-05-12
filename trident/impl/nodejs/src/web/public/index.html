@@ -106,7 +106,7 @@
 
       <fieldset>
         <legend>VWAP</legend>
-        <label>Value [ES futures — TBC with FB] <i class="info" data-tip="Volume-Weighted Average Price. The primary take-profit target for every Trident trade — every position is closed when VWAP is reached. Units pending FB confirmation; current best guess is ES futures."></i> <input name="vwap.value" type="number" step="0.01" required></label>
+        <label>Value [ES futures — TBC with FB] <i class="info" data-tip="Volume-Weighted Average Price. The primary take-profit target for every Trident trade — every position is closed when VWAP is reached. Units pending FB confirmation; current best guess is ES futures."></i> <div class="input-with-btn"><input name="vwap.value" type="number" step="0.01" required><button type="button" class="quick-fill-btn" id="vwap-calc-btn">Calculate</button></div></label>
         <label>Updated at <i class="info" data-tip="Time when VWAP was last refreshed. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM. A warning fires if older than ~90 minutes."></i> <div class="input-with-btn"><input name="vwap.updated_at" type="time" required><button type="button" class="quick-fill-btn" data-quick-fill="now" data-target="vwap.updated_at">now</button></div></label>
         <label>Source <i class="info" data-tip="Where the VWAP number came from. manual = analyst typed it in from Bookmap / Excel."></i>
           <select name="vwap.source" required>

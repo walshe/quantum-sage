@@ -137,6 +137,7 @@ const webServer = await startWebServer({
   publicDir: resolve('src/web/public'),
   getBootstrap: buildBootstrap,
   metricsHandler,
+  getPriceFeed: () => liveFeed,
 });
 notifierChildren.push(webServer.notifier);
 log.info('UI ready', { url: `http://localhost:${webServer.port}` });

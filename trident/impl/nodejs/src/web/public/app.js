@@ -1168,6 +1168,46 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-help-close').addEventListener('click', () => $('#help-dialog').close());
   $('#btn-help-ok').addEventListener('click', () => $('#help-dialog').close());
 
+  // VWAP Calculate button: fetch live VWAP from the server and populate the field.
+  $('#vwap-calc-btn').addEventListener('click', async () => {
+    const btn       = $('#vwap-calc-btn');
+    const input     = $('#signal-form').elements['vwap.value'];
+    const updatedAt = $('#signal-form').elements['vwap.updated_at'];
+    const errEl     = (() => {
+      let el = document.getElementById('vwap-calc-error');
+      if (!el) {
+        el = document.createElement('span');
+        el.id = 'vwap-calc-error';
+        el.style.cssText = 'color:#f87171;font-size:10px;display:block;margin-top:2px;';
+        btn.closest('label').appendChild(el);
+      }
+      return el;
+    })();
+
+    btn.disabled  = true;
+    btn.textContent = '…';
+    errEl.textContent = '';
+
+    try {
+      const res  = await fetch('/api/vwap');
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error ?? 'VWAP fetch failed';
+        return;
+      }
+      input.value = String(data.vwap);
+      if (updatedAt) {
+        const now = new Date();
+        updatedAt.value = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      }
+    } catch {
+      errEl.textContent = 'Network error — is the server reachable?';
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Calculate';
+    }
+  });
+
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
   applyLang(currentLang);

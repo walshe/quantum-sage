@@ -274,10 +274,20 @@ The status band shows, at a glance: "Connected / Reconnecting /
 Disconnected", current state (`idle / watching / in_trade / closed /
 locked`), latest price, and the currently loaded setup.
 
+**VWAP Calculate button.** In the form, the VWAP Value field has a
+**Calculate** button to its right. Clicking it fetches today's M1 bars
+directly from the cTrader connection and computes VWAP = Σ((H+L+C)/3 × V) / ΣV,
+then populates the field and stamps "Updated at" to the current time. The button
+spins (shows "…") while fetching and re-enables when done. If the cTrader feed
+is not connected (or you're using a mock/demo setup), the button shows an error
+— in that case, enter VWAP manually from Bookmap or your charting tool as usual.
+
 **During the day — recalibrating.** Around midday, click **Update during
 session**. This bumps `update_seq` and puts today's time on the
 submission so the engine recognises it as a recalibration, not a new
 day's setup. Update VWAP and any level fields that changed, then submit.
+The Calculate button works for recalibrations too — click it to refresh
+VWAP to the current intraday value.
 
 **Inline validation feedback.** If the server rejects a submission, the
 banner lists every error and the offending fields are outlined in red
