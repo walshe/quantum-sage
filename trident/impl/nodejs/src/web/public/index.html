@@ -217,11 +217,11 @@
           <p class="help-sub">Fields outlined in red show exactly what's wrong. Most common causes:</p>
           <dl>
             <dt>Required levels are missing</dt>
-            <dd>Provide both BUY OUTER+INNER or both SELL OUTER+INNER (or both pairs).</dd>
-            <dt>Range / level ordering invalid</dt>
-            <dd>Check the inequalities printed in the error message.</dd>
+            <dd>Provide both BUY INNER+OUTER or both SELL INNER+OUTER (or both pairs).</dd>
+            <dt>Level ordering invalid</dt>
+            <dd>Check the inequalities printed in the error message. Expected: BUY OUTER &lt; BUY INNER &lt; SELL INNER &lt; SELL OUTER.</dd>
             <dt>Basis math mismatch</dt>
-            <dd><code>futures_last − cash_last</code> must be within ±5 of the basis you entered. This check is skipped if Cash last or Basis is left empty.</dd>
+            <dd><code>futures_last − cash_last</code> must equal <code>basis</code> within ±5. Quick fix: set basis = futures_last − cash_last (e.g. futures 7409, cash 7360 → basis 49).</dd>
             <dt>Invalidation boundaries</dt>
             <dd>Void values must be in ES futures terms, not SPX cash terms.</dd>
           </dl>
