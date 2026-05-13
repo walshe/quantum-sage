@@ -233,6 +233,11 @@ function connectWs() {
 
 function handleBootstrap(b) {
   setStateChip(b.state, b.dailyLocked);
+  if (b.symbol) {
+    const symEl = $('#symbol-chip-value');
+    symEl.textContent = b.symbol;
+    _i18nTextSnap.delete(symEl); // symbol name is never translatable — keep it on lang toggle
+  }
   state.currentSignal = b.currentSignal;
   state.openPosition = b.position ?? null;
   renderSignalCard();
@@ -343,6 +348,7 @@ function updatePriceChip(data) {
   const el = $('#price-chip-value');
   if (!el) return;
   el.textContent = data.headline; // eventFormatter PRICE_UPDATE headline is fmt(price)
+  _i18nTextSnap.delete(el); // price is numeric — never translatable
   const chip = $('#price-chip');
   if (chip) chip.dataset.state = 'live';
 }

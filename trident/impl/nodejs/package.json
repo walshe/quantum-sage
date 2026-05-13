@@ -10,7 +10,8 @@
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "auth:ctrader": "tsx scripts/ctrader-auth.ts"
+    "auth:ctrader": "tsx scripts/ctrader-auth.ts",
+    "list:symbols": "tsx scripts/list-symbols.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

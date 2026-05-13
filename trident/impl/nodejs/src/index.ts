@@ -280,6 +280,7 @@ function buildBootstrap(): Bootstrap {
     serverTime: new Date().toISOString(),
     state: engine.getState(),
     dailyLocked: engine.isLockedForDay(),
+    symbol: process.env.CTRADER_SYMBOL ?? 'US500',
     currentSignal: signal && signalPath ? {
       filePath: signalPath,
       date: signal.meta.date,

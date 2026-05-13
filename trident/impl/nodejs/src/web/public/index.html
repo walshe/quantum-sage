@@ -21,8 +21,12 @@
       <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no setup loaded&#10;• watching — setup loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades"></i></span>
       <span class="chip-value">idle</span>
     </div>
+    <div class="chip chip--symbol" id="symbol-chip">
+      <span class="chip-label">Symbol <i class="info" data-tip="The instrument the price feed is subscribed to and all trades are executed on.&#10;&#10;Set via CTRADER_SYMBOL in .env."></i></span>
+      <span class="chip-value" id="symbol-chip-value">—</span>
+    </div>
     <div class="chip chip--price" id="price-chip" data-state="idle">
-      <span class="chip-label">Price <i class="info" data-tip="Latest ES/US500 futures price the engine has seen from the broker feed.&#10;&#10;Updates at most twice a second to keep the tab responsive.&#10;&#10;Dashes mean no ticks yet (engine just started or feed disconnected)."></i></span>
+      <span class="chip-label">Price <i class="info" data-tip="Latest price the engine has seen from the broker feed.&#10;&#10;Updates at most twice a second to keep the tab responsive.&#10;&#10;Dashes mean no ticks yet (engine just started or feed disconnected)."></i></span>
       <span class="chip-value" id="price-chip-value">—</span>
     </div>
     <div class="signal-card" id="signal-card">
