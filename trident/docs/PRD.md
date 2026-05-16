@@ -157,7 +157,7 @@ From this data, the signal service produces:
 - Expected price ranges for the session (Range 1
   and Range 2 boundaries)
 - Key support/resistance levels derived from
-  options flow (MAX SELL 1/2, MAX BUY 1/2,
+  options flow (SELL OUTER/INNER, BUY INNER/OUTER,
   SUPPORTO, RESISTENZA)
 - A Directional Volatility Score (DVS) that
   characterizes the expected volatility regime

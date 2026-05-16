@@ -30,7 +30,7 @@ const config: QSConfig = {
 
 describe('calculateEntries', () => {
   it('computes the correct long entries from the PRD example', () => {
-    // PRD Section 7.4: MAX BUY 2 = 6467, MAX BUY 1 = 6440
+    // PRD Section 7.4: BUY INNER = 6467, BUY OUTER = 6440
     const entries = calculateEntries('long', 6467, 6440, config);
 
     expect(entries[0]).toMatchObject({ entryNumber: 1, price: 6467, allocationPct: 32.5 });
@@ -40,7 +40,7 @@ describe('calculateEntries', () => {
   });
 
   it('applies negative midpoint offset for short entries', () => {
-    // MAX SELL 2 = 6582, MAX SELL 1 = 6616
+    // SELL INNER = 6582, SELL OUTER = 6616
     const entries = calculateEntries('short', 6582, 6616, config);
 
     expect(entries[0]).toMatchObject({ entryNumber: 1, price: 6582 });

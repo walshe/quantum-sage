@@ -43,8 +43,8 @@
 
   <div class="action-strip">
     <button type="button" id="btn-status">Status <i class="info" data-tip="Open a read-only view of what the engine is currently doing.&#10;&#10;Shows: connection, state machine, daily lock, currently loaded setup (full values), and any open position.&#10;&#10;Useful while the form modal is closed."></i></button>
-    <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session."></i></button>
-    <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh).&#10;&#10;Edit only the fields that changed, then submit — the engine swaps in the new levels without resetting trade state."></i></button>
+    <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session.&#10;&#10;⚠ If a trade is currently open the engine will ignore the submission — wait until the trade closes before replacing the setup."></i></button>
+    <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh or VWAP refresh).&#10;&#10;Edit only the fields that changed, then submit.&#10;&#10;⚠ If a trade is currently open the engine will ignore the submission — the running trade always uses the levels it started with. Recalibrate once the trade closes."></i></button>
     <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
     <button type="button" id="btn-import-screenshots">✨ Import from screenshot <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one IV Smile chart screenshot.&#10;&#10;Trident will run it through an AI vision model that extracts BUY INNER/OUTER and SELL INNER/OUTER levels, ranges, DVS, and VWAP from the chart's range panel, then pre-fills this form so you can review and submit.&#10;&#10;Cash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability."></i></button>
     <input type="file" id="screenshot-input" accept="image/*" hidden>
@@ -198,6 +198,7 @@
       <button type="button" class="dialog-close" id="btn-help-close" aria-label="Close">×</button>
     </div>
     <p class="confirm-sub">A short summary of the buttons, the log tags, and the things that go wrong most often. For the full guide, open <code>PHASE_1_ANALYST_GUIDE.md</code>.</p>
+    <div class="help-body-wrap">
     <div id="help-dialog-body" class="help-body">
       <div class="help-col">
         <section>
@@ -206,9 +207,9 @@
             <dt>Status</dt>
             <dd>Read-only snapshot of the engine right now — connection, state, daily lock, currently loaded signal, any open position.</dd>
             <dt>New setup</dt>
-            <dd>Open the form and start a fresh morning setup (resets every field, sets <code>update_seq</code> to 1).</dd>
+            <dd>Open the form and start a fresh morning setup (resets every field, sets <code>update_seq</code> to 1). If a trade is open the engine ignores the submission — wait until the trade closes.</dd>
             <dt>Update during session</dt>
-            <dd>Open the form keeping the current values, with <code>update_seq</code> bumped — for an intra-day recalibration.</dd>
+            <dd>Open the form keeping the current values, with <code>update_seq</code> bumped — for an intra-day recalibration (e.g. refreshing VWAP or levels at midday). If a trade is open the engine ignores the submission — the running trade always uses the levels it started with.</dd>
             <dt>Pre-fill from latest</dt>
             <dd>Load today's most recent setup file into the form so you can tweak only what's changed.</dd>
             <dt>✨ Import from screenshot <span class="ai-badge">AI</span></dt>
@@ -236,6 +237,20 @@
 
       <div class="help-col">
         <section>
+          <h3>Restarts &amp; refreshes</h3>
+          <dl>
+            <dt>Browser tab refreshed</dt>
+            <dd>The engine keeps running unaffected. The status band repopulates immediately from a bootstrap snapshot when the tab reconnects. The log pane starts blank — events from before the refresh are not back-filled.</dd>
+            <dt>Engine process restarted</dt>
+            <dd>The engine restores its full state (signal, levels, position, daily lock) from <code>logs/engine-state.json</code> automatically on boot. The browser tab shows "Reconnecting…" and reconnects once the server is back up — no manual action needed.</dd>
+            <dt>Restart on a new calendar day</dt>
+            <dd>The snapshot is date-scoped. If the engine restarts after midnight the previous day's state is discarded and the engine starts fresh — submit a new setup to begin trading.</dd>
+            <dt>Trade open during restart</dt>
+            <dd>Position state (entries filled, avg entry, stop, breakeven flag) is included in the snapshot and restored on boot. The engine resumes watching exits from where it left off. Check your broker position matches what the engine shows in Status.</dd>
+          </dl>
+        </section>
+
+        <section>
           <h3>Log tags</h3>
           <p class="help-sub">Anything with <code>&gt;&gt;&gt; ACTION:</code> needs you to do something at the broker. The rest is informational.</p>
           <dl>
@@ -248,11 +263,13 @@
             <dt>ENTRY 1 / 2 / 3 <em>(action)</em></dt><dd>Open / scale into the position at the stated size and stop.</dd>
             <dt>BREAKEVEN <em>(action)</em></dt><dd>Move your broker stop to the stated level; cancel any unfilled entry orders.</dd>
             <dt>CLOSED <em>(action)</em></dt><dd>Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).</dd>
-            <dt>LOCK</dt><dd>One winning trade done — no more trades today.</dd>
+            <dt>LOCK</dt><dd>One winning trade done — daily lock active, no more trades today. Resets automatically the next trading day.</dd>
           </dl>
         </section>
       </div>
     </div>
+      <div class="help-scroll-hint" aria-hidden="true">▾</div>
+    </div><!-- /.help-body-wrap -->
     <div class="confirm-actions">
       <button type="button" id="btn-help-ok">Close</button>
     </div>

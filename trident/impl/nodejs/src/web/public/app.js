@@ -882,7 +882,7 @@ function buildEngineStateSection(signalAboutToSubmit) {
     state.engine === 'reconnecting' ? tx('Reconnecting…') : tx('Disconnected');
   addRow(tx('Connection'), connTxt);
   addRow(tx('Engine state'), tx(state.position));
-  addRow(tx('Daily lock'), state.dailyLocked ? tx('Locked — no more trades today') : tx('Not locked'));
+  addRow(tx('Daily lock'), state.dailyLocked ? tx('Locked — no more trades today') : tx('Not locked (one winning trade triggers the lock)'));
   if (state.currentSignal) {
     const cs = state.currentSignal;
     addRow(tx('Current setup'), `${baseName(cs.filePath) || '—'} (seq ${cs.updateSeq})`);
@@ -1170,7 +1170,17 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-help').addEventListener('click', () => {
     const dlg = $('#help-dialog');
     if (!dlg.open) dlg.showModal();
+    // Re-check scroll position each time the dialog opens (content may not need scrolling)
+    updateHelpScroll();
   });
+  const _helpBody = $('#help-dialog-body');
+  function updateHelpScroll() {
+    const wrap = _helpBody.closest('.help-body-wrap');
+    if (!wrap) return;
+    const atBottom = _helpBody.scrollHeight - _helpBody.scrollTop <= _helpBody.clientHeight + 4;
+    wrap.classList.toggle('at-bottom', atBottom);
+  }
+  _helpBody.addEventListener('scroll', updateHelpScroll);
   $('#btn-help-close').addEventListener('click', () => $('#help-dialog').close());
   $('#btn-help-ok').addEventListener('click', () => $('#help-dialog').close());
 

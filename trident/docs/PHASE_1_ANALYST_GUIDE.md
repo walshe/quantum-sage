@@ -289,6 +289,10 @@ day's setup. Update VWAP and any level fields that changed, then submit.
 The Calculate button works for recalibrations too — click it to refresh
 VWAP to the current intraday value.
 
+> **Important:** the engine ignores any submission (New setup or Update
+> during session) while a trade is open. The running trade always uses
+> the levels it started with. Recalibrate only after the trade closes.
+
 **Inline validation feedback.** If the server rejects a submission, the
 banner lists every error and the offending fields are outlined in red
 with the message printed under each input. The page scrolls to the first

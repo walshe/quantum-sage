@@ -67,7 +67,7 @@ function makeSignal(): SignalFile {
       max_sell_1: null, max_sell_2: null, max_buy_1: null, max_buy_2: null,
       supporto: null, resistenza: null, additional: [],
     },
-    // neutral so the engine picks the short side (both MAX SELL levels are present)
+    // neutral so the engine picks the short side (both SELL INNER+OUTER levels are present)
     bias: { direction: 'neutral', confidence: 'medium' },
     invalidation: { void_above: 6700.00, void_below: 6430.00, expiry: '23:59' },
   };
@@ -192,7 +192,7 @@ describe('persistence — engine hydration', () => {
     await engineA.loadSignal(makeSignal(), '/tmp/qs_setup_test.yaml');
     expect(engineA.getState()).toBe('watching');
 
-    // Fire a price past MAX SELL 2 to trigger Entry 1 on the short side.
+    // Fire a price past SELL INNER to trigger Entry 1 on the short side.
     await engineA.onPriceUpdate(6582.5);
     expect(engineA.getState()).toBe('in_trade');
     const posA = engineA.getPosition();

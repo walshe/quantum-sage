@@ -93,14 +93,14 @@ if (useMock) {
   await engine.loadSignal(sampleSignal, '<mock>');
 
   // Note: max_buy_1 is null in the sample, so only a short setup is possible
-  // (or a long with only Entry 1). The demo will show a short from MAX SELL 2 / MAX SELL 1.
+  // (or a long with only Entry 1). The demo will show a short from SELL INNER / SELL OUTER.
   const feed = new MockPriceFeed([
     { price: 6578.67, delayMs: 500 },  // starting price (within range, no trigger)
     { price: 6575.00, delayMs: 800 },
-    { price: 6582.50, delayMs: 800 },  // Entry 1 SHORT @ 6582 (MAX SELL 2)
+    { price: 6582.50, delayMs: 800 },  // Entry 1 SHORT @ 6582 (SELL INNER)
     { price: 6590.00, delayMs: 800 },  // Entry 2 SHORT
     { price: 6600.00, delayMs: 800 },  // Entry 3 SHORT @ 6616 not yet
-    { price: 6616.50, delayMs: 800 },  // Entry 3 SHORT @ 6616 (MAX SELL 1)
+    { price: 6616.50, delayMs: 800 },  // Entry 3 SHORT @ 6616 (SELL OUTER)
     { price: 6610.00, delayMs: 800 },
     { price: 6590.00, delayMs: 800 },
     { price: 6570.00, delayMs: 800 },
