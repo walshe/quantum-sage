@@ -190,6 +190,27 @@ only fires the subscriber once both are known.
 **Keep-alive**: sends a heartbeat (`payloadType 0`) every 10 seconds as required
 by the API. Stopped on `disconnect()`.
 
+**`getTodayBars(): Promise<OhlcvBar[]>`** — fetches today's M1 bars for VWAP
+calculation. Uses the same authenticated WebSocket connection as the spot stream —
+no second auth handshake needed. Implementation details:
+- Sends `ProtoOAGetTrendbarsReq` (payloadType **2137**) for `PERIOD_M1` (value **1**)
+  from midnight UTC to now. Response is `GET_TRENDBAR_RES` (payloadType **2138**).
+- Correlation: a `pendingBarRequests: Map<clientMsgId, {resolve, reject, timer}>` entry
+  is stored before the message is sent. When `handleMessage()` sees a `GET_TRENDBAR_RES`
+  with a matching `clientMsgId`, it resolves the entry and clears the timeout.
+- Bar price encoding: `low` is the absolute low price (×100,000). `deltaOpen`,
+  `deltaClose`, `deltaHigh` are deltas from `low` (also ×100,000).
+  `utcTimestampInMinutes` × 60,000 gives the Unix ms timestamp.
+- Throws `"feed not connected"` if the WebSocket isn't open and authenticated.
+- Throws `"bar request timed out"` after 10 s with no response.
+- On WebSocket close/error mid-request, all pending requests are rejected immediately.
+- Only safe with one outstanding call at a time (the `/api/vwap` endpoint serialises
+  this naturally — one HTTP request per tab at a time).
+
+> **Open question resolved**: payloadType 2137/2138 and PERIOD_M1=1 are from the
+> public cTrader .proto definitions. Verify against the live JSON port on the first
+> real run — easy to confirm with a test send.
+
 **`disconnect()`** — sends an unsubscribe message to cancel the spot stream
 cleanly, then closes the WebSocket.
 
@@ -367,6 +388,13 @@ deadline already passed during downtime, the next price tick force-closes
 as `time_exit`. After every meaningful state transition the engine calls
 `persist()` to write a fresh snapshot atomically.
 
+**Deleting setup files does NOT clear engine state.** The engine restores
+from `logs/engine-state.json`, not from `setups/`. To reset to idle, use the
+"Reset engine" button in the UI — it calls `POST /engine/reset` which calls
+`engine.reset()` and clears the snapshot. Blocked while state is `in_trade`
+(would orphan a broker position). As a last resort, delete
+`logs/engine-state.json` manually before restarting.
+
 **`loadSignal(signal, filePath)`** — called whenever a new setup file arrives.
 Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
 `setupTrade()`. If a trade is already active, ignores the new levels (doesn't
@@ -472,13 +500,14 @@ when `bias.direction === 'long'`. The values are `'long'`/`'short'`/`'neutral'`
 — never `'bullish'`/`'bearish'`. A past bug used `'bearish'`/`'bullish'` so
 the filter never fired; fixed 2026-05-12.
 
-**`cash_last` / `basis` HTML required vs validator null-guard:** both fields
-carry `required` in the HTML, so the browser prevents blank submission. The
-validator's Rule 8 (basis math) has no null-guard — if `cash_last` is `null`
-it coerces to 0, making the check always fail. The `required` attribute is
-load-bearing; removing it without adding a null-guard to Rule 8 would expose
-the bug. The tooltip text ("leave empty to skip") is aspirational — it describes
-intended future behaviour, not the current implementation.
+**`cash_last`, `basis`, `dvs_prior` are genuinely optional (fixed 2026-05-21):**
+all three are `number | null` in the TypeScript types and the HTML form does NOT
+carry `required` on them. Validator Rules 7 and 8 null-guard: if `cash_last` or
+`basis` is null the basis checks are skipped entirely. `dvs_prior` is informational
+and the validator never checks it. These were previously marked `required`, which
+blocked FB from submitting after AI import (the IV Smile's SPX feed returns 0.00
+so `cash_last`/`basis` always come back null; `dvs_prior` is often absent from the
+chart too).
 
 ---
 
@@ -494,31 +523,53 @@ Three contracts: `ImageInput` (`{ bytes, mimeType, filename? }`),
 and `VisionProvider` (`{ name, model, extractSignal(images, systemPrompt) }`).
 Provider implementations swap the SDK without changing anything upstream.
 
-### `providers/index.ts` + `providers/OpenAIProvider.ts`
+### `providers/index.ts` + `providers/LangChainExtractionProvider.ts`
 `buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `openai`)
 and returns `null` if the chosen provider isn't configured (e.g. no
 `OPENAI_API_KEY`). Severity of the disable-log depends on whether the operator
 *explicitly* asked for a provider — explicit + missing key is `error`, implicit
 default + missing key is `info` (operator never asked for AI).
 
-`OpenAIProvider` calls the chat-completions endpoint with the `gpt-4o-*`
-vision model, base64-encodes the images, asks for JSON output, and parses
-the response into an `ExtractionResult`. Model and base URL overridable via
-`OPENAI_MODEL` / `OPENAI_BASE_URL`.
+`LangChainExtractionProvider` implements `VisionProvider` using LangChain's
+`ChatOpenAI` + `.withStructuredOutput()` (with `includeRaw: true` to retain
+token usage). It replaces the previous hand-rolled `OpenAIProvider` — same
+underlying OpenAI API call, industry-standard framework wrapper. LangSmith
+tracing is suppressed in the constructor (`LANGCHAIN_TRACING_V2=false`), so no
+LangSmith account is needed. The archived `OpenAIProvider.ts` lives in
+`providers/_archive/` for easy rollback during the POC.
+
+### `extractionGraph.ts`
+LangGraph `StateGraph` that models the extraction pipeline as four nodes:
+
+```
+guardrail → llm-call → validate → normalise
+```
+
+Each node is a pure exported function (testable in isolation without a full
+`SignalExtractor` instance). `createLlmCallNode(provider)` is a factory that
+closes over the provider — call it to get the node function.
+
+Conditional edges route to `END` on `state.blocked` (after guardrail) or
+`state.error` (after llm-call or validate). The graph never throws — it sets
+`blocked` or `error` on state. `SignalExtractor.extract()` reads final state
+and throws the appropriate typed error (`ExtractionBlockedError` / re-thrown
+provider or validation error).
+
+**Critical: logging and metrics live in `SignalExtractor`, NOT in graph nodes.**
+Nodes are data transforms only. `logLlmCall()` and `recordUsage()` are called
+after `graph.invoke()` resolves, based on the final state.
 
 ### `signalExtractor.ts`
-Orchestration layer. `extract()` runs the full safety pipeline:
-1. `checkBeforeCall` (guardrail) — screens `callerKey` for injection patterns.
-   Throws `ExtractionBlockedError` if blocked (→ server returns 400).
-2. Provider call with the canonical `SIGNAL_EXTRACTION_PROMPT`.
-3. `validateExtractionResult()` — runtime shape + range check on the raw
-   model response. Throws `OutputValidationError` on failure (→ 502 to client).
-4. `normalise()` stamps the fields the model isn't allowed to invent —
-   `schema_version: '1.0'`, `meta.execution_instrument: 'US500.cash'`,
-   `meta.update_seq: 1`, `levels.additional: []`, `vwap.source: 'manual'` —
-   so the result is always loadable into the form.
-5. `logLlmCall()` emits a structured `LLM_CALL` log (no raw prompt/response).
-6. `recordUsage()` accumulates session metrics.
+Thin orchestration shell. Compiles the extraction graph once in the constructor
+(`buildExtractionGraph(provider)`) and reuses it across calls. `extract()`:
+1. Calls `graph.invoke(initialState)`.
+2. Checks `finalState.blocked` → throws `ExtractionBlockedError` (no LLM log).
+3. Checks `finalState.error` → logs failure, records usage, re-throws.
+4. On success → logs call, records usage, returns `finalState.result`.
+
+`normalise()` is exported from this file (not from the graph) because it was
+already here and the graph's normalise node imports it — keeps a single source
+of truth for field defaulting.
 
 `flushMetrics()` is called by the shutdown hook in `index.ts` and emits an
 `AI_SESSION_METRICS` log entry queryable in Grafana:

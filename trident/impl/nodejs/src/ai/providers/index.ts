@@ -1,5 +1,5 @@
 import type { VisionProvider } from '../types.js';
-import { OpenAIProvider } from './OpenAIProvider.js';
+import { LangChainExtractionProvider } from './LangChainExtractionProvider.js';
 import { getLogger } from '../../logger.js';
 
 const log = getLogger('ai/providers');
@@ -37,7 +37,7 @@ export function buildVisionProvider(): VisionProvider | null {
         }
         return null;
       }
-      return new OpenAIProvider({
+      return new LangChainExtractionProvider({
         apiKey,
         model: process.env.OPENAI_MODEL,
         baseURL: process.env.OPENAI_BASE_URL,

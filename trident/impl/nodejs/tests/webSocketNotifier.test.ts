@@ -8,6 +8,7 @@ const bootstrap: Bootstrap = {
   serverTime: '2026-04-21T10:00:00.000Z',
   state: 'idle',
   dailyLocked: false,
+  symbol: 'US500',
   currentSignal: null,
   position: null,
 };

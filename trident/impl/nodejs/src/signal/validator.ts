@@ -46,9 +46,14 @@ export function validateSignal(
 
   // TODO: remove Rule 3 and the entire ranges section once confirmed with FB that ranges.*
   // are redundant (auto-derived from levels.* since the single-IV-chart workflow, 2026-05-12).
-  // Rule 3: range ordering
+  // Rule 3: range ordering — only checked when all four values are present (nulls mean only
+  // one level side was supplied; level ordering rules 4/5 already catch that case).
   const { range_1_down, range_2_down, range_2_up, range_1_up } = signal.ranges;
-  if (!(range_1_down < range_2_down && range_2_down < range_2_up && range_2_up < range_1_up)) {
+  if (
+    range_1_down !== null && range_2_down !== null &&
+    range_2_up !== null && range_1_up !== null &&
+    !(range_1_down < range_2_down && range_2_down < range_2_up && range_2_up < range_1_up)
+  ) {
     errors.push(
       `Range ordering invalid: expected range_1_down < range_2_down < range_2_up < range_1_up, ` +
         `got ${range_1_down} < ${range_2_down} < ${range_2_up} < ${range_1_up}`
@@ -102,19 +107,21 @@ export function validateSignal(
     }
   }
 
-  // Rule 7: basis sanity
+  // Rule 7: basis sanity (skipped when basis is null — field is optional)
   const { basis } = signal.meta;
-  if (basis < -100 || basis > 200) {
+  if (basis !== null && (basis < -100 || basis > 200)) {
     errors.push(`basis (${basis}) out of expected range -100..200`);
   }
 
-  // Rule 8: basis math
-  const impliedBasis = signal.meta.futures_last - signal.meta.cash_last;
-  if (Math.abs(impliedBasis - basis) > 5) {
-    errors.push(
-      `Basis math mismatch: futures_last - cash_last = ${impliedBasis.toFixed(2)}, ` +
-        `basis field = ${basis} (tolerance ±5)`
-    );
+  // Rule 8: basis math (skipped when either field is null — both are optional)
+  if (signal.meta.cash_last !== null && basis !== null) {
+    const impliedBasis = signal.meta.futures_last - signal.meta.cash_last;
+    if (Math.abs(impliedBasis - basis) > 5) {
+      errors.push(
+        `Basis math mismatch: futures_last - cash_last = ${impliedBasis.toFixed(2)}, ` +
+          `basis field = ${basis} (tolerance ±5)`
+      );
+    }
   }
 
   // Rule 9: DVS range

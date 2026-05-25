@@ -109,20 +109,37 @@ describe('validateSignal', () => {
     expect(result.errors.some(e => e.includes('dvs'))).toBe(true);
   });
 
-  it('rejects basis math mismatch > 5 pts', () => {
-    const s = makeValidSignal();
-    s.meta.basis = 10; // actual spread is ~43, mismatch > 5
-    const result = validateSignal(s, opts);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('Basis math'))).toBe(true);
-  });
-
   it('rejects when futures_last is outside invalidation boundaries', () => {
     const s = makeValidSignal();
     s.invalidation.void_below = 6600; // futures_last (6578) is below void_below
     const result = validateSignal(s, opts);
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('Invalidation boundaries'))).toBe(true);
+  });
+
+  it('passes when cash_last and basis are null (optional fields)', () => {
+    const s = makeValidSignal();
+    s.meta.cash_last = null;
+    s.meta.basis = null;
+    const result = validateSignal(s, opts);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('passes when dvs_prior is null (optional field)', () => {
+    const s = makeValidSignal();
+    s.volatility.dvs_prior = null;
+    const result = validateSignal(s, opts);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('still rejects basis math mismatch when both fields are present', () => {
+    const s = makeValidSignal();
+    s.meta.basis = 10; // actual spread is ~43, mismatch > 5 — cash_last is still set
+    const result = validateSignal(s, opts);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('Basis math'))).toBe(true);
   });
 
   it('warns on stale VWAP but does not fail', () => {

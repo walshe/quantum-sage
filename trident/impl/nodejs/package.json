@@ -10,8 +10,10 @@
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "auth:ctrader": "tsx scripts/ctrader-auth.ts"
+    "auth:ctrader": "tsx scripts/ctrader-auth.ts",
+    "list:symbols": "tsx scripts/list-symbols.ts"
   },
+  "_comment_langchain": "LangChain/LangGraph POC — MIT, no per-call cost; same underlying OpenAI API",
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.217.0",
@@ -20,6 +22,9 @@
     "chokidar": "^3.6.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "@langchain/core": "~0.3.80",
+    "@langchain/langgraph": "~0.2.74",
+    "@langchain/openai": "~0.4.9",
     "js-yaml": "^4.1.0",
     "openai": "^6.35.0",
     "prom-client": "^15.1.3",

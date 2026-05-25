@@ -20,6 +20,10 @@ dist/
 
 # Signals (daily files, not committed)
 trident/impl/nodejs/signals/
+trident/impl/nodejs/setups/
+
+# Screenshots uploaded via the dashboard
+trident/impl/nodejs/screenshots/
 
 # Logs
 trident/impl/nodejs/logs/

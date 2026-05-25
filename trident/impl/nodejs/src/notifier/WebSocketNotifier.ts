@@ -16,6 +16,7 @@ export interface Bootstrap {
   serverTime: string;               // ISO8601
   state: 'idle' | 'watching' | 'in_trade' | 'blocked' | 'closed';
   dailyLocked: boolean;
+  symbol: string;                   // instrument the feed is tracking, e.g. "US500"
   currentSignal: {
     filePath: string;
     date: string;

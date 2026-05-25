@@ -267,7 +267,7 @@ export class TridentEngine {
       log.warn('No trade setup possible — required levels missing');
       await this.notifier.notify({
         type: 'NO_TRADE_SETUP',
-        reason: 'Required levels are missing — need both MAX BUY 1+2 or both MAX SELL 1+2',
+        reason: 'Required levels are missing — need both BUY INNER+OUTER or both SELL INNER+OUTER',
       });
       this.state = 'idle';
       this.persist();
