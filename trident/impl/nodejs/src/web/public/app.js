@@ -117,6 +117,21 @@ function setEngineChip(s) {
   valEl.textContent = tx(enLabel);
   // Reset i18n snapshot so the next applyLang() works against the new English source.
   _i18nTextSnap.delete(valEl);
+
+  // Show/hide the full-page connection overlay.
+  const overlay = $('#ws-overlay');
+  if (!overlay) return;
+  if (s === 'connected') {
+    overlay.classList.add('is-hidden');
+  } else {
+    overlay.classList.remove('is-hidden');
+    $('#ws-overlay-text').textContent =
+      s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
+    $('#ws-overlay-sub').textContent =
+      s === 'reconnecting'
+        ? 'Connection dropped — retrying…'
+        : 'Waiting for the engine process to respond.';
+  }
 }
 function setStateChip(s, locked) {
   state.position = s;
@@ -1177,27 +1192,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btn-import-screenshots').addEventListener('click', openScreenshotPicker);
   $('#screenshot-input').addEventListener('change', uploadScreenshots);
-
-  $('#btn-reset').addEventListener('click', async () => {
-    if (!window.confirm(
-      'Reset engine to idle?\n\n' +
-      'This clears the loaded setup, trade plan, and daily lock.\n' +
-      'It does NOT close any open position at your broker — close that manually first.\n\n' +
-      'Blocked while a trade is active.'
-    )) return;
-    try {
-      const res = await fetch('/engine/reset', { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) {
-        const reason = body.reason === 'trade_open'
-          ? 'Cannot reset while a trade is active. Close the position at the broker first.'
-          : `Reset failed: ${body.reason ?? res.status}`;
-        alert(reason);
-      }
-    } catch (err) {
-      alert(`Reset request failed: ${err.message}`);
-    }
-  });
 
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);

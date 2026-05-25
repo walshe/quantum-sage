@@ -1,0 +1,107 @@
+description: IV Smile signal extraction — golden dataset
+
+providers:
+  - id: file://./provider.ts
+
+# The provider drives the actual prompt; this passthrough just satisfies promptfoo's
+# requirement that every test has a prompt.
+prompts:
+  - id: passthrough
+    raw: "{{fixture}}"
+
+# ── Active test cases ──────────────────────────────────────────────────────────
+# Only fixtures without skip:true in dataset.yaml are listed here.
+# To add a new fixture: append a test entry below and fill in expected values.
+# ──────────────────────────────────────────────────────────────────────────────
+tests:
+  - description: "iv_smile_01 — single column, elevated DVS 71.57"
+    vars:
+      fixture: iv_smile_01.jpg
+    assert:
+      # Guard: any top-level error field means the extraction failed entirely
+      - type: javascript
+        description: "no extraction error"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: `${r.error}: ${r.reason}` };
+          return true;
+
+      # BUY OUTER (max_buy_1) — Long Entry 3 / Range 1 down
+      - type: javascript
+        description: "buy_outer (max_buy_1) within ±5 of 7360.00"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.levels?.max_buy_1;
+          if (v == null) return { pass: false, reason: 'max_buy_1 is null' };
+          const expected = 7360.00;
+          return Math.abs(v - expected) <= 5
+            ? true
+            : { pass: false, reason: `buy_outer: got ${v}, expected ${expected} ±5` };
+
+      # BUY INNER (max_buy_2) — Long Entry 1 / Range 2 down
+      - type: javascript
+        description: "buy_inner (max_buy_2) within ±5 of 7384.75"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.levels?.max_buy_2;
+          if (v == null) return { pass: false, reason: 'max_buy_2 is null' };
+          const expected = 7384.75;
+          return Math.abs(v - expected) <= 5
+            ? true
+            : { pass: false, reason: `buy_inner: got ${v}, expected ${expected} ±5` };
+
+      # SELL INNER (max_sell_2) — Short Entry 1 / Range 2 up
+      - type: javascript
+        description: "sell_inner (max_sell_2) within ±5 of 7473.00"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.levels?.max_sell_2;
+          if (v == null) return { pass: false, reason: 'max_sell_2 is null' };
+          const expected = 7473.00;
+          return Math.abs(v - expected) <= 5
+            ? true
+            : { pass: false, reason: `sell_inner: got ${v}, expected ${expected} ±5` };
+
+      # SELL OUTER (max_sell_1) — Short Entry 3 / Range 1 up
+      - type: javascript
+        description: "sell_outer (max_sell_1) within ±5 of 7497.75"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.levels?.max_sell_1;
+          if (v == null) return { pass: false, reason: 'max_sell_1 is null' };
+          const expected = 7497.75;
+          return Math.abs(v - expected) <= 5
+            ? true
+            : { pass: false, reason: `sell_outer: got ${v}, expected ${expected} ±5` };
+
+      # DVS — tight ±1 tolerance (read from labeled box, not inferred)
+      - type: javascript
+        description: "dvs within ±1 of 71.57"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.volatility?.dvs;
+          if (v == null) return { pass: false, reason: 'dvs is null' };
+          const expected = 71.57;
+          return Math.abs(v - expected) <= 1
+            ? true
+            : { pass: false, reason: `dvs: got ${v}, expected ${expected} ±1` };
+
+      # Regime — exact string match
+      - type: javascript
+        description: "regime exact match: elevated"
+        value: |
+          const r = JSON.parse(output);
+          if (r.error) return { pass: false, reason: r.error };
+          const v = r.signal?.volatility?.regime;
+          const expected = 'elevated';
+          return v === expected
+            ? true
+            : { pass: false, reason: `regime: got "${v}", expected "${expected}"` };
+
+      # cash_last and basis are intentionally null — assert they are NOT asserted
+      # (No assertion here; these fields are deliberately excluded from the eval.)

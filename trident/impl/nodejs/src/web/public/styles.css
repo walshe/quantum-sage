@@ -808,3 +808,47 @@ label.sell > input:focus { border-color: var(--accent); }
   border-top-color: #1e5bbf;
   border-bottom-color: #7ab4ff;
 }
+
+/* ---------- WebSocket connection overlay ---------- */
+.ws-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(12, 15, 20, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.ws-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.ws-overlay-stage {
+  width: 52px;
+  height: 52px;
+  position: relative;
+}
+.ws-overlay-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(59, 130, 246, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ai-spin 0.9s linear infinite;
+}
+.ws-overlay-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+.ws-overlay-sub {
+  font-size: 12px;
+  color: var(--fg-dim);
+}

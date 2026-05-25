@@ -27,8 +27,6 @@ export interface StartWebServerOpts {
   metricsHandler?: (req: Request, res: Response) => Promise<void>;
   /** Returns the live cTrader feed instance, or null/undefined if not active. */
   getPriceFeed?: () => CTraderPriceFeed | null;
-  /** Resets the engine to idle and clears its snapshot. Returns false when a trade is open. */
-  resetEngine?: () => { ok: boolean; reason?: string };
 }
 
 export interface WebServerHandle {
@@ -188,18 +186,7 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     return res.json(result);
   });
 
-  app.post('/engine/reset', (_req, res) => {
-    const doReset = opts.resetEngine;
-    if (!doReset) return res.status(501).json({ ok: false, reason: 'reset_not_wired' });
-    const result = doReset();
-    if (!result.ok) {
-      return res.status(409).json(result);
-    }
-    log.warn('Engine reset via UI');
-    return res.json({ ok: true });
-  });
-
-  app.post('/signals', (req, res) => {
+  app.post('/signals',(req, res) => {
     const body = req.body as SignalFile;
     if (!body || typeof body !== 'object') {
       return res.status(400).json({ valid: false, errors: ['Body must be a SignalFile JSON object'], warnings: [] });
