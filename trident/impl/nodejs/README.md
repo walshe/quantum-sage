@@ -1,11 +1,27 @@
 # Trident — Node.js / TypeScript Implementation
 
-Canonical reference implementation of the Trident strategy, running as a standalone
-Node.js process. This is the Phase 1 POC: it reads a YAML signal file, watches live
-prices, applies the Trident mean-reversion logic, and outputs trade events to the
-console (or any pluggable notifier).
+Canonical reference implementation of the Trident mean-reversion strategy.
+Reads daily IV Smile setup files, watches live cTrader prices, applies the
+Trident entry/exit logic, and notifies the analyst of trade events via a
+browser dashboard and pluggable notifiers.
 
 For full system context see the [Trident PRD](../../docs/PRD.md).
+
+---
+
+## Tech stack
+
+| Layer | Library / tool | Why |
+|---|---|---|
+| Runtime | Node.js ≥ 20, TypeScript 5 | Typed, async-first |
+| Web server | Express 5 | Dashboard API + WebSocket event stream |
+| AI extraction | [LangChain](https://js.langchain.com/) + [LangGraph](https://langchain-ai.github.io/langgraphjs/) | Structured output extraction from IV Smile screenshots via a typed state graph (`guardrail → llm-call → validate → normalise`) |
+| Vision model | OpenAI `gpt-4o` (via `@langchain/openai`) | Reads BUY/SELL levels, DVS, regime, and VWAP from chart screenshots |
+| AI evals | [promptfoo](https://promptfoo.dev/) | Golden-dataset regression tests for extraction quality — run with `npm run eval` |
+| Broker feed | cTrader Open API (WebSocket) | Live ES futures price ticks |
+| Logging | Winston | Structured JSON audit log + human-readable console |
+| Metrics | OpenTelemetry / Prometheus | Optional — see RUNNING.md |
+| Tests | Vitest | Unit + integration tests (no real API calls) |
 
 ---
 
@@ -14,7 +30,32 @@ For full system context see the [Trident PRD](../../docs/PRD.md).
 - **Node.js** ≥ 20 (LTS recommended — `node --version` to check)
 - **npm** ≥ 10 (comes with Node)
 
-No other tools required.
+No other tools required for running tests. A broker account and API keys are
+needed for live trading; an OpenAI API key is needed for AI screenshot import.
+
+---
+
+## Environment setup
+
+Copy `.env.example` to `.env` and fill in the values you need:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Required for | Notes |
+|---|---|---|
+| `OPENAI_API_KEY` | AI screenshot import, `npm run eval` | Get from platform.openai.com |
+| `OPENAI_MODEL` | AI screenshot import | Default: `gpt-4o-2024-11-20` |
+| `CTRADER_CLIENT_ID` / `_SECRET` | Live price feed | From openapi.ctrader.com/apps |
+| `CTRADER_ACCESS_TOKEN` / `_REFRESH_TOKEN` | Live price feed | Set by `npm run auth:ctrader` |
+| `TRIDENT_WEB_PORT` | Dashboard | Default: `3000` |
+| `LOG_LEVEL` | All modes | `error` / `warn` / `info` / `debug` (default: `info`) |
+| `TRIDENT_OBSERVABILITY` | Metrics | `prometheus` or `otel` — see RUNNING.md |
+
+Tests and the mock mode run without any `.env` values set.
 
 ---
 
@@ -59,6 +100,21 @@ npm run test:watch
 ```
 
 Reruns tests on every file save — useful while developing.
+
+---
+
+## AI extraction evals
+
+```bash
+npm run eval
+```
+
+Runs the [promptfoo](https://promptfoo.dev/) golden-dataset eval suite against
+real IV Smile screenshots. Makes real OpenAI API calls (~$0.01–0.05 per run) —
+**not run in CI**, execute deliberately.
+
+Requires `OPENAI_API_KEY` in `.env`. See [`evals/README.md`](evals/README.md)
+for how to add fixtures and update expected values when the prompt changes.
 
 ---
 
