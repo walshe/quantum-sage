@@ -412,6 +412,25 @@ function bumpUpdateSeq() {
   $('#signal-form').elements['meta.timestamp'].value = now.toTimeString().slice(0, 5);
 }
 
+// Compress a screenshot to JPEG before upload so it clears tunnel/proxy body
+// limits (~1 MB). Max 1800px wide at 85% quality — sufficient for AI vision.
+function compressImage(file, maxWidth = 1800, quality = 0.85) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    };
+    img.src = url;
+  });
+}
+
 // Import-from-screenshots: opens the file picker, uploads each selected image
 // to /signals/screenshots, and reports back. AI extraction + form prefill are
 // not wired yet — for now this just gets the bytes to the server.
@@ -450,13 +469,14 @@ async function uploadScreenshots(evt) {
         tx('Uploading screenshot…'),
         f.name,
       );
+      const compressed = await compressImage(f);
       const res = await fetch('/signals/screenshots', {
         method: 'POST',
         headers: {
-          'content-type': f.type || 'application/octet-stream',
+          'content-type': 'image/jpeg',
           'x-filename': encodeURIComponent(f.name),
         },
-        body: f,
+        body: compressed,
       });
       if (!res.ok) throw new Error(`${f.name}: ${res.status}`);
       results.push(await res.json());
@@ -675,13 +695,12 @@ function collectForm() {
   signal.levels.additional = [];
   // TODO: remove once ranges.* confirmed redundant with FB — auto-derive from levels so the
   // hidden Ranges fieldset (and manual-entry path) never sends null ranges to the validator.
+  // Derive each range value independently so a buy-only or sell-only setup still works.
   const lv = signal.levels;
-  if (!signal.ranges.range_1_up && lv.max_sell_1 != null) {
-    signal.ranges.range_1_up   = lv.max_sell_1; // SELL OUTER
-    signal.ranges.range_2_up   = lv.max_sell_2; // SELL INNER
-    signal.ranges.range_2_down = lv.max_buy_2;  // BUY INNER
-    signal.ranges.range_1_down = lv.max_buy_1;  // BUY OUTER
-  }
+  if (signal.ranges.range_1_up   == null && lv.max_sell_1 != null) signal.ranges.range_1_up   = lv.max_sell_1;
+  if (signal.ranges.range_2_up   == null && lv.max_sell_2 != null) signal.ranges.range_2_up   = lv.max_sell_2;
+  if (signal.ranges.range_2_down == null && lv.max_buy_2  != null) signal.ranges.range_2_down = lv.max_buy_2;
+  if (signal.ranges.range_1_down == null && lv.max_buy_1  != null) signal.ranges.range_1_down = lv.max_buy_1;
   // Drop empty optional fields so the YAML stays clean.
   if (signal.meta.contract == null || signal.meta.contract === '') delete signal.meta.contract;
   if (!signal.bias?.direction) delete signal.bias;
@@ -1158,6 +1177,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btn-import-screenshots').addEventListener('click', openScreenshotPicker);
   $('#screenshot-input').addEventListener('change', uploadScreenshots);
+
+  $('#btn-reset').addEventListener('click', async () => {
+    if (!window.confirm(
+      'Reset engine to idle?\n\n' +
+      'This clears the loaded setup, trade plan, and daily lock.\n' +
+      'It does NOT close any open position at your broker — close that manually first.\n\n' +
+      'Blocked while a trade is active.'
+    )) return;
+    try {
+      const res = await fetch('/engine/reset', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        const reason = body.reason === 'trade_open'
+          ? 'Cannot reset while a trade is active. Close the position at the broker first.'
+          : `Reset failed: ${body.reason ?? res.status}`;
+        alert(reason);
+      }
+    } catch (err) {
+      alert(`Reset request failed: ${err.message}`);
+    }
+  });
 
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);

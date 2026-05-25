@@ -242,6 +242,23 @@ button:focus-visible {
   color: #fff;
   border-color: #fff;
 }
+button.btn--danger {
+  background: linear-gradient(to bottom, #6b2020, #4e1515);
+  border-color: #7a2c2c;
+  border-top-color: #8a3636;
+  border-bottom-color: #3a0e0e;
+  color: #ffb3b3;
+}
+button.btn--danger:hover {
+  background: linear-gradient(to bottom, #7d2525, #5c1a1a);
+  border-color: #e05252;
+  border-top-color: #c05050;
+}
+button.btn--danger:active {
+  background: linear-gradient(to bottom, #3a0e0e, #4e1515);
+  border-top-color: #3a0e0e;
+  border-bottom-color: #7a2c2c;
+}
 .ai-badge {
   display: inline-block;
   margin: 0 0.15rem 0 0.25rem;

@@ -17,14 +17,14 @@ export interface SignalMeta {
    */
   contract?: string;
   futures_last: number;
-  cash_last: number;
-  basis: number;
+  cash_last: number | null;
+  basis: number | null;
   execution_instrument: ExecutionInstrument;
 }
 
 export interface SignalVolatility {
   dvs: number;
-  dvs_prior: number;
+  dvs_prior: number | null;
   skew: number;
   regime: VolatilityRegime;
 }
