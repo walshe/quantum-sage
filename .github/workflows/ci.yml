@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "trident/impl/nodejs/src/**"
+      - "trident/impl/nodejs/tests/**"
+      - "trident/impl/nodejs/package*.json"
+      - "trident/impl/nodejs/tsconfig.json"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "trident/impl/nodejs/src/**"
+      - "trident/impl/nodejs/tests/**"
+      - "trident/impl/nodejs/package*.json"
+      - "trident/impl/nodejs/tsconfig.json"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trident/impl/nodejs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: trident/impl/nodejs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run build
+
+      - name: Test
+        run: npm test
