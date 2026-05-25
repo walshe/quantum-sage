@@ -48,7 +48,6 @@
     <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
     <button type="button" id="btn-import-screenshots">✨ Import from screenshot <span class="ai-badge">AI</span> <i class="info" data-tip="Upload one IV Smile chart screenshot.&#10;&#10;Trident will run it through an AI vision model that extracts BUY INNER/OUTER and SELL INNER/OUTER levels, ranges, DVS, and VWAP from the chart's range panel, then pre-fills this form so you can review and submit.&#10;&#10;Cash last and basis are NOT extracted — the IV Smile's SPX feed is unreliable and may show 0.00. Enter those manually if needed.&#10;&#10;You'll still get a chance to verify every value before it goes to the engine. Files are saved on the server for traceability."></i></button>
     <input type="file" id="screenshot-input" accept="image/*" hidden>
-    <button type="button" id="btn-reset" class="btn--danger" title="Reset engine to idle">Reset engine <i class="info" data-tip="Reset the engine back to idle — clears the loaded setup, any trade plan, and the daily lock.&#10;&#10;Does NOT close any open position at the broker. If a trade is open, close it manually first.&#10;&#10;Blocked while a trade is active."></i></button>
   </div>
 
   <main class="main-area">
@@ -179,6 +178,8 @@
       </div>
       <ul id="form-errors" class="form-errors"></ul>
     </form>
+    <div class="form-scroll-gradient" aria-hidden="true"></div>
+    <div class="form-scroll-hint" aria-hidden="true">scroll for more</div>
   </dialog>
 
   <dialog id="status-dialog" class="status-dialog">
@@ -269,7 +270,7 @@
         </section>
       </div>
     </div>
-      <div class="help-scroll-hint" aria-hidden="true">▾</div>
+      <div class="help-scroll-hint" aria-hidden="true">scroll for more</div>
     </div><!-- /.help-body-wrap -->
     <div class="confirm-actions">
       <button type="button" id="btn-help-ok">Close</button>
@@ -285,6 +286,15 @@
       <button type="button" id="confirm-ok">Submit setup</button>
     </div>
   </dialog>
+
+  <!-- Connection overlay — visible by default, hidden once WS connects -->
+  <div id="ws-overlay" class="ws-overlay">
+    <div class="ws-overlay-stage">
+      <span class="ws-overlay-ring"></span>
+    </div>
+    <div class="ws-overlay-text" id="ws-overlay-text">Connecting to server…</div>
+    <div class="ws-overlay-sub" id="ws-overlay-sub">Waiting for the engine process to respond.</div>
+  </div>
 
   <script src="/assets/i18n.js"></script>
   <script src="/assets/app.js"></script>

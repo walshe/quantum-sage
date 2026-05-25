@@ -138,13 +138,6 @@ const webServer = await startWebServer({
   getBootstrap: buildBootstrap,
   metricsHandler,
   getPriceFeed: () => liveFeed,
-  resetEngine: () => {
-    if (engine.getState() === 'in_trade') {
-      return { ok: false, reason: 'trade_open' };
-    }
-    engine.reset();
-    return { ok: true };
-  },
 });
 notifierChildren.push(webServer.notifier);
 log.info('UI ready', { url: `http://localhost:${webServer.port}` });

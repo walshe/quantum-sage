@@ -1,0 +1,42 @@
+fixtures:
+  - filename: iv_smile_01.jpg
+    captured_on: "2026-05-25"
+    expected:
+      buy_outer: 7360.00    # BUY OUTER  — Long Entry 3 (Range 1 down), ES futures price
+      buy_inner: 7384.75    # BUY INNER  — Long Entry 1 (Range 2 down), ES futures price
+      sell_inner: 7473.00   # SELL INNER — Short Entry 1 (Range 2 up),  ES futures price
+      sell_outer: 7497.75   # SELL OUTER — Short Entry 3 (Range 1 up),  ES futures price
+      dvs: 71.57          # DVS value (e.g. 61.34)
+      regime: elevated       # compressed / normal / elevated / extreme
+
+  - filename: iv_smile_02.jpg
+    captured_on: "2026-05-25"
+    expected:
+      buy_outer: 7321.00
+      buy_inner: 7356.00
+      sell_inner: 7416.50
+      sell_outer: 7451.75
+      dvs: 53.91
+      regime: normal
+
+  - filename: iv_smile_03.jpg
+    skip: true
+    captured_on: "2026-05-25"
+    expected:
+      buy_outer: null
+      buy_inner: null
+      sell_inner: null
+      sell_outer: null
+      dvs: null
+      regime: null
+
+  - filename: iv_smile_04.jpg
+    skip: true
+    captured_on: "2026-05-25"
+    expected:
+      buy_outer: null
+      buy_inner: null
+      sell_inner: null
+      sell_outer: null
+      dvs: null
+      regime: null

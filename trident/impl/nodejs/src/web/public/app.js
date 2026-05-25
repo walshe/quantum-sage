@@ -117,6 +117,21 @@ function setEngineChip(s) {
   valEl.textContent = tx(enLabel);
   // Reset i18n snapshot so the next applyLang() works against the new English source.
   _i18nTextSnap.delete(valEl);
+
+  // Show/hide the full-page connection overlay.
+  const overlay = $('#ws-overlay');
+  if (!overlay) return;
+  if (s === 'connected') {
+    overlay.classList.add('is-hidden');
+  } else {
+    overlay.classList.remove('is-hidden');
+    $('#ws-overlay-text').textContent =
+      s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
+    $('#ws-overlay-sub').textContent =
+      s === 'reconnecting'
+        ? 'Connection dropped — retrying…'
+        : 'Waiting for the engine process to respond.';
+  }
 }
 function setStateChip(s, locked) {
   state.position = s;
@@ -591,6 +606,7 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
   }
   if (notes.length) {
     const det = document.createElement('details');
+    det.open = true;
     det.className = 'ai-banner-notes';
     const sum = document.createElement('summary');
     sum.textContent = tx('Extraction details');
@@ -618,9 +634,23 @@ function setSubmitStatus(text, kind) {
 // then opens the form-dialog. The form's own Submit button still fires
 // submitForm() which in turn opens the confirm-dialog on top.
 // ---------------------------------------------------------------------------
+function updateFormScrollHint() {
+  const form = $('#signal-form');
+  const hint = $('.form-scroll-hint');
+  const grad = $('.form-scroll-gradient');
+  if (!form || !hint) return;
+  const atBottom = form.scrollHeight - form.scrollTop <= form.clientHeight + 4;
+  hint.classList.toggle('is-hidden', atBottom);
+  if (grad) grad.classList.toggle('is-hidden', atBottom);
+}
+
 function openFormModal() {
   const dlg = $('#form-dialog');
   if (!dlg.open) dlg.showModal();
+  // Reset scroll to top and re-evaluate hint visibility.
+  const form = $('#signal-form');
+  if (form) form.scrollTop = 0;
+  updateFormScrollHint();
 }
 function closeFormModal() {
   const dlg = $('#form-dialog');
@@ -1178,27 +1208,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-import-screenshots').addEventListener('click', openScreenshotPicker);
   $('#screenshot-input').addEventListener('change', uploadScreenshots);
 
-  $('#btn-reset').addEventListener('click', async () => {
-    if (!window.confirm(
-      'Reset engine to idle?\n\n' +
-      'This clears the loaded setup, trade plan, and daily lock.\n' +
-      'It does NOT close any open position at your broker — close that manually first.\n\n' +
-      'Blocked while a trade is active.'
-    )) return;
-    try {
-      const res = await fetch('/engine/reset', { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) {
-        const reason = body.reason === 'trade_open'
-          ? 'Cannot reset while a trade is active. Close the position at the broker first.'
-          : `Reset failed: ${body.reason ?? res.status}`;
-        alert(reason);
-      }
-    } catch (err) {
-      alert(`Reset request failed: ${err.message}`);
-    }
-  });
-
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);
 
@@ -1263,6 +1272,8 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.textContent = 'Calculate';
     }
   });
+
+  $('#signal-form').addEventListener('scroll', updateFormScrollHint);
 
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
