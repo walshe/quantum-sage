@@ -131,6 +131,7 @@ export interface LangChainExtractionProviderOpts {
   model?: string;
   baseURL?: string;
   timeoutMs?: number;
+  name?: string;
 }
 
 /**
@@ -142,7 +143,7 @@ export interface LangChainExtractionProviderOpts {
  * LangSmith tracing is suppressed (no account or API key needed).
  */
 export class LangChainExtractionProvider implements VisionProvider {
-  readonly name = 'openai';
+  readonly name: string;
   readonly model: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly structuredLlm: any;
@@ -150,6 +151,7 @@ export class LangChainExtractionProvider implements VisionProvider {
   constructor(opts: LangChainExtractionProviderOpts) {
     process.env.LANGCHAIN_TRACING_V2 ??= 'false';
 
+    this.name = opts.name ?? 'openai';
     this.model = opts.model ?? 'gpt-4o-2024-11-20';
 
     const llm = new ChatOpenAI({

@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "auth:ctrader": "tsx scripts/ctrader-auth.ts",
     "list:symbols": "tsx scripts/list-symbols.ts",
-    "eval": "promptfoo eval --config evals/promptfooconfig.yaml"
+    "eval": "promptfoo eval --config evals/promptfooconfig.yaml",
+    "eval:deepseek": "TRIDENT_AI_PROVIDER=deepseek promptfoo eval --config evals/promptfooconfig.yaml"
   },
   "_comment_langchain": "LangChain/LangGraph POC — MIT, no per-call cost; same underlying OpenAI API",
   "dependencies": {

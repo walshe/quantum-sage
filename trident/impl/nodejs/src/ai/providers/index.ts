@@ -43,6 +43,23 @@ export function buildVisionProvider(): VisionProvider | null {
         baseURL: process.env.OPENAI_BASE_URL,
       });
     }
+    case 'deepseek': {
+      const apiKey = process.env.DEEPSEEK_API_KEY;
+      if (!apiKey) {
+        if (explicit) {
+          log.error('TRIDENT_AI_PROVIDER=deepseek but DEEPSEEK_API_KEY is missing — AI extraction disabled');
+        } else {
+          log.info('AI extraction disabled (no DEEPSEEK_API_KEY)');
+        }
+        return null;
+      }
+      return new LangChainExtractionProvider({
+        name: 'deepseek',
+        apiKey,
+        model: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
+        baseURL: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com/v1',
+      });
+    }
     // Future: anthropic, gemini, etc.
     default:
       log.error('Unknown TRIDENT_AI_PROVIDER — AI extraction disabled', { choice });

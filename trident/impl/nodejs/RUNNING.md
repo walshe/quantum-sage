@@ -128,6 +128,38 @@ docker compose up -d
 
 ---
 
+## AI screenshot extraction (optional)
+
+Trident can read chart screenshots and pre-fill the signal form automatically. Two AI providers are supported.
+
+### OpenAI (default)
+
+Add to your `.env`:
+```
+OPENAI_API_KEY=sk-...
+# Optional overrides:
+# OPENAI_MODEL=gpt-4o-2024-11-20
+```
+
+### DeepSeek (cheaper alternative)
+
+DeepSeek V4 supports vision and costs roughly 10x less per call than GPT-4o.
+
+Add to your `.env`:
+```
+TRIDENT_AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-...
+# Optional overrides:
+# DEEPSEEK_MODEL=deepseek-chat
+# DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+```
+
+Get a DeepSeek API key at **platform.deepseek.com**.
+
+If neither `OPENAI_API_KEY` nor `DEEPSEEK_API_KEY` is set, the Import button still works — it saves screenshots only and the analyst fills in values manually.
+
+---
+
 ## Observability (optional)
 
 Trident can export real-time metrics — connection status, tick rate, engine state, entries, closes, and P&L — to a monitoring dashboard. Two paths are available:

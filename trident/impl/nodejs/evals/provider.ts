@@ -3,18 +3,21 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 
-import { LangChainExtractionProvider } from '../src/ai/providers/LangChainExtractionProvider.js';
+import { buildVisionProvider } from '../src/ai/providers/index.js';
 import { SignalExtractor, ExtractionBlockedError } from '../src/ai/signalExtractor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, '../.env') });
+// promptfoo compiles providers to a temp dir so __dirname is unreliable;
+// cwd() is always the npm run directory (trident/impl/nodejs/).
+// override:true ensures .env values win even if the shell has stale vars.
+config({ path: resolve(process.cwd(), '.env'), override: true });
+config({ path: resolve(__dirname, '../.env'), override: true });
 
-const apiKey = process.env.OPENAI_API_KEY;
-if (!apiKey) {
-  throw new Error('OPENAI_API_KEY is not set — add it to trident/impl/nodejs/.env before running evals');
+const visionProvider = buildVisionProvider();
+if (!visionProvider) {
+  throw new Error('No AI provider configured — set OPENAI_API_KEY or DEEPSEEK_API_KEY (+TRIDENT_AI_PROVIDER=deepseek) in .env before running evals');
 }
 
-const visionProvider = new LangChainExtractionProvider({ apiKey });
 const extractor = new SignalExtractor(visionProvider);
 
 export default class SignalExtractorProvider {

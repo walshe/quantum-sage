@@ -47,8 +47,13 @@ Key variables:
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | AI screenshot import, `npm run eval` | Get from platform.openai.com |
-| `OPENAI_MODEL` | AI screenshot import | Default: `gpt-4o-2024-11-20` |
+| `TRIDENT_AI_PROVIDER` | AI screenshot import | `openai` (default) or `deepseek` |
+| `OPENAI_API_KEY` | AI import (`openai` provider), `npm run eval` | Get from platform.openai.com |
+| `OPENAI_MODEL` | AI import (`openai` provider) | Default: `gpt-4o-2024-11-20` |
+| `OPENAI_BASE_URL` | AI import (`openai` provider) | Optional base URL override |
+| `DEEPSEEK_API_KEY` | AI import (`deepseek` provider) | Get from platform.deepseek.com |
+| `DEEPSEEK_MODEL` | AI import (`deepseek` provider) | Default: `deepseek-chat` |
+| `DEEPSEEK_BASE_URL` | AI import (`deepseek` provider) | Default: `https://api.deepseek.com/v1` |
 | `CTRADER_CLIENT_ID` / `_SECRET` | Live price feed | From openapi.ctrader.com/apps |
 | `CTRADER_ACCESS_TOKEN` / `_REFRESH_TOKEN` | Live price feed | Set by `npm run auth:ctrader` |
 | `TRIDENT_WEB_PORT` | Dashboard | Default: `3000` |
