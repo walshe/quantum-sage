@@ -658,16 +658,31 @@ label.sell > input:focus { border-color: var(--accent); }
 .help-body-wrap.at-bottom::after { opacity: 0; }
 .help-scroll-hint {
   position: absolute;
-  bottom: 6px;
+  bottom: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 20px;
-  line-height: 1;
-  color: var(--fg-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.75rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: 999px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.25s;
-  animation: hint-bob 1.2s ease-in-out infinite;
+  animation: hint-bob 1.4s ease-in-out infinite;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.2);
+}
+.help-scroll-hint::after {
+  content: '▾';
+  font-size: 16px;
+  line-height: 1;
 }
 .help-body-wrap.at-bottom .help-scroll-hint { opacity: 0; }
 @keyframes hint-bob {
@@ -808,6 +823,48 @@ label.sell > input:focus { border-color: var(--accent); }
   border-top-color: #1e5bbf;
   border-bottom-color: #7ab4ff;
 }
+
+/* ---------- Form modal scroll hint ---------- */
+.form-scroll-gradient {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 100px;
+  background: linear-gradient(to bottom, transparent, var(--bg-raised));
+  pointer-events: none;
+  z-index: 4;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+.form-scroll-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.75rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: 999px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  animation: hint-bob 1.4s ease-in-out infinite;
+  z-index: 5;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.2);
+}
+.form-scroll-hint::after {
+  content: '▾';
+  font-size: 16px;
+  line-height: 1;
+}
+.form-scroll-gradient.is-hidden,
+.form-scroll-hint.is-hidden { opacity: 0; }
 
 /* ---------- WebSocket connection overlay ---------- */
 .ws-overlay {

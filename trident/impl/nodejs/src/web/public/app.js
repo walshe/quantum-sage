@@ -606,6 +606,7 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
   }
   if (notes.length) {
     const det = document.createElement('details');
+    det.open = true;
     det.className = 'ai-banner-notes';
     const sum = document.createElement('summary');
     sum.textContent = tx('Extraction details');
@@ -633,9 +634,23 @@ function setSubmitStatus(text, kind) {
 // then opens the form-dialog. The form's own Submit button still fires
 // submitForm() which in turn opens the confirm-dialog on top.
 // ---------------------------------------------------------------------------
+function updateFormScrollHint() {
+  const form = $('#signal-form');
+  const hint = $('.form-scroll-hint');
+  const grad = $('.form-scroll-gradient');
+  if (!form || !hint) return;
+  const atBottom = form.scrollHeight - form.scrollTop <= form.clientHeight + 4;
+  hint.classList.toggle('is-hidden', atBottom);
+  if (grad) grad.classList.toggle('is-hidden', atBottom);
+}
+
 function openFormModal() {
   const dlg = $('#form-dialog');
   if (!dlg.open) dlg.showModal();
+  // Reset scroll to top and re-evaluate hint visibility.
+  const form = $('#signal-form');
+  if (form) form.scrollTop = 0;
+  updateFormScrollHint();
 }
 function closeFormModal() {
   const dlg = $('#form-dialog');
@@ -1257,6 +1272,8 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.textContent = 'Calculate';
     }
   });
+
+  $('#signal-form').addEventListener('scroll', updateFormScrollHint);
 
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
