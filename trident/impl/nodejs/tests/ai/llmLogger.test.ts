@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { estimateCost, logLlmCall, type LlmCallEntry } from '../src/ai/llmLogger.js';
+import { estimateCost, logLlmCall, type LlmCallEntry } from '../../src/ai/llmLogger.js';
 
 describe('estimateCost', () => {
   it('computes cost for gpt-4o-2024-11-20', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { Notifier, NotificationEvent } from '../src/notifier/Notifier.js';
-import { MultiNotifier } from '../src/notifier/MultiNotifier.js';
+import type { Notifier, NotificationEvent } from '../../src/notifier/Notifier.js';
+import { MultiNotifier } from '../../src/notifier/MultiNotifier.js';
 
 class RecordingNotifier implements Notifier {
   received: NotificationEvent[] = [];

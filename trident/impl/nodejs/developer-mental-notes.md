@@ -746,3 +746,9 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   closes). Fine-grained feed metrics (tick count, tick rate, connection state)
   are recorded directly in `index.ts` at the feed callback boundary — they
   happen at much higher frequency and don't belong in the notifier chain.
+
+- **Test files mirror the `src/` module structure.** Vitest tests live under
+  `tests/<module>/` matching their source counterpart (e.g. tests for
+  `src/ai/` go in `tests/ai/`). Imports use `../../src/` (one extra `../`
+  relative to the old flat layout). Vitest discovers them automatically via
+  its default `**/*.test.ts` glob — no config file needed.

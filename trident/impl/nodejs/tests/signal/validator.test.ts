@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { validateSignal } from '../src/signal/validator.js';
-import type { SignalFile } from '../src/signal/types.js';
+import { validateSignal } from '../../src/signal/validator.js';
+import type { SignalFile } from '../../src/signal/types.js';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const NOW_TIME = new Date().toTimeString().slice(0, 5);

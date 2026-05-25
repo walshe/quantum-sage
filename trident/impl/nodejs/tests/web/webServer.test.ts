@@ -3,10 +3,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'fs
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { dump, load } from 'js-yaml';
-import { startWebServer, type WebServerHandle } from '../src/web/server.js';
-import type { QSConfig } from '../src/config/types.js';
-import type { SignalFile } from '../src/signal/types.js';
-import type { Bootstrap } from '../src/notifier/WebSocketNotifier.js';
+import { startWebServer, type WebServerHandle } from '../../src/web/server.js';
+import type { QSConfig } from '../../src/config/types.js';
+import type { SignalFile } from '../../src/signal/types.js';
+import type { Bootstrap } from '../../src/notifier/WebSocketNotifier.js';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const NOW_TIME = new Date().toTimeString().slice(0, 5);

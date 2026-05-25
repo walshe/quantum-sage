@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { piiRedact } from '../src/ai/piiRedactor.js';
+import { piiRedact } from '../../src/ai/piiRedactor.js';
 
 describe('piiRedactor', () => {
   it('redacts email addresses', () => {

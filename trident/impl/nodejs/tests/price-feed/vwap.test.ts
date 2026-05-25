@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { CTraderPriceFeed, type OhlcvBar } from '../src/price-feed/CTraderPriceFeed.js';
-import { startWebServer, type WebServerHandle } from '../src/web/server.js';
-import type { QSConfig } from '../src/config/types.js';
-import type { Bootstrap } from '../src/notifier/WebSocketNotifier.js';
+import { CTraderPriceFeed, type OhlcvBar } from '../../src/price-feed/CTraderPriceFeed.js';
+import { startWebServer, type WebServerHandle } from '../../src/web/server.js';
+import type { QSConfig } from '../../src/config/types.js';
+import type { Bootstrap } from '../../src/notifier/WebSocketNotifier.js';
 import WebSocket from 'ws';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

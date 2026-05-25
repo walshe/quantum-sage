@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AddressInfo } from 'net';
-import { WebSocketNotifier, type Bootstrap } from '../src/notifier/WebSocketNotifier.js';
-import type { NotificationEvent } from '../src/notifier/Notifier.js';
+import { WebSocketNotifier, type Bootstrap } from '../../src/notifier/WebSocketNotifier.js';
+import type { NotificationEvent } from '../../src/notifier/Notifier.js';
 
 const bootstrap: Bootstrap = {
   serverTime: '2026-04-21T10:00:00.000Z',
