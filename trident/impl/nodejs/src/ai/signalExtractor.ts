@@ -1,8 +1,9 @@
 import type { ImageInput, ExtractionResult, VisionProvider } from './types.js';
 import { SIGNAL_EXTRACTION_PROMPT } from './prompts/signalExtractionPrompt.js';
-import { checkBeforeCall, recordUsage, getMetrics } from './guardrail.js';
+import { recordUsage, getMetrics } from './guardrail.js';
 import { logLlmCall, estimateCost } from './llmLogger.js';
-import { validateExtractionResult, OutputValidationError } from './outputValidator.js';
+import { OutputValidationError } from './outputValidator.js';
+import { buildExtractionGraph } from './extractionGraph.js';
 import { getLogger } from '../logger.js';
 
 const log = getLogger('signalExtractor');
@@ -19,95 +20,103 @@ export interface ExtractOpts {
 }
 
 /**
- * Orchestrates a screenshot → signal extraction:
- *   1. Asks the guardrail whether to proceed (injection screening).
- *   2. Calls the provider with the canonical Trident prompt.
- *   3. Validates the response shape and ranges.
- *   4. Normalises the result (defaults that the model never sees).
- *   5. Logs the call and records usage metrics.
+ * Orchestrates a screenshot → signal extraction via a LangGraph state graph:
+ *   guardrail → llm-call → validate → normalise
+ *
+ * Logging and metrics recording remain here (not in graph nodes) because they
+ * are session-scoped cross-cutting concerns, not pipeline data transforms.
  */
 export class SignalExtractor {
-  constructor(private readonly provider: VisionProvider) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly graph: any;
+
+  constructor(private readonly provider: VisionProvider) {
+    this.graph = buildExtractionGraph(provider);
+  }
 
   async extract(images: ImageInput[], opts: ExtractOpts = {}): Promise<ExtractionResult> {
-    const totalBytes = images.reduce((acc, i) => acc + i.bytes.length, 0);
-    const ctx = { imageCount: images.length, totalBytes, callerKey: opts.callerKey };
+    const t0 = Date.now();
 
-    const decision = checkBeforeCall(ctx);
-    if (!decision.allowed) {
-      throw new ExtractionBlockedError(decision.reason ?? 'guardrail veto');
+    const finalState = await this.graph.invoke({
+      images,
+      callerKey:    opts.callerKey,
+      systemPrompt: SIGNAL_EXTRACTION_PROMPT,
+      result:        undefined,
+      error:         undefined,
+      blocked:       false,
+      blockedReason: undefined,
+      t0,
+    });
+
+    const latencyMs = Date.now() - t0;
+
+    // Guardrail blocked — no LLM call was made; guardrail.ts already incremented injectionBlocks
+    if (finalState.blocked) {
+      throw new ExtractionBlockedError(finalState.blockedReason ?? 'guardrail veto');
     }
 
-    const t0 = Date.now();
-    let raw: ExtractionResult | undefined;
+    const raw: ExtractionResult | undefined = finalState.result;
+    const err: Error | undefined            = finalState.error;
 
-    try {
-      raw = await this.provider.extractSignal(images, SIGNAL_EXTRACTION_PROMPT);
-      const latencyMs = Date.now() - t0;
-
-      validateExtractionResult(raw);
-
-      const normalised = normalise(raw);
-
-      const promptTokens = raw.usage?.inputTokens ?? 0;
-      const completionTokens = raw.usage?.outputTokens ?? 0;
-      const estimatedCostUsd = estimateCost(raw.model, promptTokens, completionTokens);
-
-      logLlmCall({
-        provider: raw.provider,
-        model: raw.model,
-        latencyMs,
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-        estimatedCostUsd,
-        success: true,
-        error: null,
-        callerKey: opts.callerKey,
-      });
-
-      recordUsage({ latencyMs, promptTokens, completionTokens, estimatedCostUsd, success: true, validationFailed: false });
-
-      log.info('Extraction complete', {
-        provider: raw.provider,
-        model: raw.model,
-        latencyMs,
-        inputTokens: raw.usage?.inputTokens,
-        outputTokens: raw.usage?.outputTokens,
-        noteCount: raw.notes.length,
-        warningCount: raw.warnings.length,
-      });
-
-      return normalised;
-    } catch (err) {
-      const latencyMs = Date.now() - t0;
-      const errorMsg = err instanceof Error ? err.message : String(err);
+    if (err) {
       const validationFailed = err instanceof OutputValidationError;
-
       logLlmCall({
         provider: raw?.provider ?? 'unknown',
-        model: raw?.model ?? 'unknown',
+        model:    raw?.model    ?? 'unknown',
         latencyMs,
-        promptTokens: raw?.usage?.inputTokens ?? 0,
+        promptTokens:    raw?.usage?.inputTokens  ?? 0,
         completionTokens: raw?.usage?.outputTokens ?? 0,
         totalTokens: (raw?.usage?.inputTokens ?? 0) + (raw?.usage?.outputTokens ?? 0),
         estimatedCostUsd: null,
         success: false,
-        error: errorMsg,
+        error:   err.message,
         callerKey: opts.callerKey,
       });
-
       recordUsage({
         latencyMs,
-        promptTokens: raw?.usage?.inputTokens ?? 0,
+        promptTokens:     raw?.usage?.inputTokens  ?? 0,
         completionTokens: raw?.usage?.outputTokens ?? 0,
         estimatedCostUsd: null,
-        success: false,
+        success:         false,
         validationFailed,
       });
-
       throw err;
     }
+
+    if (!raw) {
+      throw new Error('SignalExtractor: graph completed without result or error');
+    }
+
+    const promptTokens     = raw.usage?.inputTokens  ?? 0;
+    const completionTokens = raw.usage?.outputTokens ?? 0;
+    const estimatedCostUsd = estimateCost(raw.model, promptTokens, completionTokens);
+
+    logLlmCall({
+      provider: raw.provider,
+      model:    raw.model,
+      latencyMs,
+      promptTokens,
+      completionTokens,
+      totalTokens: promptTokens + completionTokens,
+      estimatedCostUsd,
+      success: true,
+      error:   null,
+      callerKey: opts.callerKey,
+    });
+
+    recordUsage({ latencyMs, promptTokens, completionTokens, estimatedCostUsd, success: true, validationFailed: false });
+
+    log.info('Extraction complete', {
+      provider: raw.provider,
+      model:    raw.model,
+      latencyMs,
+      inputTokens:  raw.usage?.inputTokens,
+      outputTokens: raw.usage?.outputTokens,
+      noteCount:    raw.notes.length,
+      warningCount: raw.warnings.length,
+    });
+
+    return raw;
   }
 
   /** Emits a session-summary log entry with accumulated AI quality metrics. */
@@ -115,15 +124,15 @@ export class SignalExtractor {
     const metrics = getMetrics();
     log.info('AI session metrics', {
       event: 'AI_SESSION_METRICS',
-      totalCalls: metrics.totalCalls,
-      successCount: metrics.successCount,
-      failureCount: metrics.failureCount,
+      totalCalls:       metrics.totalCalls,
+      successCount:     metrics.successCount,
+      failureCount:     metrics.failureCount,
       validationFailures: metrics.validationFailures,
-      injectionBlocks: metrics.injectionBlocks,
-      p50LatencyMs: metrics.p50LatencyMs,
-      p95LatencyMs: metrics.p95LatencyMs,
-      totalCostUsd: metrics.totalCostUsd,
-      successRate: metrics.successRate,
+      injectionBlocks:  metrics.injectionBlocks,
+      p50LatencyMs:     metrics.p50LatencyMs,
+      p95LatencyMs:     metrics.p95LatencyMs,
+      totalCostUsd:     metrics.totalCostUsd,
+      successRate:      metrics.successRate,
     });
   }
 }
@@ -131,21 +140,18 @@ export class SignalExtractor {
 /**
  * Stamp the fields the model isn't allowed to invent so the response is
  * always loadable into the form / validatable as a SignalFile.
+ * Exported for use in the LangGraph normalise node.
  */
-function normalise(result: ExtractionResult): ExtractionResult {
+export function normalise(result: ExtractionResult): ExtractionResult {
   const signal = (result.signal ?? {}) as Record<string, unknown>;
-  // schema_version is always "1.0".
   signal.schema_version = '1.0';
-  // execution_instrument is always US500.cash.
   const meta = (signal.meta ?? {}) as Record<string, unknown>;
   meta.execution_instrument = 'US500.cash';
   if (meta.update_seq == null) meta.update_seq = 1;
   signal.meta = meta;
-  // levels.additional must be an array.
   const levels = (signal.levels ?? {}) as Record<string, unknown>;
   if (!Array.isArray(levels.additional)) levels.additional = [];
   signal.levels = levels;
-  // VWAP source default.
   const vwap = (signal.vwap ?? {}) as Record<string, unknown>;
   if (!vwap.source) vwap.source = 'manual';
   signal.vwap = vwap;

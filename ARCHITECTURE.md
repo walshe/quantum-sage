@@ -18,12 +18,13 @@ Analyst (FB)
 │  Snapshot / persistence                                 │
 │                                                         │
 │  AI extraction pipeline (src/ai/):                      │
-│    Guardrail      — injection screening + session stats │
-│    SignalExtractor — orchestrates the AI call           │
-│    OutputValidator — runtime shape + range checks       │
-│    LlmLogger      — per-call audit log (LLM_CALL)      │
-│    PiiRedactor    — redacts PII from log content        │
-│    OpenAIProvider — GPT-4o vision API                   │
+│    Guardrail             — injection screening + stats  │
+│    ExtractionGraph       — LangGraph 4-node pipeline   │
+│    SignalExtractor       — graph host + logging         │
+│    OutputValidator       — runtime shape + range checks │
+│    LlmLogger             — per-call audit (LLM_CALL)   │
+│    PiiRedactor           — redacts PII from logs        │
+│    LangChainExtractionProvider — GPT-4o via LangChain  │
 │                                                         │
 │  MultiNotifier fan-out:                                 │
 │    ConsoleNotifier  (human-readable)                    │
@@ -42,7 +43,7 @@ Analyst (FB)
 ## Data flow
 
 1. **Setup file** — analyst submits via the web form (`POST /signals`); the server validates and writes `qs_setup_YYYY-MM-DD_HHmm.yaml` atomically to `setups/`. `fs.watch` detects the file and calls `TridentEngine.loadSignal()`.
-2. **AI extraction** (optional) — analyst uploads chart screenshots (`POST /signals/extract`); `SignalExtractor` screens for injection, calls the vision LLM, validates the response shape and ranges, and returns a pre-filled signal payload. Logs a structured `LLM_CALL` entry per call and emits `AI_SESSION_METRICS` on shutdown.
+2. **AI extraction** (optional) — analyst uploads chart screenshots (`POST /signals/extract`); `SignalExtractor` invokes a LangGraph state graph (guardrail → llm-call → validate → normalise) backed by `LangChainExtractionProvider` (`ChatOpenAI` + `.withStructuredOutput()`), validates the response shape and ranges, and returns a pre-filled signal payload. Logs a structured `LLM_CALL` entry per call and emits `AI_SESSION_METRICS` on shutdown.
 3. **Price ticks** — `CTraderPriceFeed` streams live bid/ask over WebSocket; `onPriceUpdate(price)` drives the engine's entire decision loop every tick.
 3a. **Live VWAP fetch** — `GET /api/vwap` uses the same authenticated cTrader WebSocket to send `ProtoOAGetTrendbarsReq` (PT 2137) for today's M1 bars, computes VWAP = Σ((H+L+C)/3 × V) / ΣV, and returns the result. The Calculate button in the setup form calls this endpoint. Returns 503 if the cTrader feed is not connected.
 4. **Engine events** — state transitions (`SETUP_READY`, `ENTRY_TRIGGERED`, `POSITION_CLOSED`, etc.) are emitted to the `MultiNotifier` chain and fanned out to all registered notifiers in parallel.
