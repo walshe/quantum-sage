@@ -1,0 +1,10 @@
+[config]
+model = "deepseek/deepseek-chat"
+fallback_models = []
+
+[pr_reviewer]
+enable_review_labels_security = false
+enable_review_labels_effort = true
+
+[pr_description]
+publish_labels = false
