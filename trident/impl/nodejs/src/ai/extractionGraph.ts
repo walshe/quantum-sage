@@ -7,15 +7,19 @@ import { normalise } from './signalExtractor.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+// Each field uses last-write-wins semantics (value: (_, y) => y) — nodes
+// replace fields rather than accumulating them.
+const lw = <T>() => (_: T, y: T): T => y;
+
 const ExtractionStateAnnotation = Annotation.Root({
-  images:        Annotation<ImageInput[]>({ default: () => [] }),
-  callerKey:     Annotation<string | undefined>({ default: () => undefined }),
-  systemPrompt:  Annotation<string>({ default: () => '' }),
-  result:        Annotation<ExtractionResult | undefined>({ default: () => undefined }),
-  error:         Annotation<Error | undefined>({ default: () => undefined }),
-  blocked:       Annotation<boolean>({ default: () => false }),
-  blockedReason: Annotation<string | undefined>({ default: () => undefined }),
-  t0:            Annotation<number>({ default: () => Date.now() }),
+  images:        Annotation<ImageInput[]>({ value: lw(), default: () => [] }),
+  callerKey:     Annotation<string | undefined>({ value: lw(), default: () => undefined }),
+  systemPrompt:  Annotation<string>({ value: lw(), default: () => '' }),
+  result:        Annotation<ExtractionResult | undefined>({ value: lw(), default: () => undefined }),
+  error:         Annotation<Error | undefined>({ value: lw(), default: () => undefined }),
+  blocked:       Annotation<boolean>({ value: lw(), default: () => false }),
+  blockedReason: Annotation<string | undefined>({ value: lw(), default: () => undefined }),
+  t0:            Annotation<number>({ value: lw(), default: () => Date.now() }),
 });
 
 export type ExtractionState = typeof ExtractionStateAnnotation.State;
