@@ -304,6 +304,7 @@ export class TridentEngine {
     await this.notifier.notify({
       type: 'SETUP_READY',
       direction,
+      bias: (biasDir ?? null) as 'long' | 'short' | 'neutral' | null,
       entries,
       stopPoints: this.config.trident.stop_loss_points,
       vwap: signal.vwap.value,
@@ -634,6 +635,14 @@ export class TridentEngine {
 
   getSignalFilePath(): string | null {
     return this.signalFilePath;
+  }
+
+  getTradeSetup(): EntryLevel[] | null {
+    return this.tradeSetup;
+  }
+
+  getTradeDirection(): 'long' | 'short' | null {
+    return this.inferDirection();
   }
 
   reset(): void {

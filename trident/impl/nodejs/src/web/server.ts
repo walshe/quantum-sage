@@ -10,6 +10,7 @@ import type { SignalFile } from '../signal/types.js';
 import { validateSignal } from '../signal/validator.js';
 import { loadSignalFile } from '../signal/loader.js';
 import { WebSocketNotifier, type Bootstrap } from '../notifier/WebSocketNotifier.js';
+import type { NotificationEvent } from '../notifier/Notifier.js';
 import { buildVisionProvider, SignalExtractor, ExtractionBlockedError, type ImageInput } from '../ai/index.js';
 import { getLogger } from '../logger.js';
 import { CTraderPriceFeed, type OhlcvBar } from '../price-feed/CTraderPriceFeed.js';
@@ -27,6 +28,8 @@ export interface StartWebServerOpts {
   metricsHandler?: (req: Request, res: Response) => Promise<void>;
   /** Returns the live cTrader feed instance, or null/undefined if not active. */
   getPriceFeed?: () => CTraderPriceFeed | null;
+  /** Optional: return a NotificationEvent to replay to each new browser client (e.g. SETUP_READY when engine is already watching on reconnect). */
+  getReplayEvent?: () => NotificationEvent | null;
 }
 
 export interface WebServerHandle {
@@ -213,6 +216,7 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
   const server: Server = createServer(app);
   const wss = new WebSocketServer({ server, path: '/events' });
   const notifier = new WebSocketNotifier(wss, opts.getBootstrap, {
+    getReplayEvent: opts.getReplayEvent,
     includePriceUpdates: true,
     priceThrottleMs: 500,
   });

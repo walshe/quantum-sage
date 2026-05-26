@@ -523,20 +523,31 @@ Three contracts: `ImageInput` (`{ bytes, mimeType, filename? }`),
 and `VisionProvider` (`{ name, model, extractSignal(images, systemPrompt) }`).
 Provider implementations swap the SDK without changing anything upstream.
 
-### `providers/index.ts` + `providers/LangChainExtractionProvider.ts`
-`buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `openai`)
+### `providers/index.ts` + `providers/ClaudeExtractionProvider.ts` + `providers/LangChainExtractionProvider.ts`
+`buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `anthropic`)
 and returns `null` if the chosen provider isn't configured (e.g. no
-`OPENAI_API_KEY`). Severity of the disable-log depends on whether the operator
+`ANTHROPIC_API_KEY`). Severity of the disable-log depends on whether the operator
 *explicitly* asked for a provider — explicit + missing key is `error`, implicit
 default + missing key is `info` (operator never asked for AI).
 
-`LangChainExtractionProvider` implements `VisionProvider` using LangChain's
-`ChatOpenAI` + `.withStructuredOutput()` (with `includeRaw: true` to retain
-token usage). It replaces the previous hand-rolled `OpenAIProvider` — same
-underlying OpenAI API call, industry-standard framework wrapper. LangSmith
-tracing is suppressed in the constructor (`LANGCHAIN_TRACING_V2=false`), so no
-LangSmith account is needed. The archived `OpenAIProvider.ts` lives in
-`providers/_archive/` for easy rollback during the POC.
+**Active provider: `ClaudeExtractionProvider`** — uses the Anthropic SDK directly
+(not LangChain). `tool_choice: { type: "tool", name: "return_extracted_signal" }`
+forces a single structured tool call. The system prompt uses `cache_control: { type: "ephemeral" }` 
+for prompt caching — input tokens cost ~90% less after the first call of a session
+(5-minute cache TTL). Set `TRIDENT_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`
+in `.env`. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`).
+
+**Why Claude, not GPT-4o:** GPT-4o has a hard spatial column bias when reading
+two-column chart panels. When the IV Smile panel shows "Morning" (green background,
+left) and "Opening Bell Range" (white background, right) side by side, GPT-4o
+reliably reads the left (Morning) column for rows that appear *below* the DVS box
+visual break — even with explicit emphatic instructions naming the column and its
+background colour. Claude (`claude-sonnet-4-6`) passes the same three golden-dataset
+fixtures at 100% first-try. The cost difference is negligible for this workload
+(<1 call/day, ~2 500 tokens/call).
+
+`LangChainExtractionProvider` remains available (`TRIDENT_AI_PROVIDER=openai`) for
+rollback. The archived `OpenAIProvider.ts` lives in `providers/_archive/`.
 
 ### `extractionGraph.ts`
 LangGraph `StateGraph` that models the extraction pipeline as four nodes:
@@ -729,8 +740,8 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   reconstituted from the WebSocket bootstrap envelope on every connect.
 - **AI is optional and never authoritative.** The setup extractor pre-fills
   the form; the analyst always reviews; the validator gates entry into the
-  engine. Removing `OPENAI_API_KEY` reverts the dashboard to manual entry —
-  nothing else changes.
+  engine. Removing `ANTHROPIC_API_KEY` (or clearing `TRIDENT_AI_PROVIDER`)
+  reverts the dashboard to manual entry — nothing else changes.
 - **Observability is optional and lives entirely in `index.ts`.**
   `src/observability/` defines the `MetricsBackend` interface, `NoopBackend`
   (the default), `PrometheusBackend` (`prom-client` + `/metrics` endpoint),

@@ -3,18 +3,18 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 
-import { LangChainExtractionProvider } from '../src/ai/providers/LangChainExtractionProvider.js';
+import { ClaudeExtractionProvider } from '../src/ai/providers/ClaudeExtractionProvider.js';
 import { SignalExtractor, ExtractionBlockedError } from '../src/ai/signalExtractor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, '../.env') });
 
-const apiKey = process.env.OPENAI_API_KEY;
+const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {
-  throw new Error('OPENAI_API_KEY is not set — add it to trident/impl/nodejs/.env before running evals');
+  throw new Error('ANTHROPIC_API_KEY is not set — add it to trident/impl/nodejs/.env before running evals');
 }
 
-const visionProvider = new LangChainExtractionProvider({ apiKey });
+const visionProvider = new ClaudeExtractionProvider({ apiKey });
 const extractor = new SignalExtractor(visionProvider);
 
 export default class SignalExtractorProvider {

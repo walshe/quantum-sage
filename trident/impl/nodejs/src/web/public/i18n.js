@@ -337,6 +337,27 @@ window.TRIDENT_I18N = {
     'Currently loaded setup': 'Setup attualmente caricato',
     'No setup loaded today.': 'Nessun setup caricato oggi.',
 
+    // ---------- Trade plan note ----------
+    'No bias set — defaulting to long.': 'Bias non impostato — di default long.',
+    'Bias: long{conf}.': 'Bias: long{conf}.',
+    'Bias: short{conf}.': 'Bias: short{conf}.',
+    'Bias: neutral{conf} — defaulting to long.': 'Bias: neutro{conf} — di default long.',
+    'Buy entry: watching for {price} BUY INNER (Entry 1)': 'Ingresso long: in attesa di {price} BUY INNER (Entry 1)',
+    'Sell entry: watching for {price} SELL INNER (Entry 1)': 'Ingresso short: in attesa di {price} SELL INNER (Entry 1)',
+    '{price} mid (Entry 2, derived)': '{price} mid (Entry 2, derivato)',
+    '{price} BUY OUTER (Entry 3)': '{price} BUY OUTER (Entry 3)',
+    '{price} SELL OUTER (Entry 3)': '{price} SELL OUTER (Entry 3)',
+    'engine enters long.': 'motore entra long.',
+    'engine enters short.': 'motore entra short.',
+    'Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.':
+      'Target profitto: VWAP a {vwap} — la posizione si chiude interamente al raggiungimento del VWAP.',
+    'below {price}': 'sotto {price}',
+    'above {price}': 'sopra {price}',
+    'Void if price {levels} before entry': 'Invalido se prezzo {levels} prima dell\'ingresso',
+    ' or ': ' o ',
+    ', or after {expiry}.': ', o dopo le {expiry}.',
+    'Expires {expiry}.': 'Scade alle {expiry}.',
+
     // ---------- AI extraction banner ----------
     'AI extraction unavailable': 'Estrazione AI non disponibile',
     'AI extraction failed': 'Estrazione AI fallita',

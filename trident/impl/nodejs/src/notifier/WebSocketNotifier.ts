@@ -58,12 +58,20 @@ export class WebSocketNotifier implements Notifier {
   constructor(
     wss: WebSocketServer,
     private readonly getBootstrap: () => Bootstrap,
-    opts: { includePriceUpdates?: boolean; priceThrottleMs?: number } = {}
+    opts: {
+      includePriceUpdates?: boolean;
+      priceThrottleMs?: number;
+      /** Optional: return a NotificationEvent to replay immediately after the bootstrap (e.g. SETUP_READY when engine is already watching). */
+      getReplayEvent?: () => NotificationEvent | null;
+    } = {}
   ) {
     this.includePriceUpdates = opts.includePriceUpdates ?? false;
     this.priceThrottleMs = opts.priceThrottleMs ?? 250;
+    this.getReplayEvent = opts.getReplayEvent ?? null;
     wss.on('connection', ws => this.handleConnection(ws));
   }
+
+  private readonly getReplayEvent: (() => NotificationEvent | null) | null;
 
   private handleConnection(ws: WebSocket): void {
     this.clients.add(ws);
@@ -72,6 +80,18 @@ export class WebSocketNotifier implements Notifier {
       ws.send(this.encode({ kind: 'bootstrap', data: this.getBootstrap() }));
     } catch (err) {
       log.warn('Failed to send bootstrap', { error: (err as Error).message });
+    }
+    // Replay the active setup event so the live log shows it even on reconnect
+    if (this.getReplayEvent) {
+      try {
+        const event = this.getReplayEvent();
+        if (event) {
+          const formatted = formatEvent(event);
+          ws.send(this.encode({ kind: 'event', data: { ...formatted, raw: event } }));
+        }
+      } catch (err) {
+        log.warn('Failed to send replay event', { error: (err as Error).message });
+      }
     }
     ws.on('close', () => {
       this.clients.delete(ws);

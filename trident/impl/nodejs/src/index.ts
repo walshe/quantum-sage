@@ -31,7 +31,7 @@ import { getLogger } from './logger.js';
 
 const log = getLogger('Trident');
 import type { Bootstrap } from './notifier/WebSocketNotifier.js';
-import type { Notifier } from './notifier/Notifier.js';
+import type { Notifier, NotificationEvent } from './notifier/Notifier.js';
 
 const args = process.argv.slice(2);
 const configPath = argValue(args, '--config') ?? './config.yaml';
@@ -136,6 +136,7 @@ const webServer = await startWebServer({
   signalsDir: signalDir,
   publicDir: resolve('src/web/public'),
   getBootstrap: buildBootstrap,
+  getReplayEvent: buildSetupReplayEvent,
   metricsHandler,
   getPriceFeed: () => liveFeed,
 });
@@ -270,6 +271,27 @@ function argValueEquals(args: string[], flag: string): string | undefined {
   const prefix = `${flag}=`;
   const match = args.find(a => a.startsWith(prefix));
   return match ? match.slice(prefix.length) : undefined;
+}
+
+/**
+ * Returns a SETUP_READY event reflecting the engine's current watching state,
+ * or null if the engine is not watching. Sent to each browser client on
+ * connect so the live log shows the active setup even after a page reload.
+ */
+function buildSetupReplayEvent(): NotificationEvent | null {
+  if (engine.getState() !== 'watching') return null;
+  const signal = engine.getCurrentSignal();
+  const entries = engine.getTradeSetup();
+  const direction = engine.getTradeDirection();
+  if (!signal || !entries || !direction) return null;
+  return {
+    type: 'SETUP_READY',
+    direction,
+    bias: (signal.bias?.direction ?? null) as 'long' | 'short' | 'neutral' | null,
+    entries,
+    stopPoints: config.trident.stop_loss_points,
+    vwap: signal.vwap.value,
+  };
 }
 
 function buildBootstrap(): Bootstrap {

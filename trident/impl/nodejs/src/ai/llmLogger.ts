@@ -23,10 +23,17 @@ interface ModelRate {
 }
 
 const COST_RATES: Record<string, ModelRate> = {
+  // OpenAI
   'gpt-4o-2024-11-20': { inputPer1MTokens: 2.50,  outputPer1MTokens: 10.00 },
   'gpt-4o-mini':       { inputPer1MTokens: 0.15,  outputPer1MTokens: 0.60  },
+  // DeepSeek
   'deepseek-chat':     { inputPer1MTokens: 0.27,  outputPer1MTokens: 1.10  },
   'deepseek-reasoner': { inputPer1MTokens: 0.55,  outputPer1MTokens: 2.19  },
+  // Anthropic (Claude 4.x) — standard input; cached input is 90% cheaper but
+  // usage.input_tokens already reflects cache savings in the API response.
+  'claude-sonnet-4-6': { inputPer1MTokens: 3.00,  outputPer1MTokens: 15.00 },
+  'claude-opus-4-7':   { inputPer1MTokens: 15.00, outputPer1MTokens: 75.00 },
+  'claude-haiku-4-5-20251001': { inputPer1MTokens: 0.80, outputPer1MTokens: 4.00 },
 };
 
 export function estimateCost(model: string, promptTokens: number, completionTokens: number): number | null {

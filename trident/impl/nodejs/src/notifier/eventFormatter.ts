@@ -66,12 +66,17 @@ export function formatEvent(event: NotificationEvent, now: Date = new Date()): F
 
     case 'SETUP_READY': {
       const dir = event.direction.toUpperCase();
+      const entry1 = event.entries.find(e => e.entryNumber === 1);
+      const biasLabel = event.bias === 'long'    ? 'bias: long'
+                      : event.bias === 'short'   ? 'bias: short'
+                      : event.bias === 'neutral' ? 'bias: neutral'
+                      :                            'no bias set — defaulting to long';
       const entryLines = event.entries.map(
         e => `Entry ${e.entryNumber}: ${fmt(e.price)} (${e.allocationPct}%)`
       );
       return {
         timestamp, type: event.type, tag: 'SETUP',
-        headline: `${dir} trade ready`,
+        headline: `Watching for ${dir} entry — Entry 1 triggers @ ${fmt(entry1?.price ?? 0)} (${biasLabel})`,
         detail: [
           ...entryLines,
           `Stop: ${event.stopPoints}pts from avg entry | Target: VWAP @ ${fmt(event.vwap)}`,

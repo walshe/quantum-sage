@@ -40,3 +40,17 @@ fixtures:
       sell_outer: null
       dvs: null
       regime: null
+
+  # Two-column panel: Opening Bell Range all 0.00 — extractor must fall back to Morning column.
+  # Captured 2026-05-26 10:26 (before opening bell fires).
+  # Morning column: Range 1 down 7475.25, Range 2 down 7505.75, Range 2 up 7574.25, Range 1 up 7604.75
+  # Opening Bell Range column: all 0.00
+  - filename: iv_smile_05_ob_fallback.jpg
+    captured_on: "2026-05-26"
+    expected:
+      buy_outer: 7475.25    # Morning Range 1 down → BUY OUTER (fallback from 0.00 Opening Bell Range)
+      buy_inner: 7505.75    # Morning Range 2 down → BUY INNER
+      sell_inner: 7574.25   # Morning Range 2 up   → SELL INNER
+      sell_outer: 7604.75   # Morning Range 1 up   → SELL OUTER
+      dvs: 52.95
+      regime: normal

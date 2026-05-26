@@ -15,6 +15,7 @@ export type NotificationEvent =
   | {
       type: 'SETUP_READY';
       direction: Direction;
+      bias: 'long' | 'short' | 'neutral' | null;
       entries: EntryLevel[];
       stopPoints: number;
       vwap: number;

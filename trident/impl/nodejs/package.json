@@ -17,6 +17,7 @@
   },
   "_comment_langchain": "LangChain/LangGraph POC — MIT, no per-call cost; same underlying OpenAI API",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "@langchain/core": "~0.3.80",
     "@langchain/langgraph": "~0.2.74",
     "@langchain/openai": "~0.4.9",

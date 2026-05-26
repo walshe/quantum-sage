@@ -994,32 +994,38 @@ function buildTradePlanNote(signal) {
   const has = v => v != null && v !== '';
   const parts = [];
 
-  parts.push(dir ? `Bias: ${dir}${conf}.` : 'Two-sided setup (no directional bias).');
+  // Determine effective direction — mirrors engine logic: null/neutral both default to long.
+  const effectiveDir = (dir === 'short') ? 'short' : 'long';
+  const biasNote = dir === 'long'    ? tx('Bias: long{conf}.').replace('{conf}', conf)
+                 : dir === 'short'   ? tx('Bias: short{conf}.').replace('{conf}', conf)
+                 : dir === 'neutral' ? tx('Bias: neutral{conf} — defaulting to long.').replace('{conf}', conf)
+                 :                     tx('No bias set — defaulting to long.');
+  parts.push(biasNote);
 
-  if (dir !== 'short' && has(l.max_buy_2)) {
+  if (effectiveDir === 'long' && has(l.max_buy_2)) {
     const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
-    let s = `Buy entry: watching for ${fmtNum(l.max_buy_2)} BUY INNER (Entry 1)`;
-    if (midBuy != null) s += ` → ${fmtNum(midBuy)} mid (Entry 2, derived)`;
-    if (has(l.max_buy_1)) s += ` → ${fmtNum(l.max_buy_1)} BUY OUTER (Entry 3)`;
-    parts.push(s + ' → engine enters long.');
+    let s = tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
+    if (midBuy != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
+    if (has(l.max_buy_1)) s += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
+    parts.push(s + ' → ' + tx('engine enters long.'));
   }
-  if (dir !== 'long' && has(l.max_sell_2)) {
+  if (effectiveDir === 'short' && has(l.max_sell_2)) {
     const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
-    let s = `Sell entry: watching for ${fmtNum(l.max_sell_2)} SELL INNER (Entry 1)`;
-    if (midSell != null) s += ` → ${fmtNum(midSell)} mid (Entry 2, derived)`;
-    if (has(l.max_sell_1)) s += ` → ${fmtNum(l.max_sell_1)} SELL OUTER (Entry 3)`;
-    parts.push(s + ' → engine enters short.');
+    let s = tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
+    if (midSell != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
+    if (has(l.max_sell_1)) s += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
+    parts.push(s + ' → ' + tx('engine enters short.'));
   }
 
   if (has(signal.vwap?.value)) {
-    parts.push(`Profit target: VWAP at ${fmtNum(signal.vwap.value)} — entire position closes when price reaches VWAP.`);
+    parts.push(tx('Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.').replace('{vwap}', fmtNum(signal.vwap.value)));
   }
 
   const voidParts = [];
-  if (has(inv?.void_below)) voidParts.push(`below ${fmtNum(inv.void_below)}`);
-  if (has(inv?.void_above)) voidParts.push(`above ${fmtNum(inv.void_above)}`);
-  let voidStr = voidParts.length ? `Void if price ${voidParts.join(' or ')} before entry` : '';
-  if (inv?.expiry) voidStr += (voidStr ? `, or after ${inv.expiry}` : `Expires ${inv.expiry}`) + '.';
+  if (has(inv?.void_below)) voidParts.push(tx('below {price}').replace('{price}', fmtNum(inv.void_below)));
+  if (has(inv?.void_above)) voidParts.push(tx('above {price}').replace('{price}', fmtNum(inv.void_above)));
+  let voidStr = voidParts.length ? tx('Void if price {levels} before entry').replace('{levels}', voidParts.join(tx(' or '))) : '';
+  if (inv?.expiry) voidStr += (voidStr ? tx(', or after {expiry}.').replace('{expiry}', inv.expiry) : tx('Expires {expiry}.').replace('{expiry}', inv.expiry));
   else if (voidStr) voidStr += '.';
   if (voidStr) parts.push(voidStr);
 
