@@ -284,10 +284,14 @@ function buildSetupReplayEvent(): NotificationEvent | null {
   const entries = engine.getTradeSetup();
   const direction = engine.getTradeDirection();
   if (!signal || !entries || !direction) return null;
+  const bias = (signal.bias?.direction ?? null) as 'long' | 'short' | 'neutral' | null;
+  const altEntries = engine.getAltTradeSetup();
+  const altDirection = engine.getAltTradeDirection() ?? undefined;
   return {
     type: 'SETUP_READY',
     direction,
-    bias: (signal.bias?.direction ?? null) as 'long' | 'short' | 'neutral' | null,
+    ...(altDirection && altEntries ? { altDirection, altEntries } : {}),
+    bias,
     entries,
     stopPoints: config.trident.stop_loss_points,
     vwap: signal.vwap.value,

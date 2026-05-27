@@ -274,6 +274,18 @@ The status band shows, at a glance: "Connected / Reconnecting /
 Disconnected", current state (`idle / watching / in_trade / closed /
 locked`), latest price, and the currently loaded setup.
 
+**Bias field.** In the form's **Bias** section, the Direction dropdown sets
+your directional overlay for the trade:
+
+| Value | Behaviour |
+|-------|-----------|
+| `neutral` *(default)* | Engine watches **both** long and short Entry 1 prices at the same time. Whichever side is hit first becomes the trade; the other is cancelled immediately. Both BUY INNER+OUTER and SELL INNER+OUTER must be filled in for true two-sided watching. |
+| `long` | Engine only watches the long side (BUY INNER+OUTER required). |
+| `short` | Engine only watches the short side (SELL INNER+OUTER required). |
+
+If you don't have a view, leave it on `neutral` — the engine will trade
+whichever direction the market moves to first.
+
 **VWAP Calculate button.** In the form, the VWAP Value field has a
 **Calculate** button to its right. Clicking it fetches today's M1 bars
 directly from the cTrader connection and computes VWAP = Σ((H+L+C)/3 × V) / ΣV,

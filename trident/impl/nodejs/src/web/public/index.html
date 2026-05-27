@@ -66,6 +66,7 @@
   <dialog id="form-dialog" class="form-dialog">
     <div class="dialog-head">
       <h2 id="form-dialog-title">Setup form</h2>
+      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
       <button type="button" class="dialog-close" id="btn-form-close" aria-label="Close">×</button>
     </div>
     <div class="ai-overlay" id="ai-overlay" aria-live="polite" aria-busy="true">
@@ -145,9 +146,8 @@
 
       <fieldset>
         <legend>Bias</legend>
-        <label>Direction <span class="optional">(optional)</span> <i class="info" data-tip="Analyst's directional overlay.&#10;&#10;• long — only take long setups&#10;• short — only shorts&#10;• neutral — either side permitted&#10;&#10;Leave blank if no preference."></i>
+        <label>Direction <i class="info" data-tip="Analyst's directional overlay.&#10;&#10;• neutral — watch both sides simultaneously; whichever Entry 1 is hit first becomes the trade (default)&#10;• long — only take long setups&#10;• short — only shorts"></i>
           <select name="bias.direction">
-            <option value="">(none)</option>
             <option value="long">long</option>
             <option value="short">short</option>
             <option value="neutral" selected>neutral</option>
@@ -185,6 +185,7 @@
   <dialog id="status-dialog" class="status-dialog">
     <div class="dialog-head">
       <h2>Current status</h2>
+      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
       <button type="button" class="dialog-close" id="btn-status-close" aria-label="Close">×</button>
     </div>
     <p class="confirm-sub">A read-only snapshot of the engine and the setup it's operating on right now.</p>
@@ -197,6 +198,7 @@
   <dialog id="help-dialog" class="help-dialog">
     <div class="dialog-head">
       <h2>Trident dashboard — quick reference</h2>
+      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
       <button type="button" class="dialog-close" id="btn-help-close" aria-label="Close">×</button>
     </div>
     <p class="confirm-sub">A short summary of the buttons, the log tags, and the things that go wrong most often. For the full guide, open <code>PHASE_1_ANALYST_GUIDE.md</code>.</p>

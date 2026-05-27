@@ -82,9 +82,11 @@ function applyLang(lang) {
     el.setAttribute('title', tx(_i18nTitleSnap.get(el), lang));
   });
 
-  // Lang toggle button shows the OTHER language as its label.
-  const btn = document.getElementById('btn-lang');
-  if (btn) btn.textContent = lang === 'en' ? 'IT' : 'EN';
+  // All lang toggle buttons (top bar + dialog headers) show the OTHER language as label.
+  const label = lang === 'en' ? 'IT' : 'EN';
+  document.querySelectorAll('#btn-lang, [data-lang-toggle]').forEach(btn => {
+    btn.textContent = label;
+  });
 
   document.documentElement.lang = lang;
 }
@@ -994,38 +996,59 @@ function buildTradePlanNote(signal) {
   const has = v => v != null && v !== '';
   const parts = [];
 
-  // Determine effective direction — mirrors engine logic: null/neutral both default to long.
-  const effectiveDir = (dir === 'short') ? 'short' : 'long';
+  // Two-sided: neutral bias with both level pairs present — engine watches both Entry 1s.
+  const isTwoSided = dir === 'neutral' && has(l.max_buy_2) && has(l.max_sell_2);
+
   const biasNote = dir === 'long'    ? tx('Bias: long{conf}.').replace('{conf}', conf)
                  : dir === 'short'   ? tx('Bias: short{conf}.').replace('{conf}', conf)
-                 : dir === 'neutral' ? tx('Bias: neutral{conf} — defaulting to long.').replace('{conf}', conf)
+                 : dir === 'neutral' ? (isTwoSided
+                     ? tx('Bias: neutral{conf} — watching both sides, first trigger wins.').replace('{conf}', conf)
+                     : tx('Bias: neutral{conf} — one side only (incomplete level pair on the other side).').replace('{conf}', conf))
                  :                     tx('No bias set — defaulting to long.');
   parts.push(biasNote);
 
-  if (effectiveDir === 'long' && has(l.max_buy_2)) {
+  if (isTwoSided) {
+    // Show both chains side by side.
     const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
-    let s = tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
-    if (midBuy != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
-    if (has(l.max_buy_1)) s += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
-    parts.push(s + ' → ' + tx('engine enters long.'));
-  }
-  if (effectiveDir === 'short' && has(l.max_sell_2)) {
+    let buyStr = '⬆️ ' + tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
+    if (midBuy != null) buyStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
+    if (has(l.max_buy_1)) buyStr += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
+    parts.push(buyStr + ' → ' + tx('engine enters long.'));
+
     const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
-    let s = tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
-    if (midSell != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
-    if (has(l.max_sell_1)) s += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
-    parts.push(s + ' → ' + tx('engine enters short.'));
+    let sellStr = '⬇️ ' + tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
+    if (midSell != null) sellStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
+    if (has(l.max_sell_1)) sellStr += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
+    parts.push(sellStr + ' → ' + tx('engine enters short.'));
+  } else {
+    // Single-sided: bias=long, bias=short, or neutral with only one pair of levels.
+    const effectiveDir = (dir === 'short') ? 'short' : 'long';
+
+    if (effectiveDir === 'long' && has(l.max_buy_2)) {
+      const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
+      let s = '⬆️ ' + tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
+      if (midBuy != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
+      if (has(l.max_buy_1)) s += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
+      parts.push(s + ' → ' + tx('engine enters long.'));
+    }
+    if (effectiveDir === 'short' && has(l.max_sell_2)) {
+      const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
+      let s = '⬇️ ' + tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
+      if (midSell != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
+      if (has(l.max_sell_1)) s += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
+      parts.push(s + ' → ' + tx('engine enters short.'));
+    }
   }
 
   if (has(signal.vwap?.value)) {
-    parts.push(tx('Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.').replace('{vwap}', fmtNum(signal.vwap.value)));
+    parts.push('🎯 ' + tx('Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.').replace('{vwap}', fmtNum(signal.vwap.value)));
   }
 
   const voidParts = [];
   if (has(inv?.void_below)) voidParts.push(tx('below {price}').replace('{price}', fmtNum(inv.void_below)));
   if (has(inv?.void_above)) voidParts.push(tx('above {price}').replace('{price}', fmtNum(inv.void_above)));
-  let voidStr = voidParts.length ? tx('Void if price {levels} before entry').replace('{levels}', voidParts.join(tx(' or '))) : '';
-  if (inv?.expiry) voidStr += (voidStr ? tx(', or after {expiry}.').replace('{expiry}', inv.expiry) : tx('Expires {expiry}.').replace('{expiry}', inv.expiry));
+  let voidStr = voidParts.length ? '⚠️ ' + tx('Void if price {levels} before entry').replace('{levels}', voidParts.join(tx(' or '))) : '';
+  if (inv?.expiry) voidStr += (voidStr ? tx(', or after {expiry}.').replace('{expiry}', inv.expiry) : '⚠️ ' + tx('Expires {expiry}.').replace('{expiry}', inv.expiry));
   else if (voidStr) voidStr += '.';
   if (voidStr) parts.push(voidStr);
 
@@ -1283,6 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
+  document.querySelectorAll('[data-lang-toggle]').forEach(btn => btn.addEventListener('click', toggleLang));
   applyLang(currentLang);
 
   // Default date/time to now so a blank form is submittable after pre-fill.

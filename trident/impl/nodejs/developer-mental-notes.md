@@ -400,10 +400,17 @@ Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
 `setupTrade()`. If a trade is already active, ignores the new levels (doesn't
 disrupt the open trade). If daily lock is on, also ignores.
 
-**`setupTrade()`** — looks at available levels and bias to decide direction. If
-both sides are available, uses the bias direction; falls back to long. Calculates
-the three entry prices using the calculator, sets state to `watching`, fires
-`SETUP_READY` to the notifier.
+**`setupTrade()`** — looks at available levels and bias to decide direction.
+
+- `bias=long` / missing levels on short side → single-sided long watch.
+- `bias=short` / missing levels on long side → single-sided short watch.
+- `bias=neutral` **and both level pairs present** → two-sided watch: calculates
+  two independent entry chains, stores them in `this.tradeSetup` (long primary)
+  and `this.tradeSetupAlt` (short alt), fires `SETUP_READY` with both chains.
+- `bias=neutral` but only one pair → falls back to whichever side is available.
+- `null` bias defaults to long when the long pair is present.
+
+Sets state to `watching`, fires `SETUP_READY` to the notifier.
 
 **`onPriceUpdate(price)`** — called on every price tick from the feed. This is
 the main loop. In order:
@@ -412,7 +419,9 @@ the main loop. In order:
 3. Checks invalidation boundaries — if price breaks out of the void range, closes
    everything.
 4. Checks expiry — if past the setup's expiry time, closes everything.
-5. If `watching`: checks whether Entry 1 has been triggered.
+5. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
+   misses and `tradeSetupAlt` is present, also checks the alt Entry 1. Whichever
+   fires first promotes itself to primary, the other is discarded.
 6. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
    breakeven), then checks pending entries (Entry 2, Entry 3).
 

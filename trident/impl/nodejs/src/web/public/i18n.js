@@ -183,8 +183,8 @@ window.TRIDENT_I18N = {
       "Pivot di supporto derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
     "Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
       "Pivot di resistenza derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
-    "Analyst's directional overlay.\n\n• long — only take long setups\n• short — only shorts\n• neutral — either side permitted\n\nLeave blank if no preference.":
-      "Bias direzionale dell'analista.\n\n• long — solo setup long\n• short — solo short\n• neutro — entrambi i lati permessi\n\nLascia vuoto se nessuna preferenza.",
+    "Analyst's directional overlay.\n\n• neutral — watch both sides simultaneously; whichever Entry 1 is hit first becomes the trade (default)\n• long — only take long setups\n• short — only shorts":
+      "Bias direzionale dell'analista.\n\n• neutro — osserva entrambi i lati contemporaneamente; il primo Entry 1 che si attiva diventa il trade (default)\n• long — solo setup long\n• short — solo short",
     "Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour.":
       "Confidenza dell'analista nel bias direzionale. Per ora solo informativo — non cambia il comportamento del motore.",
     "Free-text analyst reasoning. Stored with the setup but not acted on. Optional.":
@@ -341,7 +341,8 @@ window.TRIDENT_I18N = {
     'No bias set — defaulting to long.': 'Bias non impostato — di default long.',
     'Bias: long{conf}.': 'Bias: long{conf}.',
     'Bias: short{conf}.': 'Bias: short{conf}.',
-    'Bias: neutral{conf} — defaulting to long.': 'Bias: neutro{conf} — di default long.',
+    'Bias: neutral{conf} — watching both sides, first trigger wins.': 'Bias: neutro{conf} — osserva entrambi i lati, il primo trigger vince.',
+    'Bias: neutral{conf} — one side only (incomplete level pair on the other side).': 'Bias: neutro{conf} — solo un lato (coppia di livelli incompleta sull\'altro lato).',
     'Buy entry: watching for {price} BUY INNER (Entry 1)': 'Ingresso long: in attesa di {price} BUY INNER (Entry 1)',
     'Sell entry: watching for {price} SELL INNER (Entry 1)': 'Ingresso short: in attesa di {price} SELL INNER (Entry 1)',
     '{price} mid (Entry 2, derived)': '{price} mid (Entry 2, derivato)',

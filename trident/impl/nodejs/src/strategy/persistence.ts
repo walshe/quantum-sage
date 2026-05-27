@@ -58,6 +58,8 @@ export interface EngineSnapshot {
   signalFilePath: string | null;
   activeLevels: ActiveLevels | null;
   tradeSetup: EntryLevel[] | null;
+  /** Alt entry chain for two-sided (neutral bias) watching. Null once one side triggers. */
+  tradeSetupAlt: EntryLevel[] | null;
   position: SerializedPosition | null;
 }
 
@@ -68,6 +70,7 @@ export interface HydratedState {
   signalFilePath: string | null;
   activeLevels: ActiveLevels | null;
   tradeSetup: EntryLevel[] | null;
+  tradeSetupAlt: EntryLevel[] | null;
   position: ActivePosition | null;
 }
 
@@ -78,6 +81,7 @@ export interface SnapshotInput {
   signalFilePath: string | null;
   activeLevels: ActiveLevels | null;
   tradeSetup: EntryLevel[] | null;
+  tradeSetupAlt: EntryLevel[] | null;
   position: ActivePosition | null;
 }
 
@@ -92,6 +96,7 @@ export function buildSnapshot(input: SnapshotInput): EngineSnapshot {
     signalFilePath: input.signalFilePath,
     activeLevels: input.activeLevels,
     tradeSetup: input.tradeSetup,
+    tradeSetupAlt: input.tradeSetupAlt,
     position: input.position ? serializePosition(input.position) : null,
   };
 }
@@ -207,6 +212,7 @@ export function loadSnapshot(path: string): HydratedState | null {
     signalFilePath: parsed.signalFilePath,
     activeLevels: parsed.activeLevels,
     tradeSetup: parsed.tradeSetup,
+    tradeSetupAlt: parsed.tradeSetupAlt ?? null,  // null in older snapshots
     position: parsed.position ? deserializePosition(parsed.position) : null,
   };
 }
