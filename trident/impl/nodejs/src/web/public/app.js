@@ -394,7 +394,19 @@ function fillForm(signal, { resetDateTime = true } = {}) {
   const setField = (path, value) => {
     const el = form.querySelector(`[name="${path}"]`);
     if (!el) return;
-    if (value === null || value === undefined) { el.value = ''; return; }
+    if (value === null || value === undefined) {
+      // For <select> elements, only clear to '' if the dropdown actually has an
+      // empty option — otherwise leave the HTML default (the `selected` attribute).
+      // This prevents a pre-fill with no bias from overriding the neutral default.
+      if (el.tagName === 'SELECT') {
+        const hasEmptyOpt = Array.from(el.options).some(o => o.value === '');
+        if (hasEmptyOpt) el.value = '';
+        // else: leave whatever the HTML `selected` attribute set (e.g. neutral)
+      } else {
+        el.value = '';
+      }
+      return;
+    }
     el.value = value;
   };
   const walk = (obj, prefix) => {
