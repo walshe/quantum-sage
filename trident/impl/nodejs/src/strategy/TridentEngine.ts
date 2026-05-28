@@ -198,6 +198,20 @@ export class TridentEngine {
 
     log.debug('Price tick', { price, state: this.state });
 
+    // New-day check: if the loaded signal is from a previous calendar day and
+    // no position is open, discard it cleanly without emitting a misleading
+    // action-required POSITION_CLOSED event. The engine runs continuously
+    // overnight, so without this the first price tick of a new session would
+    // trigger the expiry path and tell the analyst to "close a LONG position"
+    // that was never opened.
+    if (this.state === 'watching') {
+      const todayDate = new Date().toISOString().slice(0, 10);
+      if (this.currentSignal.meta.date !== todayDate) {
+        await this.discardStaleSignal();
+        return;
+      }
+    }
+
     // Time-exit safety net. The scheduled timer handles the normal case, but
     // after a crash/restart the deadline may have passed while we were down.
     // This check catches that (and any other timer miss) on the next tick.
@@ -601,15 +615,17 @@ export class TridentEngine {
         await this.applyDailyLock('one winning trade closed');
       }
     } else if (this.state === 'watching') {
-      log.info('Setup invalidated before entry', { reason, price });
-      await this.notifier.notify({
-        type: 'POSITION_CLOSED',
-        reason,
-        direction: 'long',
-        avgEntry: 0,
-        closePrice: price,
-        pnlPoints: 0,
-      });
+      // No position was ever opened — emit NO_TRADE_SETUP (informational) rather
+      // than POSITION_CLOSED (action-required), which would tell the analyst to
+      // close a position that doesn't exist.
+      const cancelMsg =
+        reason === 'expiry'
+          ? 'Setup expired before entry — expiry time reached, no trade was taken'
+          : reason === 'invalidation'
+          ? `Setup invalidated before entry — price (${price}) hit a void boundary`
+          : `Setup cancelled before entry (reason: ${reason})`;
+      log.info(cancelMsg, { reason, price });
+      await this.notifier.notify({ type: 'NO_TRADE_SETUP', reason: cancelMsg });
     }
 
     this.position = null;
@@ -620,6 +636,36 @@ export class TridentEngine {
     this.activeLevels = null;
     this.state = 'closed';
     this.persist();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stale signal discard
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Discard a signal from a previous calendar day cleanly.
+   *
+   * Called on the first price tick of a new trading session when the engine
+   * was left running overnight with a 'watching' signal that never triggered.
+   * Resets to idle and emits NO_TRADE_SETUP (informational, no action required),
+   * so the analyst knows to submit today's setup.
+   */
+  private async discardStaleSignal(): Promise<void> {
+    const signalDate = this.currentSignal?.meta.date ?? '?';
+    log.warn('Discarding stale signal from previous trading day', { signalDate });
+    this.cancelTimeExitTimer();
+    this.state = 'idle';
+    this.currentSignal = null;
+    this.signalFilePath = null;
+    this.activeLevels = null;
+    this.tradeSetup = null;
+    this.tradeSetupAlt = null;
+    this.position = null;
+    this.persist();
+    await this.notifier.notify({
+      type: 'NO_TRADE_SETUP',
+      reason: `Previous day's setup (${signalDate}) has expired — submit today's setup to begin trading`,
+    });
   }
 
   // ---------------------------------------------------------------------------

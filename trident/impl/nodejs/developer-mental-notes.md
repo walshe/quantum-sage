@@ -416,14 +416,23 @@ Sets state to `watching`, fires `SETUP_READY` to the notifier.
 the main loop. In order:
 1. Fires `PRICE_UPDATE` to the notifier (suppressed by default).
 2. If not watching or in trade, returns immediately.
-3. Checks invalidation boundaries — if price breaks out of the void range, closes
+3. **New-day check** (watching state only) — if the loaded signal's `meta.date`
+   is before today, calls `discardStaleSignal()` and returns. This is the path
+   taken on the first price tick of a new session when the engine was left running
+   overnight (market closed, no ticks, expiry never fired in-memory).
+4. Checks invalidation boundaries — if price breaks out of the void range, closes
    everything.
-4. Checks expiry — if past the setup's expiry time, closes everything.
-5. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
+5. Checks expiry — if past the setup's expiry time, closes everything.
+6. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
    misses and `tradeSetupAlt` is present, also checks the alt Entry 1. Whichever
    fires first promotes itself to primary, the other is discarded.
-6. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
+7. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
    breakeven), then checks pending entries (Entry 2, Entry 3).
+
+**`discardStaleSignal()`** — called when a previous-day signal is found on a new
+trading day. Resets everything to idle and emits `NO_TRADE_SETUP` (informational).
+Does NOT emit `POSITION_CLOSED` — no position was ever open, so no action is
+required from the analyst.
 
 **`fillEntry()`** — called when an entry triggers. Creates a `Fill`, updates or
 creates the `ActivePosition`, recalculates avg entry and stop, resets the 180-min
@@ -434,7 +443,10 @@ priority order: stop hit → close; VWAP hit → close; +33 pts → close; +25 p
 activate breakeven (move stop, cancel pending entries, don't close).
 
 **`closePosition()`** — tears down the position, cancels the timer, fires
-`POSITION_CLOSED`. If it was a win, calls `applyDailyLock()`.
+`POSITION_CLOSED`. If it was a win, calls `applyDailyLock()`. If no position was
+open (state='watching'), emits `NO_TRADE_SETUP` instead — "close your position"
+is wrong when the analyst never opened one. The reason is formatted into a
+human-readable message (expiry, invalidation, etc.).
 
 **Time exit timer** — reset every time a new entry fills (the 180 minutes counts
 from the *last* fill, per the PRD). If it fires, closes the position at whatever

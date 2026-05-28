@@ -366,6 +366,14 @@ function handleEvent(data) {
     case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); state.openPosition = null; break;
     case 'DAILY_LOCK':     setStateChip(state.position, true); break;
     case 'DVS_GATE_BLOCKED': setStateChip('blocked', state.dailyLocked); break;
+    case 'NO_TRADE_SETUP':
+      // Engine has no active setup (stale signal discarded, expiry before entry,
+      // or invalidation before entry). Reset to idle so the analyst knows to
+      // submit today's setup.
+      setStateChip('idle', state.dailyLocked);
+      state.currentSignal = null;
+      renderSignalCard();
+      break;
   }
 }
 
