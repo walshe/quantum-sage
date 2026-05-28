@@ -153,7 +153,7 @@ export function validateSignal(
     if (!VALID_DIRECTIONS.includes(signal.bias.direction)) {
       errors.push(`bias.direction "${signal.bias.direction}" is not valid`);
     }
-    if (!VALID_CONFIDENCES.includes(signal.bias.confidence)) {
+    if (signal.bias.confidence != null && !VALID_CONFIDENCES.includes(signal.bias.confidence)) {
       errors.push(`bias.confidence "${signal.bias.confidence}" is not valid`);
     }
   }
