@@ -9,6 +9,7 @@ const bootstrap: Bootstrap = {
   state: 'idle',
   dailyLocked: false,
   symbol: 'US500',
+  lastIdleReason: null,
   currentSignal: null,
   position: null,
 };

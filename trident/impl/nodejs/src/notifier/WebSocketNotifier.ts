@@ -17,6 +17,14 @@ export interface Bootstrap {
   state: 'idle' | 'watching' | 'in_trade' | 'blocked' | 'closed';
   dailyLocked: boolean;
   symbol: string;                   // instrument the feed is tracking, e.g. "US500"
+  /**
+   * When state is 'idle' and the engine went idle due to a non-trade event
+   * (stale signal discarded, expiry before entry, invalidation before entry),
+   * this holds a human-readable explanation. Null when idle from a clean start
+   * or after a new signal was subsequently loaded.
+   * Lets clients that connect after the live event still see *why* it's idle.
+   */
+  lastIdleReason: string | null;
   currentSignal: {
     filePath: string;
     date: string;

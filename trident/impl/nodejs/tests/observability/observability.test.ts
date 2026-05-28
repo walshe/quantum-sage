@@ -168,7 +168,7 @@ describe('/metrics integration', () => {
 
   const bootstrap: Bootstrap = {
     serverTime: new Date().toISOString(),
-    state: 'idle', dailyLocked: false, currentSignal: null, position: null,
+    state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null, currentSignal: null, position: null,
   };
 
   beforeEach(async () => {

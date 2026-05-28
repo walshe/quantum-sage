@@ -42,6 +42,13 @@ export class TridentEngine {
   private dailyLocked = false;
   private timeExitTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotPath: string | null;
+  /**
+   * Human-readable reason the engine last transitioned to idle without a trade.
+   * Included in the bootstrap so clients that connect/reconnect after the event
+   * still see why the engine went idle. Cleared when a new signal is loaded.
+   * Not persisted — a restart implies a fresh context.
+   */
+  private lastIdleReason: string | null = null;
 
   constructor(config: QSConfig, notifier: Notifier, opts: { snapshotPath?: string | null } = {}) {
     this.config = config;
@@ -171,6 +178,7 @@ export class TridentEngine {
 
     this.currentSignal = signal;
     this.signalFilePath = filePath;
+    this.lastIdleReason = null; // a new signal supersedes any prior idle reason
 
     const levels = resolveActiveLevels(signal);
     this.activeLevels = levels;
@@ -625,6 +633,7 @@ export class TridentEngine {
           ? `Setup invalidated before entry — price (${price}) hit a void boundary`
           : `Setup cancelled before entry (reason: ${reason})`;
       log.info(cancelMsg, { reason, price });
+      this.lastIdleReason = cancelMsg;
       await this.notifier.notify({ type: 'NO_TRADE_SETUP', reason: cancelMsg });
     }
 
@@ -661,6 +670,7 @@ export class TridentEngine {
     this.tradeSetup = null;
     this.tradeSetupAlt = null;
     this.position = null;
+    this.lastIdleReason = `Previous day's setup (${signalDate}) expired — no trade was taken`;
     this.persist();
     await this.notifier.notify({
       type: 'NO_TRADE_SETUP',
@@ -765,6 +775,16 @@ export class TridentEngine {
 
   getAltTradeDirection(): 'long' | 'short' | null {
     return this.tradeSetupAlt ? this.inferDirection(this.tradeSetupAlt) : null;
+  }
+
+  /**
+   * Human-readable reason the engine last went idle without taking a trade
+   * (stale signal discarded, expiry before entry, invalidation before entry).
+   * Null when idle from a clean start or after a signal was subsequently loaded.
+   * Included in the bootstrap so reconnecting clients see why the engine is idle.
+   */
+  getLastIdleReason(): string | null {
+    return this.lastIdleReason;
   }
 
   reset(): void {

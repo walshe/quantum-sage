@@ -294,6 +294,12 @@ function handleBootstrap(b) {
     state.history.unshift({ ts: ts, tag: 'SIGNAL', text: b.currentSignal.filePath });
     renderHistory();
   }
+  if (b.lastIdleReason) {
+    // Engine went idle due to a non-trade event (stale signal, expiry before
+    // entry, invalidation before entry). Surface the reason here so the analyst
+    // sees it even if they connected/reconnected after the live event fired.
+    detail.push(`ℹ️ ${b.lastIdleReason}`);
+  }
   if (b.position) {
     detail.push(
       `Position: ${b.position.direction.toUpperCase()} — avg ${b.position.avgEntry}, stop ${b.position.currentStop}, ${b.position.fills} fill(s)`

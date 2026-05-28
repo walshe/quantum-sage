@@ -307,6 +307,7 @@ function buildBootstrap(): Bootstrap {
     state: engine.getState(),
     dailyLocked: engine.isLockedForDay(),
     symbol: process.env.CTRADER_SYMBOL ?? 'US500',
+    lastIdleReason: engine.getLastIdleReason(),
     currentSignal: signal && signalPath ? {
       filePath: signalPath,
       date: signal.meta.date,
