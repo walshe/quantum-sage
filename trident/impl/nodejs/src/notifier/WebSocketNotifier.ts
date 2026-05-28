@@ -25,6 +25,15 @@ export interface Bootstrap {
    * Lets clients that connect after the live event still see *why* it's idle.
    */
   lastIdleReason: string | null;
+  /**
+   * Server process timezone — included so the dashboard can warn the analyst
+   * that time fields (timestamp, expiry, vwap.updated_at) are interpreted in
+   * this timezone, not necessarily their own browser timezone.
+   */
+  serverTz: {
+    ianaName: string;   // IANA name, e.g. "Europe/Dublin"
+    offsetStr: string;  // UTC offset string, e.g. "UTC+1"
+  };
   currentSignal: {
     filePath: string;
     date: string;

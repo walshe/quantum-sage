@@ -308,6 +308,7 @@ function buildBootstrap(): Bootstrap {
     dailyLocked: engine.isLockedForDay(),
     symbol: process.env.CTRADER_SYMBOL ?? 'US500',
     lastIdleReason: engine.getLastIdleReason(),
+    serverTz: getServerTz(),
     currentSignal: signal && signalPath ? {
       filePath: signalPath,
       date: signal.meta.date,
@@ -327,6 +328,19 @@ function buildBootstrap(): Bootstrap {
       breakEvenActive: position.breakEvenActive,
     } : null,
   };
+}
+
+function getServerTz(): { ianaName: string; offsetStr: string } {
+  const now = new Date();
+  const ianaName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const offsetMins = -now.getTimezoneOffset(); // positive = east of UTC
+  const sign = offsetMins >= 0 ? '+' : '-';
+  const h = Math.floor(Math.abs(offsetMins) / 60);
+  const m = Math.abs(offsetMins) % 60;
+  const offsetStr = m > 0
+    ? `UTC${sign}${h}:${String(m).padStart(2, '0')}`
+    : `UTC${sign}${h}`;
+  return { ianaName, offsetStr };
 }
 
 function writeEnvKey(key: string, value: string): void {

@@ -10,6 +10,7 @@ const bootstrap: Bootstrap = {
   dailyLocked: false,
   symbol: 'US500',
   lastIdleReason: null,
+  serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' },
   currentSignal: null,
   position: null,
 };

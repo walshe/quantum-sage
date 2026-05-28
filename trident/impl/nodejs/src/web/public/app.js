@@ -12,6 +12,23 @@ const $ = sel => document.querySelector(sel);
 // Strip any absolute path, keep just the filename.
 const baseName = p => (p ? String(p).split('/').pop() : '');
 
+/**
+ * Format a timestamp for display in the log.
+ * Accepts an ISO 8601 string (from isoTimestamp) and returns "HH:MM:SS TZ"
+ * in the browser's local timezone — so the analyst sees times in their own
+ * timezone regardless of where the engine is running.
+ * Falls back to the raw string if it's not parseable as ISO (legacy path).
+ */
+function fmtTime(value) {
+  if (!value) return '??:??:??';
+  if (!value.includes('T')) return value; // plain HH:MM:SS legacy fallback
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const hms = d.toTimeString().slice(0, 8);
+  const tz = d.toLocaleTimeString('en', { timeZoneName: 'short' }).split(' ').pop();
+  return `${hms} ${tz}`;
+}
+
 // ---------------------------------------------------------------------------
 // i18n: English (source) ↔ Italian (window.TRIDENT_I18N from i18n.js)
 // ---------------------------------------------------------------------------
@@ -200,8 +217,8 @@ function appendLogRow(data) {
       matchRow.querySelector('.head').after(badge);
     }
     badge.textContent = `×${count}`;
-    // Update timestamp to the latest occurrence.
-    matchRow.querySelector('.ts').textContent = `[${data.timestamp}]`;
+    // Update timestamp to the latest occurrence (browser local time + TZ label).
+    matchRow.querySelector('.ts').textContent = `[${fmtTime(data.isoTimestamp ?? data.timestamp)}]`;
     return;
   }
 
@@ -211,7 +228,7 @@ function appendLogRow(data) {
   li.dataset.head = data.headline;
 
   const ts = document.createElement('span');
-  ts.className = 'ts'; ts.textContent = `[${data.timestamp}]`;
+  ts.className = 'ts'; ts.textContent = `[${fmtTime(data.isoTimestamp ?? data.timestamp)}]`;
   const tag = document.createElement('span');
   tag.className = 'tag'; tag.textContent = `[${data.tag}]`;
   const head = document.createElement('span');
@@ -278,10 +295,19 @@ function handleBootstrap(b) {
   state.openPosition = b.position ?? null;
   renderSignalCard();
 
+  // Show server timezone note in the form so the analyst knows which timezone
+  // to use when entering times (timestamp, expiry, vwap.updated_at).
+  if (b.serverTz) {
+    const tzNote = $('#server-tz-note');
+    if (tzNote) {
+      tzNote.textContent = `🕐 Times in this form are interpreted in the server timezone: ${b.serverTz.offsetStr} (${b.serverTz.ianaName})`;
+      tzNote.hidden = false;
+    }
+  }
+
   // Synthesise a log entry that captures the engine's current state so the
   // pane isn't blank on connect. The real event stream will only contain
   // things that happen from this moment onwards.
-  const ts = new Date(b.serverTime).toTimeString().slice(0, 8);
   const headline = describeEngineState(b);
   const detail = [];
   if (b.currentSignal) {
@@ -306,7 +332,8 @@ function handleBootstrap(b) {
     );
   }
   appendLogRow({
-    timestamp: ts,
+    timestamp: fmtTime(b.serverTime),
+    isoTimestamp: b.serverTime,
     type: 'BOOTSTRAP',
     tag: 'CONNECTED',
     headline,

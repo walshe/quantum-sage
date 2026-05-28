@@ -40,7 +40,7 @@ const config: QSConfig = {
 
 const bootstrap: Bootstrap = {
   serverTime: '2026-05-12T10:00:00.000Z',
-  state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null, currentSignal: null, position: null,
+  state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null, serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' }, currentSignal: null, position: null,
 };
 
 function makeFeed(bars: OhlcvBar[] | 'timeout' | 'error'): CTraderPriceFeed {

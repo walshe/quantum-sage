@@ -9,7 +9,15 @@ import { isActionRequired } from './Notifier.js';
  * the two from drifting apart.
  */
 export interface FormattedEvent {
-  timestamp: string;                    // HH:MM:SS (local)
+  /** HH:MM:SS in the server's local timezone — used by the ConsoleNotifier. */
+  timestamp: string;
+  /**
+   * ISO 8601 UTC string for the same instant.
+   * The browser dashboard uses this to display the time in the analyst's
+   * local timezone (with a timezone abbreviation label), avoiding confusion
+   * when the server and analyst are in different time zones.
+   */
+  isoTimestamp: string;
   type: NotificationEvent['type'];
   tag: string;                          // short label: "SIGNAL", "ENTRY 1", "CLOSED WIN", ...
   headline: string;                     // first line, excluding timestamp + tag
@@ -19,7 +27,18 @@ export interface FormattedEvent {
   actionRequired: boolean;
 }
 
+/**
+ * Public entry point — adds `isoTimestamp` (UTC) alongside the server-local
+ * `timestamp` so the browser can reformat to the analyst's local timezone.
+ */
 export function formatEvent(event: NotificationEvent, now: Date = new Date()): FormattedEvent {
+  return { ...formatEventCore(event, now), isoTimestamp: now.toISOString() };
+}
+
+function formatEventCore(
+  event: NotificationEvent,
+  now: Date = new Date(),
+): Omit<FormattedEvent, 'isoTimestamp'> {
   const timestamp = now.toTimeString().slice(0, 8);
   const actionRequired = isActionRequired(event);
 
