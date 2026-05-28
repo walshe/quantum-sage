@@ -152,7 +152,7 @@ After extraction, add concise human-readable strings:
   * "SELL OUTER (Range 1 up) missing — short entries will not fire"
   * "SELL INNER (Range 2 up) missing — short entries limited to single target"
   * "Level ordering violated — check the extracted values"
-  * "VWAP / bias / invalidation must be entered manually before submitting"
+  * "VWAP / cash last / basis / invalidation must be entered manually before submitting"
 
 ## Output
 
