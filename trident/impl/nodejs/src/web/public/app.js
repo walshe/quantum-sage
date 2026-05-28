@@ -25,8 +25,9 @@ function fmtTime(value) {
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
   const hms = d.toTimeString().slice(0, 8);
-  const tz = d.toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
-  return `${hms} ${tz}`;
+  const shortTz = d.toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+  const longTz  = d.toLocaleTimeString(undefined, { timeZoneName: 'long'  }).split(' ').slice(1).join(' ');
+  return `${hms} ${shortTz} (${longTz})`;
 }
 
 // ---------------------------------------------------------------------------
