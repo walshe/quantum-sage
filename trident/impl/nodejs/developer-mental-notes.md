@@ -101,11 +101,16 @@ trimmed-down version of the levels section that the engine actually works with
 This is the gatekeeper. Takes a parsed `SignalFile` and runs the full set of
 trust checks: schema version, required sections, range/buy/sell ordering,
 **at least one tradeable level pair (both BUY INNER+OUTER or both SELL INNER+OUTER)**,
-price sanity (within 20% of `futures_last`), basis range and basis math,
-DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
-enum values (regime/instrument/direction/confidence), timestamp before
-expiry, setup staleness, and VWAP staleness (warning only). Returns
-`{ valid, errors, warnings }` — errors block trading, warnings just log.
+price sanity (within 20% of `futures_last`), basis range and basis math (nullable
+— skipped when `cash_last` / `basis` are null), DVS range, VWAP presence,
+enum values (regime, instrument, bias direction), setup staleness, and VWAP
+staleness (warning only). Returns `{ valid, errors, warnings }` — errors block
+trading, warnings just log.
+
+**Removed fields (2026-05-28):** `invalidation` (`void_above`/`void_below`/`expiry`),
+`supporto`/`resistenza` optional levels, and `bias.confidence` were all removed from
+the schema — they never appeared in the original docx spec and added unnecessary
+complexity. `CloseReason` no longer includes `'invalidation'` or `'expiry'`.
 
 The validator runs in two places that matter:
 - The web server's `POST /signals` endpoint, so a bad submission is rejected
@@ -289,11 +294,27 @@ the web server is up without restructuring the engine.
 
 ### `WebSocketNotifier.ts`
 Bridges engine events to connected browser tabs over a `ws` server (mounted at
-`/events` by the web server module). On every new client it sends a
-`{ kind: 'bootstrap', data }` envelope with current engine state — drives the
-status band on a freshly-opened tab. Subsequent events go out as
-`{ kind: 'event', data }`. `PRICE_UPDATE` events are throttled (default
-500ms) so a quiet UI doesn't get hammered by tick frequency.
+`/events` by the web server module).
+
+**Three envelope kinds the client receives on connect:**
+1. `{ kind: 'history', data: [...] }` — ring buffer of last 150 non-price events.
+   Sent *first* so the browser can rebuild the log before state is reset.
+2. `{ kind: 'bootstrap', data }` — current engine state (status chip, position,
+   loaded signal). Sent immediately after history.
+
+**Subsequent events** go out as `{ kind: 'event', data }`.
+`PRICE_UPDATE` events are throttled (default 500ms) and NOT buffered — they never
+appear in the ring buffer.
+
+**Why the ring buffer (2026-05-28):** before this change, `getReplayEvent` would
+replay only `SETUP_READY` when the engine was in `watching` state, leaving the
+log blank on reconnects for any other state. The client had a `searchAll` dedup
+hack to suppress duplicate rows. Both problems disappear with the ring buffer:
+- All non-price events are buffered server-side (last 150 entries).
+- On every connect, the client clears its log and replays the buffer before
+  processing the bootstrap.
+- No special-case replay, no dedup hack needed.
+`buildSetupReplayEvent` and the `getReplayEvent` constructor option are gone.
 
 ### `eventFormatter.ts`
 Pure function that turns a `NotificationEvent` into the row shape the web
@@ -420,13 +441,10 @@ the main loop. In order:
    is before today, calls `discardStaleSignal()` and returns. This is the path
    taken on the first price tick of a new session when the engine was left running
    overnight (market closed, no ticks, expiry never fired in-memory).
-4. Checks invalidation boundaries — if price breaks out of the void range, closes
-   everything.
-5. Checks expiry — if past the setup's expiry time, closes everything.
-6. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
+4. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
    misses and `tradeSetupAlt` is present, also checks the alt Entry 1. Whichever
    fires first promotes itself to primary, the other is discarded.
-7. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
+5. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
    breakeven), then checks pending entries (Entry 2, Entry 3).
 
 **`discardStaleSignal()`** — called when a previous-day signal is found on a new
@@ -621,11 +639,11 @@ The `{ allowed: boolean; reason?: string }` decision shape replaces the old
 `{ allow: boolean }` — note the field name change if you're reading old git history.
 
 ### `outputValidator.ts`
-Runtime defence against schema violations that slip through the OpenAI tool
-schema enforcement. Checks: numeric fields are not strings, enum fields use
-valid values (`bias.direction`, `bias.confidence`, `volatility.regime`),
-`dvs` is 0–200, price levels are positive. Emits `OUTPUT_VALIDATION_FAILED`
-log entry with `errors: string[]` before throwing.
+Runtime defence against schema violations that slip through the tool schema
+enforcement. Checks: numeric fields are not strings, enum fields use valid
+values (`bias.direction`, `volatility.regime`), `dvs` is 0–200, price levels
+are positive. Emits `OUTPUT_VALIDATION_FAILED` log entry with `errors: string[]`
+before throwing. (`bias.confidence` was removed from the schema in 2026-05-28.)
 
 `VolatilityRegime` values the validator accepts: `compressed`, `normal`,
 `elevated`, `extreme` (matches the TypeScript type — the spec doc said `low`

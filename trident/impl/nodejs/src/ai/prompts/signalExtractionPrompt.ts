@@ -20,7 +20,7 @@
  * Other invariants carried over:
  *   - `execution_instrument` is always `US500.cash`.
  *   - Missing values are `null` — never fabricated.
- *   - `bias` and `invalidation` are typed by the analyst, not from screenshots.
+ *   - `bias` is typed by the analyst, not from screenshots.
  *
  * The provider wraps the model's output in a strict JSON schema (tool call /
  * response_format), so the prompt focuses on what to extract, not on
@@ -120,9 +120,8 @@ explicitly labeled as yesterday's value.
 - **ranges.\* and levels.\* carry the same values** — populate both.
 - \`levels.level_time\` should be set to \`null\` (no separate level timestamp
   from this chart).
-- **Do not invent**: \`vwap\`, \`bias\`, \`invalidation.void_above/below\`,
-  \`invalidation.expiry\`, \`meta.cash_last\`, or \`meta.basis\` — leave all
-  as \`null\`. The analyst fills them in manually.
+- **Do not invent**: \`vwap\` — leave it as \`null\`. The analyst fills it in manually.
+  \`meta.cash_last\` and \`meta.basis\` are optional — leave as \`null\` if not visible.
 - **Always set \`execution_instrument\` to \`"US500.cash"\`**.
 - **Date format**: YYYY-MM-DD. **Time format**: HH:MM 24-hour.
 - **Missing values must be \`null\`** — never guess or interpolate.
@@ -152,7 +151,7 @@ After extraction, add concise human-readable strings:
   * "SELL OUTER (Range 1 up) missing — short entries will not fire"
   * "SELL INNER (Range 2 up) missing — short entries limited to single target"
   * "Level ordering violated — check the extracted values"
-  * "VWAP / cash last / basis / invalidation must be entered manually before submitting"
+  * "VWAP must be entered manually before submitting"
 
 ## Output
 

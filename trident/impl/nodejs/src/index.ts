@@ -31,7 +31,7 @@ import { getLogger } from './logger.js';
 
 const log = getLogger('Trident');
 import type { Bootstrap } from './notifier/WebSocketNotifier.js';
-import type { Notifier, NotificationEvent } from './notifier/Notifier.js';
+import type { Notifier } from './notifier/Notifier.js';
 
 const args = process.argv.slice(2);
 const configPath = argValue(args, '--config') ?? './config.yaml';
@@ -83,12 +83,11 @@ if (useMock) {
   sampleSignal.meta.date = new Date().toISOString().slice(0, 10);
   sampleSignal.meta.timestamp = new Date().toTimeString().slice(0, 5);
   sampleSignal.vwap.updated_at = new Date().toTimeString().slice(0, 5);
-  sampleSignal.invalidation.expiry = '23:59';
 
   // The sample signal has max_buy_1: null and bias: long, so neither side
   // can set up. For the demo, supply a max_buy_1 and use neutral bias
   // so the engine picks the short side (both SELL levels are present).
-  sampleSignal.bias = { direction: 'neutral', confidence: 'medium' };
+  sampleSignal.bias = { direction: 'neutral' };
 
   await engine.loadSignal(sampleSignal, '<mock>');
 
@@ -108,8 +107,8 @@ if (useMock) {
   ]);
 
   // This is the critical wiring line — every price tick from the feed drives the
-  // engine's entire decision loop: entry triggers, exit conditions, breakeven,
-  // invalidation checks. Without this, the engine never reacts to market prices.
+  // engine's entire decision loop: entry triggers, exit conditions, breakeven.
+  // Without this, the engine never reacts to market prices.
   feed.subscribe(price => engine.onPriceUpdate(price));
   await feed.connect();
 
@@ -136,7 +135,6 @@ const webServer = await startWebServer({
   signalsDir: signalDir,
   publicDir: resolve('src/web/public'),
   getBootstrap: buildBootstrap,
-  getReplayEvent: buildSetupReplayEvent,
   metricsHandler,
   getPriceFeed: () => liveFeed,
 });
@@ -273,31 +271,6 @@ function argValueEquals(args: string[], flag: string): string | undefined {
   return match ? match.slice(prefix.length) : undefined;
 }
 
-/**
- * Returns a SETUP_READY event reflecting the engine's current watching state,
- * or null if the engine is not watching. Sent to each browser client on
- * connect so the live log shows the active setup even after a page reload.
- */
-function buildSetupReplayEvent(): NotificationEvent | null {
-  if (engine.getState() !== 'watching') return null;
-  const signal = engine.getCurrentSignal();
-  const entries = engine.getTradeSetup();
-  const direction = engine.getTradeDirection();
-  if (!signal || !entries || !direction) return null;
-  const bias = (signal.bias?.direction ?? null) as 'long' | 'short' | 'neutral' | null;
-  const altEntries = engine.getAltTradeSetup();
-  const altDirection = engine.getAltTradeDirection() ?? undefined;
-  return {
-    type: 'SETUP_READY',
-    direction,
-    ...(altDirection && altEntries ? { altDirection, altEntries } : {}),
-    bias,
-    entries,
-    stopPoints: config.trident.stop_loss_points,
-    vwap: signal.vwap.value,
-  };
-}
-
 function buildBootstrap(): Bootstrap {
   const signal = engine.getCurrentSignal();
   const signalPath = engine.getSignalFilePath();
@@ -317,7 +290,6 @@ function buildBootstrap(): Bootstrap {
       dvs: signal.volatility.dvs,
       vwap: signal.vwap.value,
       biasDirection: signal.bias?.direction ?? null,
-      biasConfidence: signal.bias?.confidence ?? null,
     } : null,
     position: position ? {
       direction: position.direction,
@@ -327,6 +299,7 @@ function buildBootstrap(): Bootstrap {
       fills: position.fills.length,
       breakEvenActive: position.breakEvenActive,
     } : null,
+    stopPoints: config.trident.stop_loss_points,
   };
 }
 

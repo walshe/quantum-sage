@@ -327,11 +327,6 @@ levels:
                                   # "CALL" label, red horiz line
   cash: 6574.00                   # From intraday chart
                                   # "CASH" label, green horiz line
-  supporto: 6500.00               # From intraday chart
-                                  # "SUPPORTO" label, orange dotted
-  resistenza: null                # From intraday chart
-                                  # "RESISTENZA" label
-                                  # null if not shown on chart
   additional: []
 
 # ============================================================
@@ -354,8 +349,6 @@ levels_recal:
   max_buy_2: null                 # "15:30 MAX BUY 2" if present
   call: null                      # Same as 10:06 unless updated
   cash: null                      # Same as 10:06 unless updated
-  supporto: null                  # Same as 10:06 unless updated
-  resistenza: null                # Same as 10:06 unless updated
 
 # ============================================================
 # SECTION 7: BIAS (optional analyst overlay)
@@ -370,20 +363,9 @@ levels_recal:
 # ============================================================
 bias:
   direction: "long"               # long / short / neutral
-  confidence: "medium"            # low / medium / high
   notes: >
     Expecting dip-buy into MAX BUY 2 zone (6467).
     VWAP at 6555 is the primary target.
     If MAX BUY 1 not shown, only two entries
     possible on the buy side today.
 
-# ============================================================
-# SECTION 8: INVALIDATION
-# Safety rails -- when should QS stop?
-# ============================================================
-invalidation:
-  void_above: 6700.00             # Signal invalid above this
-  void_below: 6430.00             # Signal invalid below this
-  expiry: "22:00"                 # Signal expires at this time
-  notes: >
-    No major event risk identified.

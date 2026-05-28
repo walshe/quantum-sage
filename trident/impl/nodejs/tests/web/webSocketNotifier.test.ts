@@ -13,6 +13,7 @@ const bootstrap: Bootstrap = {
   serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' },
   currentSignal: null,
   position: null,
+  stopPoints: 40,
 };
 
 function waitForMessage(ws: WebSocket, predicate: (msg: unknown) => boolean, timeoutMs = 500): Promise<unknown> {
@@ -89,6 +90,64 @@ describe('WebSocketNotifier', () => {
     expect(gotPriceEvent).toBe(false);
 
     client.close();
+  });
+
+  it('sends a history envelope before bootstrap on first connect', async () => {
+    const client = new WebSocket(`ws://localhost:${port}`);
+    // Collect the first two messages by waiting for bootstrap; history arrives first.
+    const received: Array<{ kind: string; data: unknown }> = [];
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for bootstrap')), 1000);
+      client.on('message', (raw) => {
+        const msg = JSON.parse(raw.toString()) as { kind: string; data: unknown };
+        received.push(msg);
+        if (msg.kind === 'bootstrap') { clearTimeout(timer); resolve(); }
+      });
+    });
+    client.close();
+
+    expect(received).toHaveLength(2);
+    expect(received[0].kind).toBe('history');
+    expect(Array.isArray(received[0].data)).toBe(true);
+    expect((received[0].data as unknown[]).length).toBe(0); // fresh notifier — buffer empty
+    expect(received[1].kind).toBe('bootstrap');
+  });
+
+  it('replays buffered events to a new client as a history envelope', async () => {
+    // First client connects and receives events.
+    const first = new WebSocket(`ws://localhost:${port}`);
+    await waitForMessage(first, m => (m as { kind: string }).kind === 'bootstrap');
+
+    const event1: NotificationEvent = { type: 'DAILY_LOCK', reason: 'winning trade' };
+    const event2: NotificationEvent = { type: 'DVS_GATE_BLOCKED', dvs: 80 };
+    await notifier.notify(event1);
+    await notifier.notify(event2);
+    first.close();
+
+    // Second client connects — history should contain both events.
+    const second = new WebSocket(`ws://localhost:${port}`);
+    const histMsg = await waitForMessage(second, m => (m as { kind: string }).kind === 'history') as { kind: string; data: Array<{ type: string }> };
+    expect(histMsg.data).toHaveLength(2);
+    expect(histMsg.data[0].type).toBe('DAILY_LOCK');
+    expect(histMsg.data[1].type).toBe('DVS_GATE_BLOCKED');
+    second.close();
+  });
+
+  it('does not buffer PRICE_UPDATE events', async () => {
+    const first = new WebSocket(`ws://localhost:${port}`);
+    await waitForMessage(first, m => (m as { kind: string }).kind === 'bootstrap');
+
+    // Send a mix of price and non-price events (use includePriceUpdates notifier).
+    await notifier.notify({ type: 'DAILY_LOCK', reason: 'test' });
+    await notifier.notify({ type: 'PRICE_UPDATE', price: 5000 });
+    first.close();
+
+    const second = new WebSocket(`ws://localhost:${port}`);
+    const histMsg = await waitForMessage(second, m => (m as { kind: string }).kind === 'history') as { kind: string; data: Array<{ type: string }> };
+    // Only DAILY_LOCK should be buffered — PRICE_UPDATE must be absent.
+    expect(histMsg.data.every(e => e.type !== 'PRICE_UPDATE')).toBe(true);
+    expect(histMsg.data.some(e => e.type === 'DAILY_LOCK')).toBe(true);
+    second.close();
   });
 
   it('tracks client count across connect/disconnect', async () => {

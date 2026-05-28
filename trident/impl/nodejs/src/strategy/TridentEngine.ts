@@ -220,9 +220,8 @@ export class TridentEngine {
       }
     }
 
-    // Time-exit safety net. The scheduled timer handles the normal case, but
-    // after a crash/restart the deadline may have passed while we were down.
-    // This check catches that (and any other timer miss) on the next tick.
+    // Time-exit safety net: after a crash/restart the deadline may have passed
+    // while the engine was down. This check catches that on the next tick.
     if (
       this.state === 'in_trade' &&
       this.position &&
@@ -230,21 +229,6 @@ export class TridentEngine {
     ) {
       log.warn('Time-exit deadline detected on price tick', { price });
       await this.closePosition(price, 'time_exit');
-      return;
-    }
-
-    // Invalidation check (always runs, even before entry)
-    const { void_above, void_below, expiry } = this.currentSignal.invalidation;
-    if (price >= void_above || price <= void_below) {
-      log.warn('Invalidation boundary hit', { price, void_above, void_below });
-      await this.closePosition(price, 'invalidation');
-      return;
-    }
-
-    // Expiry check
-    if (isPastExpiry(this.currentSignal.meta.date, expiry)) {
-      log.warn('Setup expiry reached', { expiry });
-      await this.closePosition(price, 'expiry');
       return;
     }
 
@@ -626,12 +610,7 @@ export class TridentEngine {
       // No position was ever opened — emit NO_TRADE_SETUP (informational) rather
       // than POSITION_CLOSED (action-required), which would tell the analyst to
       // close a position that doesn't exist.
-      const cancelMsg =
-        reason === 'expiry'
-          ? 'Setup expired before entry — expiry time reached, no trade was taken'
-          : reason === 'invalidation'
-          ? `Setup invalidated before entry — price (${price}) hit a void boundary`
-          : `Setup cancelled before entry (reason: ${reason})`;
+      const cancelMsg = `Setup cancelled before entry (reason: ${reason})`;
       log.info(cancelMsg, { reason, price });
       this.lastIdleReason = cancelMsg;
       await this.notifier.notify({ type: 'NO_TRADE_SETUP', reason: cancelMsg });
@@ -779,7 +758,7 @@ export class TridentEngine {
 
   /**
    * Human-readable reason the engine last went idle without taking a trade
-   * (stale signal discarded, expiry before entry, invalidation before entry).
+   * (stale signal discarded, or cancelled before entry).
    * Null when idle from a clean start or after a signal was subsequently loaded.
    * Included in the bootstrap so reconnecting clients see why the engine is idle.
    */
@@ -830,7 +809,3 @@ function resolveActiveLevels(signal: SignalFile): ActiveLevels {
   };
 }
 
-function isPastExpiry(date: string, expiryTime: string): boolean {
-  const expiry = new Date(`${date}T${expiryTime}:00`);
-  return Date.now() >= expiry.getTime();
-}

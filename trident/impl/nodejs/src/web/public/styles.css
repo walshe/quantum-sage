@@ -45,10 +45,34 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
 }
 .chip-label { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.06em; }
 .chip-value { font-weight: 600; }
+/* State chip is a button — give it interactive affordances */
+#state-chip {
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+#state-chip:hover { background: color-mix(in srgb, var(--fg) 6%, var(--bg-input)); }
+#state-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 #engine-chip[data-state="connected"]    { border-color: var(--ok);   color: var(--ok); }
 #engine-chip[data-state="reconnecting"] { border-color: var(--warn); color: var(--warn); }
 #engine-chip[data-state="disconnected"] { border-color: var(--err);  color: var(--err); }
-#state-chip[data-state="in_trade"] { border-color: var(--accent); }
+#state-chip[data-state="in_trade"] {
+  border-color: var(--accent);
+  animation: trade-pulse 2.4s ease-in-out infinite;
+}
+@keyframes trade-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59,130,246,0);
+    border-color: var(--accent);
+    background: var(--bg-input);
+  }
+  50% {
+    box-shadow: 0 0 16px 6px rgba(59,130,246,0.6);
+    border-color: #93c5fd;
+    background: color-mix(in srgb, var(--accent) 22%, var(--bg-input));
+  }
+}
 #state-chip[data-state="blocked"]  { border-color: var(--err); }
 #state-chip[data-state="closed"]   { border-color: var(--lock); }
 .chip--price .chip-value {
@@ -302,7 +326,7 @@ fieldset {
 fieldset[hidden] { display: none !important; }
 legend { padding: 0 0.4rem; color: var(--fg-dim); text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
 label { display: block; font-size: 11px; color: var(--fg-dim); position: relative; }
-label > input, label > select { display: block; margin-top: 2px; width: 100%; }
+label > input, label > select, label > textarea { display: block; margin-top: 2px; width: 100%; }
 label > .input-with-btn { margin-top: 2px; width: 100%; }
 label.wide { grid-column: 1 / -1; }
 
@@ -349,12 +373,13 @@ fieldset > label:nth-of-type(even):not(.wide) .info::after {
 }
 /* Explicit right-anchored variant for icons near the right edge of the page. */
 .info--end::after { left: auto !important; right: 0 !important; }
-input, select {
+input, select, textarea {
   background: var(--bg-input); color: var(--fg);
   border: 1px solid var(--border); border-radius: 4px;
   padding: 0.35rem 0.5rem; font: inherit;
 }
-input:focus, select:focus { outline: none; border-color: var(--accent); }
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .form-actions { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem; }
 #submit-status { font-size: 12px; color: var(--fg-dim); }
 #submit-status.ok { color: var(--ok); }
@@ -362,7 +387,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .form-errors { list-style: none; padding: 0; margin: 0.5rem 0 0; color: var(--err); font-size: 12px; }
 .form-errors li::before { content: "✗ "; }
 label.has-error > input,
-label.has-error > select { border-color: var(--err); }
+label.has-error > select,
+label.has-error > textarea { border-color: var(--err); }
 label.has-error { color: var(--err); }
 
 /* BUY / SELL level field tints */
@@ -804,6 +830,7 @@ label.sell > input:focus { border-color: var(--accent); }
   line-height: 1.6;
 }
 .trade-plan-label { font-weight: 600; color: var(--accent); }
+.trade-plan-footnote { color: var(--fg-dim); font-style: italic; font-size: 11.5px; }
 .check {
   display: flex; gap: 0.5rem; padding: 4px 0; font-size: 12.5px;
   align-items: flex-start; line-height: 1.4;

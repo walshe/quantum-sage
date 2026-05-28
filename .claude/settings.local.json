@@ -70,7 +70,23 @@
       "Bash(git commit *)",
       "Bash(gh pr *)",
       "Bash(git pull *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(npm --prefix /Users/Emmett/dev/quantum-sage/trident/impl/nodejs test)",
+      "Bash(npm list *)",
+      "Bash(mv \"2026-05-25 13.59.16.jpg\" iv_smile_01.jpg)",
+      "Bash(mv \"2026-05-25 13.59.28.jpg\" iv_smile_02.jpg)",
+      "Bash(mv \"2026-05-25 13.59.44.jpg\" iv_smile_03.jpg)",
+      "Bash(mv \"2026-05-25 14.00.03.jpg\" iv_smile_04.jpg)",
+      "Bash(openspec --version)",
+      "Read(//Users/Emmett/.npm/_logs/**)",
+      "WebFetch(domain:www.mindstudio.ai)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['instruction']\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['outputPath']\\)\")",
+      "Bash(promptfoo eval *)",
+      "Bash(npx promptfoo *)",
+      "WebSearch",
+      "Bash(grep -r \"POSITION_CLOSED\\\\|watching.*expiry\\\\|expiry.*watching\\\\|closePosition\\\\|discardStale\" src/tests/ --include=\"*.ts\" -l)",
+      "Bash(grep -r \"POSITION_CLOSED\\\\|watching.*expiry\\\\|expiry.*watching\\\\|closePosition\\\\|discardStale\" tests/ --include=\"*.ts\" -l)"
     ]
   }
 }

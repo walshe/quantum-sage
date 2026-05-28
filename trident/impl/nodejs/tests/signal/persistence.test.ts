@@ -58,18 +58,15 @@ function makeSignal(): SignalFile {
       max_sell_2: 6582.00,
       max_buy_1: null,
       max_buy_2: 6467.00,
-      supporto: 6500.00,
-      resistenza: null,
       additional: [],
     },
     levels_recal: {
       level_time: null,
       max_sell_1: null, max_sell_2: null, max_buy_1: null, max_buy_2: null,
-      supporto: null, resistenza: null, additional: [],
+      additional: [],
     },
     // neutral so the engine picks the short side (both SELL INNER+OUTER levels are present)
-    bias: { direction: 'neutral', confidence: 'medium' },
-    invalidation: { void_above: 6700.00, void_below: 6430.00, expiry: '23:59' },
+    bias: { direction: 'neutral' },
   };
 }
 

@@ -179,24 +179,10 @@ window.TRIDENT_I18N = {
       "Supporto esterno (Range 1 down dall'IV Smile). Innesca Long Entry 3 — ultima/piu' profonda entrata sul lato long. Termini ES futures.",
     "Inner support (Range 2 down from the IV Smile). Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of BUY INNER and BUY OUTER. ES futures terms.":
       "Supporto interno (Range 2 down dall'IV Smile). Innesca Long Entry 1 — primo tocco che apre un long. Entry 2 è il punto medio tra BUY INNER e BUY OUTER. Termini ES futures.",
-    "Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
-      "Pivot di supporto derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
-    "Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms.":
-      "Pivot di resistenza derivato dalle opzioni. Solo informativo — il motore non entra su questo livello. Termini SPX cash.",
     "Analyst's directional overlay.\n\n• neutral — watch both sides simultaneously; whichever Entry 1 is hit first becomes the trade (default)\n• long — only take long setups\n• short — only shorts":
       "Bias direzionale dell'analista.\n\n• neutro — osserva entrambi i lati contemporaneamente; il primo Entry 1 che si attiva diventa il trade (default)\n• long — solo setup long\n• short — solo short",
-    "Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour.":
-      "Confidenza dell'analista nel bias direzionale. Per ora solo informativo — non cambia il comportamento del motore.",
     "Free-text analyst reasoning. Stored with the setup but not acted on. Optional.":
       "Ragionamento dell'analista in testo libero. Salvato col setup ma non utilizzato. Opzionale.",
-    "Price above which the setup is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price).":
-      "Prezzo sopra il quale il setup è invalidato. Se il mercato supera questo livello mentre il motore è in trade, esce con motivo 'invalidation'; non vengono aperti nuovi trade. Termini ES futures (il motore confronta col prezzo ES live).",
-    "Price below which the setup is invalidated. Mirror of void_above on the downside. ES futures terms.":
-      "Prezzo sotto il quale il setup è invalidato. Speculare a void_above sul lato downside. Termini ES futures.",
-    "Time-of-day after which the setup no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time.":
-      "Ora del giorno oltre la quale il setup non è più valido. Il selettore mostra il formato del tuo sistema (AM/PM o 24h) ma il valore viene salvato come HH:MM 24h (es. 23:59 = fine giornata). A quest'ora il motore smette di tradare e chiude eventuali posizioni aperte.",
-    "Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional.":
-      "Contesto in testo libero per le condizioni di invalidazione (es. 'invalida se FOMC muove il mercato pre-apertura'). Opzionale.",
     "Switch language / Cambia lingua": "Cambia lingua / Switch language",
     'Help': 'Aiuto',
 
@@ -241,8 +227,8 @@ window.TRIDENT_I18N = {
       'Apri / scala nella posizione con la size e lo stop indicati.',
     'Move your broker stop to the stated level; cancel any unfilled entry orders.':
       'Sposta lo stop al broker al livello indicato; cancella eventuali ordini di entrata non eseguiti.',
-    'Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).':
-      'Esci al broker. Il motivo viene stampato (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).',
+    'Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, hard_profit_exit).':
+      'Esci al broker. Il motivo viene stampato (vwap_hit, stop_loss, time_exit, hard_profit_exit).',
     'One winning trade done — no more trades today.':
       'Un trade vincente chiuso — nessun altro trade oggi.',
     'Fields outlined in red show exactly what\'s wrong. Most common causes:':
@@ -257,9 +243,6 @@ window.TRIDENT_I18N = {
     'Basis math mismatch': 'Basis math non coerente',
     'must be within ±5 of the basis you entered. This check is skipped if Cash last or Basis is left empty.':
       'deve corrispondere entro ±5 al basis inserito. Il controllo viene saltato se Cash last o Basis è vuoto.',
-    'Invalidation boundaries': 'Limiti di invalidazione',
-    'Void values must be in ES futures terms, not SPX cash terms.':
-      'I valori void devono essere in termini ES futures, non SPX cash.',
     'Every field has an': 'Ogni campo ha un',
     'icon — hover for a per-field explanation.':
       'icona — passaci sopra per una spiegazione del campo.',
@@ -276,6 +259,10 @@ window.TRIDENT_I18N = {
     'Locked — no more trades today': 'Bloccato — nessun altro trade oggi',
     'Not locked': 'Non bloccato',
     'Open position': 'Posizione aperta',
+    'avg entry': 'entrata media',
+    'stop': 'stop',
+    'fill(s)': 'entrata/e',
+    'BE': 'BE',
     'Engine is offline — file will sit in setups/ until it reconnects.':
       'Motore offline — il file resterà in setups/ finché non si riconnette.',
     'Engine is locked for today — setup stored but no trades will fire until tomorrow.':
@@ -296,8 +283,6 @@ window.TRIDENT_I18N = {
     'DVS / regime': 'DVS / regime',
     'Ranges (ES futures)': 'Range (ES futures)',
     'Levels (ES futures)': 'Livelli (ES futures)',
-    'Support / Resistance': 'Supporto / Resistenza',
-    'Invalidation (futures)': 'Invalidazione (futures)',
     'PRD sanity checks': 'Controlli PRD',
     'Basis matches futures − cash': 'Basis coerente con futures − cash',
     'Basis disagrees with futures − cash by more than 5 points':
@@ -339,10 +324,10 @@ window.TRIDENT_I18N = {
 
     // ---------- Trade plan note ----------
     'No bias set — defaulting to long.': 'Bias non impostato — di default long.',
-    'Bias: long{conf}.': 'Bias: long{conf}.',
-    'Bias: short{conf}.': 'Bias: short{conf}.',
-    'Bias: neutral{conf} — watching both sides, first trigger wins.': 'Bias: neutro{conf} — osserva entrambi i lati, il primo trigger vince.',
-    'Bias: neutral{conf} — one side only (incomplete level pair on the other side).': 'Bias: neutro{conf} — solo un lato (coppia di livelli incompleta sull\'altro lato).',
+    'Bias: long.': 'Bias: long.',
+    'Bias: short.': 'Bias: short.',
+    'Bias: neutral — watching both sides, first trigger wins.': 'Bias: neutro — osserva entrambi i lati, il primo trigger vince.',
+    'Bias: neutral — one side only (incomplete level pair on the other side).': 'Bias: neutro — solo un lato (coppia di livelli incompleta sull\'altro lato).',
     'Buy entry: watching for {price} BUY INNER (Entry 1)': 'Ingresso long: in attesa di {price} BUY INNER (Entry 1)',
     'Sell entry: watching for {price} SELL INNER (Entry 1)': 'Ingresso short: in attesa di {price} SELL INNER (Entry 1)',
     '{price} mid (Entry 2, derived)': '{price} mid (Entry 2, derivato)',
@@ -350,14 +335,19 @@ window.TRIDENT_I18N = {
     '{price} SELL OUTER (Entry 3)': '{price} SELL OUTER (Entry 3)',
     'engine enters long.': 'motore entra long.',
     'engine enters short.': 'motore entra short.',
+    'Stop': 'Stop',
+    'pre-trade estimate': 'stima pre-trade',
+    'worst case if all 3 fill': 'caso peggiore (tutte e 3 le entrate)',
+    'single entry': 'singola entrata',
+    'pts from avg entry': 'pt dalla media entrate',
+    'ℹ️ Once in a trade the status panel shows the live stop.':
+      'ℹ️ Durante il trade il pannello stato mostra lo stop live.',
     'Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.':
       'Target profitto: VWAP a {vwap} — la posizione si chiude interamente al raggiungimento del VWAP.',
     'below {price}': 'sotto {price}',
     'above {price}': 'sopra {price}',
     'Void if price {levels} before entry': 'Invalido se prezzo {levels} prima dell\'ingresso',
     ' or ': ' o ',
-    ', or after {expiry}.': ', o dopo le {expiry}.',
-    'Expires {expiry}.': 'Scade alle {expiry}.',
 
     // ---------- AI extraction banner ----------
     'AI extraction unavailable': 'Estrazione AI non disponibile',

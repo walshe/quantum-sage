@@ -19,7 +19,7 @@ export interface Bootstrap {
   symbol: string;                   // instrument the feed is tracking, e.g. "US500"
   /**
    * When state is 'idle' and the engine went idle due to a non-trade event
-   * (stale signal discarded, expiry before entry, invalidation before entry),
+   * (stale signal discarded, or cancelled before entry),
    * this holds a human-readable explanation. Null when idle from a clean start
    * or after a new signal was subsequently loaded.
    * Lets clients that connect after the live event still see *why* it's idle.
@@ -27,7 +27,7 @@ export interface Bootstrap {
   lastIdleReason: string | null;
   /**
    * Server process timezone — included so the dashboard can warn the analyst
-   * that time fields (timestamp, expiry, vwap.updated_at) are interpreted in
+   * that time fields (timestamp, vwap.updated_at) are interpreted in
    * this timezone, not necessarily their own browser timezone.
    */
   serverTz: {
@@ -42,7 +42,6 @@ export interface Bootstrap {
     dvs: number;
     vwap: number;
     biasDirection: string | null;
-    biasConfidence: string | null;
   } | null;
   position: {
     direction: 'long' | 'short';
@@ -52,15 +51,27 @@ export interface Bootstrap {
     fills: number;
     breakEvenActive: boolean;
   } | null;
+  /**
+   * Stop-loss distance in points (from config). Sent in the bootstrap so the
+   * trade plan note can show the worst-case stop immediately on connect, without
+   * waiting for a SETUP_READY event to carry it.
+   */
+  stopPoints: number;
 }
 
 type Envelope =
   | { kind: 'bootstrap'; data: Bootstrap }
-  | { kind: 'event'; data: Record<string, unknown> };
+  | { kind: 'event'; data: Record<string, unknown> }
+  | { kind: 'history'; data: Array<Record<string, unknown>> };
 
 /**
  * Broadcasts engine notifications to connected browser clients and sends each
  * new client a bootstrap message on connect so late-joiners see current state.
+ *
+ * Every non-price event is buffered server-side (last BUFFER_LIMIT entries).
+ * On connect, the full buffer is sent as a `history` envelope before the
+ * bootstrap so the client can rebuild the log even after a reconnect — no
+ * blank log, no duplicate entries.
  *
  * The owning caller (the web server module) creates the underlying
  * WebSocketServer and passes it in; this class owns only client lifecycle and
@@ -71,6 +82,8 @@ export class WebSocketNotifier implements Notifier {
   private readonly includePriceUpdates: boolean;
   private readonly priceThrottleMs: number;
   private lastPriceBroadcastMs = 0;
+  private readonly eventBuffer: Array<Record<string, unknown>> = [];
+  private readonly BUFFER_LIMIT = 150;
 
   constructor(
     wss: WebSocketServer,
@@ -78,37 +91,29 @@ export class WebSocketNotifier implements Notifier {
     opts: {
       includePriceUpdates?: boolean;
       priceThrottleMs?: number;
-      /** Optional: return a NotificationEvent to replay immediately after the bootstrap (e.g. SETUP_READY when engine is already watching). */
-      getReplayEvent?: () => NotificationEvent | null;
     } = {}
   ) {
     this.includePriceUpdates = opts.includePriceUpdates ?? false;
     this.priceThrottleMs = opts.priceThrottleMs ?? 250;
-    this.getReplayEvent = opts.getReplayEvent ?? null;
     wss.on('connection', ws => this.handleConnection(ws));
   }
-
-  private readonly getReplayEvent: (() => NotificationEvent | null) | null;
 
   private handleConnection(ws: WebSocket): void {
     this.clients.add(ws);
     log.debug('Client connected', { total: this.clients.size });
+    // Send the event history first so the client can rebuild the log before
+    // the bootstrap snapshot resets state. The client clears its log on
+    // receipt of this message, eliminating both the blank-log-on-reconnect
+    // and the old duplicate-entries problems.
+    try {
+      ws.send(this.encode({ kind: 'history', data: [...this.eventBuffer] }));
+    } catch (err) {
+      log.warn('Failed to send history', { error: (err as Error).message });
+    }
     try {
       ws.send(this.encode({ kind: 'bootstrap', data: this.getBootstrap() }));
     } catch (err) {
       log.warn('Failed to send bootstrap', { error: (err as Error).message });
-    }
-    // Replay the active setup event so the live log shows it even on reconnect
-    if (this.getReplayEvent) {
-      try {
-        const event = this.getReplayEvent();
-        if (event) {
-          const formatted = formatEvent(event);
-          ws.send(this.encode({ kind: 'event', data: { ...formatted, raw: event } }));
-        }
-      } catch (err) {
-        log.warn('Failed to send replay event', { error: (err as Error).message });
-      }
     }
     ws.on('close', () => {
       this.clients.delete(ws);
@@ -128,10 +133,15 @@ export class WebSocketNotifier implements Notifier {
       this.lastPriceBroadcastMs = now;
     }
     const formatted = formatEvent(event);
-    const payload = this.encode({
-      kind: 'event',
-      data: { ...formatted, raw: event },
-    });
+    const entry = { ...formatted, raw: event };
+    // Buffer all non-price events so new/reconnecting clients can replay them.
+    if (event.type !== 'PRICE_UPDATE') {
+      this.eventBuffer.push(entry);
+      if (this.eventBuffer.length > this.BUFFER_LIMIT) {
+        this.eventBuffer.shift();
+      }
+    }
+    const payload = this.encode({ kind: 'event', data: entry });
     for (const client of this.clients) {
       // ws readyState 1 === OPEN; checking numerically avoids importing the const.
       if (client.readyState === 1) {

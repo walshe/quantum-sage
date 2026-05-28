@@ -4,9 +4,7 @@ export type CloseReason =
   | 'stop_loss'
   | 'vwap_hit'
   | 'hard_profit_exit'
-  | 'time_exit'
-  | 'invalidation'
-  | 'expiry';
+  | 'time_exit';
 
 export interface EntryLevel {
   entryNumber: 1 | 2 | 3;

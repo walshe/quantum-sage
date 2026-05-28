@@ -107,6 +107,11 @@ function applyLang(lang) {
   });
 
   document.documentElement.lang = lang;
+
+  // Dynamic dialogs build their content with tx() at open-time, so they won't
+  // update via the snapshot mechanism above. Rebuild any that are currently open.
+  const statusDlg = $('#status-dialog');
+  if (statusDlg?.open) showStatusDialog().catch(console.error);
 }
 
 function toggleLang() {
@@ -122,6 +127,7 @@ const state = {
   dailyLocked: false,
   currentSignal: null,
   openPosition: null, // bootstrap snapshot of an in-flight position, if any
+  stopPoints: null,   // from SETUP_READY — used to show worst-case stop in trade plan
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
 };
@@ -162,13 +168,16 @@ function setStateChip(s, locked) {
   const valEl = chip.querySelector('.chip-value');
   valEl.textContent = tx(enLabel);
   _i18nTextSnap.delete(valEl);
+  // Page title badge: prefix with 🔴 while a trade is open so it's visible from other tabs.
+  const baseTitle = 'Trident';
+  document.title = s === 'in_trade' ? `🔴 IN TRADE — ${baseTitle}` : baseTitle;
 }
 function renderSignalCard() {
   const s = state.currentSignal;
   const el = $('#signal-card-body');
   if (!s) { el.textContent = tx('None loaded'); return; }
   const filename = baseName(s.filePath) || '(unknown)';
-  const bias = s.biasDirection ? `${s.biasDirection}/${s.biasConfidence ?? '?'}` : '—';
+  const bias = s.biasDirection ?? '—';
   el.textContent = `${filename}\nseq ${s.updateSeq} • DVS ${s.dvs} • VWAP ${s.vwap} • bias ${bias}`;
 }
 
@@ -187,25 +196,11 @@ function severityClass(data) {
 function appendLogRow(data) {
   const log = $('#log');
 
-  // For reconnect-generated events (bootstrap status + SETUP replay), search the
-  // whole log for a prior identical row rather than only checking the last one.
-  // These two always arrive as a pair (CONNECTED → SETUP), so neither is ever
-  // the final row when the next identical pair comes in after a reconnect.
-  const searchAll = data.type === 'BOOTSTRAP' || data.type === 'SETUP_READY';
+  // Coalesce only if the immediately preceding row matches.
   let matchRow = null;
-  if (searchAll) {
-    for (let i = log.children.length - 1; i >= 0; i--) {
-      const li = log.children[i];
-      if (li.dataset.tag === data.tag && li.dataset.head === data.headline) {
-        matchRow = li; break;
-      }
-    }
-  } else {
-    // Original behaviour: coalesce only if the immediately preceding row matches.
-    const last = log.lastElementChild;
-    if (last && last.dataset.tag === data.tag && last.dataset.head === data.headline) {
-      matchRow = last;
-    }
+  const last = log.lastElementChild;
+  if (last && last.dataset.tag === data.tag && last.dataset.head === data.headline) {
+    matchRow = last;
   }
 
   if (matchRow) {
@@ -280,9 +275,24 @@ function connectWs() {
   ws.addEventListener('message', evt => {
     let msg;
     try { msg = JSON.parse(evt.data); } catch { return; }
-    if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
+    if (msg.kind === 'history') handleHistory(msg.data);
+    else if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
     else if (msg.kind === 'event') handleEvent(msg.data);
   });
+}
+
+/**
+ * Replays the server's ring buffer of recent events into the log.
+ * Called before handleBootstrap so the log is fully rebuilt before the
+ * bootstrap's CONNECTED row is appended. Clears the log first so no
+ * duplicate rows appear on reconnect.
+ * State chips are NOT updated here — the bootstrap that follows sets them.
+ */
+function handleHistory(events) {
+  $('#log').innerHTML = '';
+  for (const ev of events) {
+    appendLogRow(ev);
+  }
 }
 
 function handleBootstrap(b) {
@@ -294,6 +304,7 @@ function handleBootstrap(b) {
   }
   state.currentSignal = b.currentSignal;
   state.openPosition = b.position ?? null;
+  if (b.stopPoints != null) state.stopPoints = b.stopPoints;
   renderSignalCard();
 
   // Show server timezone note in the form so the analyst knows which timezone
@@ -377,7 +388,6 @@ function handleEvent(data) {
         dvs: raw.signal?.volatility?.dvs,
         vwap: raw.signal?.vwap?.value,
         biasDirection: raw.signal?.bias?.direction ?? null,
-        biasConfidence: raw.signal?.bias?.confidence ?? null,
       };
       renderSignalCard();
       state.history.unshift({ ts: data.timestamp, tag: 'SIGNAL', text: raw.filePath });
@@ -387,7 +397,11 @@ function handleEvent(data) {
         setSubmitStatus(`Loaded ${state.pendingSubmitName}`, 'ok');
         state.pendingSubmitName = null;
       }
-      setStateChip('watching', state.dailyLocked);
+      // Engine ignores new signals while in_trade — don't clobber the state chip.
+      // (scanSignalDirOnce fires SIGNAL_LOADED on every restart regardless of engine state.)
+      if (state.position !== 'in_trade') {
+        setStateChip('watching', state.dailyLocked);
+      }
       break;
 
     case 'SIGNAL_INVALID':
@@ -395,8 +409,26 @@ function handleEvent(data) {
       renderHistory();
       break;
 
-    case 'SETUP_READY':    setStateChip('watching', state.dailyLocked); break;
-    case 'ENTRY_TRIGGERED':setStateChip('in_trade', state.dailyLocked); break;
+    case 'SETUP_READY':
+      setStateChip('watching', state.dailyLocked);
+      state.openPosition = null;
+      if (raw.stopPoints != null) state.stopPoints = raw.stopPoints;
+      break;
+    case 'ENTRY_TRIGGERED':
+      setStateChip('in_trade', state.dailyLocked);
+      // Keep openPosition in sync so the status panel always shows live stop/entry.
+      state.openPosition = {
+        direction:      raw.direction,
+        avgEntry:       raw.avgEntry,
+        currentStop:    raw.currentStop,
+        fills:          3 - raw.fillsRemaining,
+        breakEvenActive: state.openPosition?.breakEvenActive ?? false,
+      };
+      break;
+    case 'BREAKEVEN_TRIGGERED':
+      if (state.openPosition) state.openPosition.currentStop = raw.newStop;
+      if (state.openPosition) state.openPosition.breakEvenActive = true;
+      break;
     case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); state.openPosition = null; break;
     case 'DAILY_LOCK':     setStateChip(state.position, true); break;
     case 'DVS_GATE_BLOCKED': setStateChip('blocked', state.dailyLocked); break;
@@ -774,10 +806,10 @@ function collectForm() {
     meta: {}, volatility: {}, vwap: {}, ranges: {}, levels: {},
     levels_recal: {
       level_time: null, max_sell_1: null, max_sell_2: null,
-      max_buy_1: null,  max_buy_2: null, supporto: null, resistenza: null,
+      max_buy_1: null,  max_buy_2: null,
       additional: [],
     },
-    bias: {}, invalidation: {},
+    bias: {},
   };
   const numericFields = new Set([
     'meta.update_seq', 'meta.futures_last', 'meta.cash_last', 'meta.basis',
@@ -785,8 +817,6 @@ function collectForm() {
     'vwap.value',
     'ranges.range_1_up', 'ranges.range_2_up', 'ranges.range_2_down', 'ranges.range_1_down',
     'levels.max_sell_1', 'levels.max_sell_2', 'levels.max_buy_1', 'levels.max_buy_2',
-    'levels.supporto', 'levels.resistenza',
-    'invalidation.void_above', 'invalidation.void_below',
   ]);
   for (const el of form.elements) {
     if (!el.name || !el.name.includes('.')) continue;
@@ -809,7 +839,6 @@ function collectForm() {
   // Drop empty optional fields so the YAML stays clean.
   if (signal.meta.contract == null || signal.meta.contract === '') delete signal.meta.contract;
   if (!signal.bias?.direction) delete signal.bias;
-  if (!signal.invalidation.notes) delete signal.invalidation.notes;
   return signal;
 }
 
@@ -839,14 +868,7 @@ function fieldsForError(msg) {
     fields.add('levels.max_buy_1');  fields.add('levels.max_buy_2');
     fields.add('levels.max_sell_1'); fields.add('levels.max_sell_2');
   }
-  if (/Invalidation boundaries must bracket/.test(msg)) {
-    fields.add('invalidation.void_below'); fields.add('invalidation.void_above');
-    fields.add('meta.futures_last');
-  }
   if (/^dvs \(/.test(msg)) fields.add('volatility.dvs');
-  if (/Setup timestamp .* must be before expiry/.test(msg)) {
-    fields.add('meta.timestamp'); fields.add('invalidation.expiry');
-  }
   if (/Setup is stale/.test(msg)) {
     fields.add('meta.timestamp');
   }
@@ -1015,8 +1037,9 @@ function buildEngineStateSection(signalAboutToSubmit) {
   }
   if (state.openPosition) {
     const p = state.openPosition;
+    const beTag = p.breakEvenActive ? ` • ${tx('BE')}` : '';
     addRow(tx('Open position'),
-      `${p.direction.toUpperCase()} • avg ${fmtNum(p.avgEntry)} • stop ${fmtNum(p.currentStop)} • ${p.fills} fill(s)${p.breakEvenActive ? ' • BE' : ''}`);
+      `${p.direction.toUpperCase()} • ${tx('avg entry')} ${fmtNum(p.avgEntry)} • ${tx('stop')} ${fmtNum(p.currentStop)} • ${p.fills} ${tx('fill(s)')}${beTag}`);
   }
   sec.append(grid);
 
@@ -1061,10 +1084,31 @@ function synthesiseAction(signal) {
   return { tone: 'ok', text: tx('Engine will load this as the active setup and start watching for Entry 1.') };
 }
 
+/**
+ * Computes a worst-case stop price for one side of the trade plan.
+ * Uses the same midpoint formula as the trade plan display (raw midpoint,
+ * no config ±offset — Entry 2 is approximate but accurate within 2 pts).
+ * Allocations are the fixed 32.5 / 35 / 32.5 split.
+ * Returns null if stopPoints is unknown or inner level is absent.
+ */
+function worstCaseStop(direction, inner, outer, stopPts) {
+  const present = v => v != null && v !== '';
+  if (!stopPts || !present(inner)) return null;
+  const e1 = Number(inner);
+  const e3 = present(outer) ? Number(outer) : null;
+  const avgEntry = e3 != null
+    ? (e1 * 32.5 + (((e1 + e3) / 2) * 35) + e3 * 32.5) / 100
+    : e1;
+  const stop = direction === 'long' ? avgEntry - stopPts : avgEntry + stopPts;
+  const ctx = e3 != null
+    ? tx('worst case if all 3 fill')
+    : tx('single entry');
+  return `🛑 ${tx('Stop')}: ${fmtNum(stop)} (${tx('pre-trade estimate')} — ${ctx}, ${stopPts} ${tx('pts from avg entry')})`;
+}
+
 function buildTradePlanNote(signal) {
-  const l = signal.levels, inv = signal.invalidation, bias = signal.bias;
-  const dir  = bias?.direction?.toLowerCase();
-  const conf = bias?.confidence ? ` (${bias.confidence})` : '';
+  const l = signal.levels, bias = signal.bias;
+  const dir = bias?.direction?.toLowerCase();
 
   const has = v => v != null && v !== '';
   const parts = [];
@@ -1072,11 +1116,11 @@ function buildTradePlanNote(signal) {
   // Two-sided: neutral bias with both level pairs present — engine watches both Entry 1s.
   const isTwoSided = dir === 'neutral' && has(l.max_buy_2) && has(l.max_sell_2);
 
-  const biasNote = dir === 'long'    ? tx('Bias: long{conf}.').replace('{conf}', conf)
-                 : dir === 'short'   ? tx('Bias: short{conf}.').replace('{conf}', conf)
+  const biasNote = dir === 'long'    ? tx('Bias: long.')
+                 : dir === 'short'   ? tx('Bias: short.')
                  : dir === 'neutral' ? (isTwoSided
-                     ? tx('Bias: neutral{conf} — watching both sides, first trigger wins.').replace('{conf}', conf)
-                     : tx('Bias: neutral{conf} — one side only (incomplete level pair on the other side).').replace('{conf}', conf))
+                     ? tx('Bias: neutral — watching both sides, first trigger wins.')
+                     : tx('Bias: neutral — one side only (incomplete level pair on the other side).'))
                  :                     tx('No bias set — defaulting to long.');
   parts.push(biasNote);
 
@@ -1087,12 +1131,16 @@ function buildTradePlanNote(signal) {
     if (midBuy != null) buyStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
     if (has(l.max_buy_1)) buyStr += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
     parts.push(buyStr + ' → ' + tx('engine enters long.'));
+    const buyStop = worstCaseStop('long', l.max_buy_2, l.max_buy_1, state.stopPoints);
+    if (buyStop) parts.push(buyStop);
 
     const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
     let sellStr = '⬇️ ' + tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
     if (midSell != null) sellStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
     if (has(l.max_sell_1)) sellStr += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
     parts.push(sellStr + ' → ' + tx('engine enters short.'));
+    const sellStop = worstCaseStop('short', l.max_sell_2, l.max_sell_1, state.stopPoints);
+    if (sellStop) parts.push(sellStop);
   } else {
     // Single-sided: bias=long, bias=short, or neutral with only one pair of levels.
     const effectiveDir = (dir === 'short') ? 'short' : 'long';
@@ -1103,6 +1151,8 @@ function buildTradePlanNote(signal) {
       if (midBuy != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
       if (has(l.max_buy_1)) s += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
       parts.push(s + ' → ' + tx('engine enters long.'));
+      const buyStop = worstCaseStop('long', l.max_buy_2, l.max_buy_1, state.stopPoints);
+      if (buyStop) parts.push(buyStop);
     }
     if (effectiveDir === 'short' && has(l.max_sell_2)) {
       const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
@@ -1110,6 +1160,8 @@ function buildTradePlanNote(signal) {
       if (midSell != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
       if (has(l.max_sell_1)) s += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
       parts.push(s + ' → ' + tx('engine enters short.'));
+      const sellStop = worstCaseStop('short', l.max_sell_2, l.max_sell_1, state.stopPoints);
+      if (sellStop) parts.push(sellStop);
     }
   }
 
@@ -1117,17 +1169,16 @@ function buildTradePlanNote(signal) {
     parts.push('🎯 ' + tx('Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.').replace('{vwap}', fmtNum(signal.vwap.value)));
   }
 
-  const voidParts = [];
-  if (has(inv?.void_below)) voidParts.push(tx('below {price}').replace('{price}', fmtNum(inv.void_below)));
-  if (has(inv?.void_above)) voidParts.push(tx('above {price}').replace('{price}', fmtNum(inv.void_above)));
-  let voidStr = voidParts.length ? '⚠️ ' + tx('Void if price {levels} before entry').replace('{levels}', voidParts.join(tx(' or '))) : '';
-  if (inv?.expiry) voidStr += (voidStr ? tx(', or after {expiry}.').replace('{expiry}', inv.expiry) : '⚠️ ' + tx('Expires {expiry}.').replace('{expiry}', inv.expiry));
-  else if (voidStr) voidStr += '.';
-  if (voidStr) parts.push(voidStr);
-
   const note = el('div', { class: 'trade-plan-note' });
   note.append(el('span', { class: 'trade-plan-label', text: 'Trade plan — ' }));
   note.append(document.createTextNode(parts.join('  ')));
+  if (state.stopPoints) {
+    note.append(document.createElement('br'));
+    const fn = document.createElement('span');
+    fn.className = 'trade-plan-footnote';
+    fn.textContent = tx('ℹ️ Once in a trade the status panel shows the live stop.');
+    note.append(fn);
+  }
   return note;
 }
 
@@ -1136,7 +1187,7 @@ function buildSummarySection(signal) {
   sec.append(el('h3', { text: tx('Setup summary') }));
   sec.append(buildTradePlanNote(signal));
   const grid = el('div', { class: 'confirm-grid' });
-  const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels, inv = signal.invalidation;
+  const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels;
 
   const row = (k, val) => {
     grid.append(el('span', { class: 'k', text: k }));
@@ -1151,12 +1202,8 @@ function buildSummarySection(signal) {
   const _midBuy  = (l.max_buy_1  != null && l.max_buy_2  != null) ? (Number(l.max_buy_1)  + Number(l.max_buy_2))  / 2 : null;
   row(tx('SELL levels'), `INNER ${fmtNum(l.max_sell_2)}  →  mid ${fmtNum(_midSell)} (derived)  →  OUTER ${fmtNum(l.max_sell_1)}`);
   row(tx('BUY levels'),  `INNER ${fmtNum(l.max_buy_2)}  →  mid ${fmtNum(_midBuy)} (derived)  →  OUTER ${fmtNum(l.max_buy_1)}`);
-  if (l.supporto != null || l.resistenza != null) {
-    row(tx('Support / Resistance'), `${fmtNum(l.supporto)}  /  ${fmtNum(l.resistenza)}`);
-  }
-  row(tx('Invalidation (futures)'), `void below ${fmtNum(inv.void_below)}  •  void above ${fmtNum(inv.void_above)}  •  expiry ${inv.expiry}`);
   if (signal.bias?.direction) {
-    row(tx('Bias'), `${signal.bias.direction}/${signal.bias.confidence ?? '—'}`);
+    row(tx('Bias'), signal.bias.direction);
   }
   sec.append(grid);
   return sec;
@@ -1300,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Top-strip action buttons each mutate the form then open the modal.
-  $('#btn-status').addEventListener('click', () => { showStatusDialog().catch(console.error); });
+  $('#state-chip').addEventListener('click', () => { showStatusDialog().catch(console.error); });
   $('#btn-new').addEventListener('click', () => { resetForNewSignal(); openFormModal(); });
   $('#btn-update').addEventListener('click', () => { bumpUpdateSeq(); openFormModal(); });
   $('#btn-prefill').addEventListener('click', async () => {

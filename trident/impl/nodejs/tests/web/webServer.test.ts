@@ -24,7 +24,7 @@ const config: QSConfig = {
 
 const bootstrap: Bootstrap = {
   serverTime: '2026-04-21T10:00:00.000Z',
-  state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null, serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' }, currentSignal: null, position: null,
+  state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null, serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' }, currentSignal: null, position: null, stopPoints: 40,
 };
 
 function makeSignal(): SignalFile {
@@ -38,14 +38,13 @@ function makeSignal(): SignalFile {
     levels: {
       level_time: NOW_TIME,
       max_sell_1: 6616.00, max_sell_2: 6582.00, max_buy_1: null, max_buy_2: 6467.00,
-      supporto: 6500.00, resistenza: null, additional: [],
+      additional: [],
     },
     levels_recal: {
       level_time: null, max_sell_1: null, max_sell_2: null, max_buy_1: null,
-      max_buy_2: null, supporto: null, resistenza: null, additional: [],
+      max_buy_2: null, additional: [],
     },
-    bias: { direction: 'neutral', confidence: 'medium' },
-    invalidation: { void_above: 6700.00, void_below: 6430.00, expiry: '23:59' },
+    bias: { direction: 'neutral' },
   };
 }
 

@@ -17,10 +17,10 @@
       <span class="chip-label">Engine <i class="info" data-tip="WebSocket connection between this browser and the engine process.&#10;&#10;• Connected — engine is running, live events streaming&#10;• Reconnecting — connection dropped; tab retries with backoff&#10;• Disconnected — engine process is down or unreachable"></i></span>
       <span class="chip-value">Disconnected</span>
     </div>
-    <div class="chip" id="state-chip" data-state="idle">
-      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no setup loaded&#10;• watching — setup loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades"></i></span>
+    <button type="button" class="chip" id="state-chip" data-state="idle" title="Click for full status">
+      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no setup loaded&#10;• watching — setup loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades&#10;&#10;Click to open the status panel."></i></span>
       <span class="chip-value">idle</span>
-    </div>
+    </button>
     <div class="chip chip--symbol" id="symbol-chip">
       <span class="chip-label">Symbol <i class="info" data-tip="The instrument the price feed is subscribed to and all trades are executed on.&#10;&#10;Set via CTRADER_SYMBOL in .env."></i></span>
       <span class="chip-value" id="symbol-chip-value">—</span>
@@ -42,7 +42,6 @@
   </header>
 
   <div class="action-strip">
-    <button type="button" id="btn-status">Status <i class="info" data-tip="Open a read-only view of what the engine is currently doing.&#10;&#10;Shows: connection, state machine, daily lock, currently loaded setup (full values), and any open position.&#10;&#10;Useful while the form modal is closed."></i></button>
     <button type="button" id="btn-new">New setup <i class="info" data-tip="Clear the form to start a brand-new morning setup from scratch.&#10;&#10;Resets every field, sets update_seq back to 1, and fills today's date.&#10;&#10;Use this once per trading day when FB sends the first setup of the session.&#10;&#10;⚠ If a trade is currently open the engine will ignore the submission — wait until the trade closes before replacing the setup."></i></button>
     <button type="button" id="btn-update">Update during session <i class="info" data-tip="Keep the current values but bump update_seq by 1.&#10;&#10;The submission is treated as an intra-day recalibration of an already-loaded setup (e.g. afternoon level refresh or VWAP refresh).&#10;&#10;Edit only the fields that changed, then submit.&#10;&#10;⚠ If a trade is currently open the engine will ignore the submission — the running trade always uses the levels it started with. Recalibrate once the trade closes."></i></button>
     <button type="button" id="btn-prefill">Pre-fill from latest <i class="info" data-tip="Load today's most recent setup file from the setups/ folder into the form.&#10;&#10;Useful if the page was reloaded or you want to inspect / tweak what the engine is currently running.&#10;&#10;Does not submit — you still need to click Submit setup to push changes."></i></button>
@@ -141,8 +140,6 @@
         <label class="sell">SELL OUTER <span class="optional">(paired)</span> <i class="info" data-tip="Outer resistance (Range 1 up from the IV Smile). Triggers Short Entry 3 — last / deepest scale-in on the short side. ES futures terms."></i> <input name="levels.max_sell_1" type="number" step="0.01"></label>
         <label class="buy">BUY INNER <span class="optional">(paired)</span> <i class="info" data-tip="Inner support (Range 2 down from the IV Smile). Triggers Long Entry 1 — the first touch that opens a long. Entry 2 is the midpoint of BUY INNER and BUY OUTER. ES futures terms."></i> <input name="levels.max_buy_2" type="number" step="0.01"></label>
         <label class="buy">BUY OUTER <span class="optional">(paired)</span> <i class="info" data-tip="Outer support (Range 1 down from the IV Smile). Triggers Long Entry 3 — last / deepest scale-in on the long side. ES futures terms."></i> <input name="levels.max_buy_1" type="number" step="0.01"></label>
-        <label>Support <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived support pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.supporto" type="number" step="0.01"></label>
-        <label>Resistance <span class="optional">(optional)</span> <i class="info" data-tip="Options-derived resistance pivot. Informational — the engine doesn't enter on it. SPX cash terms."></i> <input name="levels.resistenza" type="number" step="0.01"></label>
       </fieldset>
 
       <fieldset>
@@ -154,23 +151,7 @@
             <option value="neutral" selected>neutral</option>
           </select>
         </label>
-        <label>Confidence <span class="optional">(optional)</span> <i class="info" data-tip="Analyst confidence in the directional call. Informational for now — doesn't change engine behaviour."></i>
-          <select name="bias.confidence">
-            <option value="">(none)</option>
-            <option value="low">low</option>
-            <option value="medium" selected>medium</option>
-            <option value="high">high</option>
-          </select>
-        </label>
-        <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text analyst reasoning. Stored with the setup but not acted on. Optional."></i> <input name="bias.notes" type="text"></label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Invalidation [ES futures]</legend>
-        <label>Void above <i class="info" data-tip="Price above which the setup is invalidated. If the market trades above this and the engine is in a trade, it exits with reason 'invalidation'; no new trades are taken. ES futures terms (engine compares to live ES price)."></i> <input name="invalidation.void_above" type="number" step="0.01" required></label>
-        <label>Void below <i class="info" data-tip="Price below which the setup is invalidated. Mirror of void_above on the downside. ES futures terms."></i> <input name="invalidation.void_below" type="number" step="0.01" required></label>
-        <label>Expiry <i class="info" data-tip="Time-of-day after which the setup no longer applies. Picker shows your locale's format (AM/PM or 24-hour) but the value is always stored as 24-hour HH:MM (e.g. 23:59 = end of day). The engine stops trading and closes any open position at this time.&#10;&#10;⚠️ Enter in server timezone (shown in the note at the top of this form)."></i> <div class="input-with-btn"><input name="invalidation.expiry" type="time" required><button type="button" class="quick-fill-btn" data-quick-fill="now" data-target="invalidation.expiry">now</button></div></label>
-        <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text context for invalidation conditions (e.g. 'void if FOMC moves market pre-open'). Optional."></i> <input name="invalidation.notes" type="text"></label>
+        <label class="wide">Notes <span class="optional">(optional)</span> <i class="info" data-tip="Free-text analyst reasoning. Stored with the setup but not acted on. Optional."></i> <textarea name="bias.notes" rows="2" placeholder="e.g. ES bouncing off VWAP, light volume, watching for fade…"></textarea></label>
       </fieldset>
 
       <div class="form-actions">
@@ -267,7 +248,7 @@
             <dt>NO SETUP</dt><dd>Bias + your levels don't give a valid trade.</dd>
             <dt>ENTRY 1 / 2 / 3 <em>(action)</em></dt><dd>Open / scale into the position at the stated size and stop.</dd>
             <dt>BREAKEVEN <em>(action)</em></dt><dd>Move your broker stop to the stated level; cancel any unfilled entry orders.</dd>
-            <dt>CLOSED <em>(action)</em></dt><dd>Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, invalidation, expiry, hard_profit_exit).</dd>
+            <dt>CLOSED <em>(action)</em></dt><dd>Exit at the broker. Reason is printed (vwap_hit, stop_loss, time_exit, hard_profit_exit).</dd>
             <dt>LOCK</dt><dd>One winning trade done — daily lock active, no more trades today. Resets automatically the next trading day.</dd>
           </dl>
         </section>

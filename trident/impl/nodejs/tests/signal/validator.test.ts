@@ -41,8 +41,6 @@ function makeValidSignal(): SignalFile {
       max_sell_2: 6582.00,
       max_buy_1: null,
       max_buy_2: 6467.00,
-      supporto: 6500.00,
-      resistenza: null,
       additional: [],
     },
     levels_recal: {
@@ -51,18 +49,10 @@ function makeValidSignal(): SignalFile {
       max_sell_2: null,
       max_buy_1: null,
       max_buy_2: null,
-      supporto: null,
-      resistenza: null,
       additional: [],
     },
     bias: {
       direction: 'long',
-      confidence: 'medium',
-    },
-    invalidation: {
-      void_above: 6700.00,
-      void_below: 6430.00,
-      expiry: '23:59',  // late enough to never be in the past during a test run
     },
   };
 }
@@ -107,14 +97,6 @@ describe('validateSignal', () => {
     const result = validateSignal(s, opts);
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('dvs'))).toBe(true);
-  });
-
-  it('rejects when futures_last is outside invalidation boundaries', () => {
-    const s = makeValidSignal();
-    s.invalidation.void_below = 6600; // futures_last (6578) is below void_below
-    const result = validateSignal(s, opts);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('Invalidation boundaries'))).toBe(true);
   });
 
   it('passes when cash_last and basis are null (optional fields)', () => {
