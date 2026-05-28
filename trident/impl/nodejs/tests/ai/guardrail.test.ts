@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { checkBeforeCall, recordUsage, getMetrics } from '../src/ai/guardrail.js';
+import { checkBeforeCall, recordUsage, getMetrics } from '../../src/ai/guardrail.js';
 
 // Reset module-level stats between tests by re-importing with a fresh module cache.
 // Vitest isolates modules per test file by default, but the stats object is

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, utimesSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { scanSignalDirOnce } from '../src/signal/loader.js';
-import type { SignalFile } from '../src/signal/types.js';
+import { scanSignalDirOnce } from '../../src/signal/loader.js';
+import type { SignalFile } from '../../src/signal/types.js';
 
 const TODAY = (() => {
   const d = new Date();

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateExtractionResult, OutputValidationError } from '../src/ai/outputValidator.js';
-import type { ExtractionResult } from '../src/ai/types.js';
+import { validateExtractionResult, OutputValidationError } from '../../src/ai/outputValidator.js';
+import type { ExtractionResult } from '../../src/ai/types.js';
 
 function makeValid(): ExtractionResult {
   return {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { SignalExtractor, ExtractionBlockedError } from '../src/ai/signalExtractor.js';
-import { OutputValidationError } from '../src/ai/outputValidator.js';
-import type { VisionProvider, ImageInput, ExtractionResult } from '../src/ai/types.js';
+import { SignalExtractor, ExtractionBlockedError } from '../../src/ai/signalExtractor.js';
+import { OutputValidationError } from '../../src/ai/outputValidator.js';
+import type { VisionProvider, ImageInput, ExtractionResult } from '../../src/ai/types.js';
 
 /** Minimal valid ExtractionResult that satisfies the output validator. */
 function makeValidResult(): ExtractionResult {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFileSync, unlinkSync } from 'fs';
-import { loadConfig } from '../src/config/loader.js';
+import { loadConfig } from '../../src/config/loader.js';
 
 const TMP = '/tmp/qs-config-test.yaml';
 

@@ -7,8 +7,8 @@ import {
   isEntryTriggered,
   isStopHit,
   isVwapHit,
-} from '../src/strategy/calculator.js';
-import type { QSConfig } from '../src/config/types.js';
+} from '../../src/strategy/calculator.js';
+import type { QSConfig } from '../../src/config/types.js';
 
 const config: QSConfig = {
   capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5 },

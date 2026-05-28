@@ -5,8 +5,8 @@ import {
   normaliseNode,
   createLlmCallNode,
   type ExtractionState,
-} from '../src/ai/extractionGraph.js';
-import type { ExtractionResult, VisionProvider, ImageInput } from '../src/ai/types.js';
+} from '../../src/ai/extractionGraph.js';
+import type { ExtractionResult, VisionProvider, ImageInput } from '../../src/ai/types.js';
 
 const DUMMY_IMAGE: ImageInput = { bytes: Buffer.from('img'), mimeType: 'image/png' };
 
