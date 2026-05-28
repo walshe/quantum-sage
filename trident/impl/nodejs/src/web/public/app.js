@@ -167,22 +167,41 @@ function severityClass(data) {
 }
 
 function appendLogRow(data) {
-  // Coalesce repeats: if the new row has the same tag + headline as the last,
-  // bump a counter on the existing row instead of appending a duplicate.
   const log = $('#log');
-  const last = log.lastElementChild;
-  if (last && last.dataset.tag === data.tag && last.dataset.head === data.headline) {
-    const count = (parseInt(last.dataset.count || '1', 10)) + 1;
-    last.dataset.count = String(count);
-    let badge = last.querySelector('.count');
+
+  // For reconnect-generated events (bootstrap status + SETUP replay), search the
+  // whole log for a prior identical row rather than only checking the last one.
+  // These two always arrive as a pair (CONNECTED → SETUP), so neither is ever
+  // the final row when the next identical pair comes in after a reconnect.
+  const searchAll = data.type === 'BOOTSTRAP' || data.type === 'SETUP_READY';
+  let matchRow = null;
+  if (searchAll) {
+    for (let i = log.children.length - 1; i >= 0; i--) {
+      const li = log.children[i];
+      if (li.dataset.tag === data.tag && li.dataset.head === data.headline) {
+        matchRow = li; break;
+      }
+    }
+  } else {
+    // Original behaviour: coalesce only if the immediately preceding row matches.
+    const last = log.lastElementChild;
+    if (last && last.dataset.tag === data.tag && last.dataset.head === data.headline) {
+      matchRow = last;
+    }
+  }
+
+  if (matchRow) {
+    const count = (parseInt(matchRow.dataset.count || '1', 10)) + 1;
+    matchRow.dataset.count = String(count);
+    let badge = matchRow.querySelector('.count');
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'count';
-      last.querySelector('.head').after(badge);
+      matchRow.querySelector('.head').after(badge);
     }
     badge.textContent = `×${count}`;
     // Update timestamp to the latest occurrence.
-    last.querySelector('.ts').textContent = `[${data.timestamp}]`;
+    matchRow.querySelector('.ts').textContent = `[${data.timestamp}]`;
     return;
   }
 
