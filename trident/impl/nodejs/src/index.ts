@@ -297,6 +297,11 @@ function buildBootstrap(): Bootstrap {
       currentStop: position.currentStop,
       vwapTarget: position.vwapTarget,
       fills: position.fills.length,
+      fillDetails: position.fills.map(f => ({
+        entryNumber: f.entryNumber,
+        price: f.price,
+        allocationPct: f.allocationPct,
+      })),
       breakEvenActive: position.breakEvenActive,
     } : null,
     stopPoints: config.trident.stop_loss_points,

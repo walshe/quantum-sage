@@ -13,14 +13,6 @@
       <img src="/assets/trident.png" alt="Trident" class="brand-logo">
       <span class="brand-name">Trident</span>
     </div>
-    <div class="chip" id="engine-chip" data-state="disconnected">
-      <span class="chip-label">Engine <i class="info" data-tip="WebSocket connection between this browser and the engine process.&#10;&#10;• Connected — engine is running, live events streaming&#10;• Reconnecting — connection dropped; tab retries with backoff&#10;• Disconnected — engine process is down or unreachable"></i></span>
-      <span class="chip-value">Disconnected</span>
-    </div>
-    <button type="button" class="chip" id="state-chip" data-state="idle" title="Click for full status">
-      <span class="chip-label">State <i class="info" data-tip="Trading engine state machine.&#10;&#10;• idle — no setup loaded&#10;• watching — setup loaded, waiting for Entry 1&#10;• in_trade — at least one entry has filled&#10;• closed — trade finished for today&#10;• locked — daily lock active (one winning trade done) or DVS gate blocking trades&#10;&#10;Click to open the status panel."></i></span>
-      <span class="chip-value">idle</span>
-    </button>
     <div class="chip chip--symbol" id="symbol-chip">
       <span class="chip-label">Symbol <i class="info" data-tip="The instrument the price feed is subscribed to and all trades are executed on.&#10;&#10;Set via CTRADER_SYMBOL in .env."></i></span>
       <span class="chip-value" id="symbol-chip-value">—</span>
@@ -54,11 +46,26 @@
       <div class="log-head">
         <div>
           <h2>Live log</h2>
-          <p class="log-sub">Events stream in as the engine fires them — setup load, trade plan, entries, breakeven, close, daily lock. Price ticks are suppressed. Events from before the browser connected don't back-fill.</p>
+          <p class="log-sub">Events stream in as the engine fires them — setup load, trade plan, entries, breakeven, close, daily lock. Price ticks are suppressed.</p>
         </div>
-        <button type="button" id="btn-clear-log">Clear <i class="info info--end" data-tip="Wipe the log pane in this browser tab. Does not affect the engine, the setups/ folder, or other connected tabs — purely a local view reset. Useful when the log gets noisy and you want a fresh window into upcoming events."></i></button>
+        <button type="button" id="btn-clear-log">Clear <i class="info info--end" data-tip="Wipe the log pane in this browser tab. Does not affect the engine, the setups/ folder, or other connected tabs — purely a local view reset."></i></button>
       </div>
       <ol id="log"></ol>
+    </section>
+
+    <section class="status-pane" id="status-pane" data-state="idle">
+      <div class="status-pane-head">
+        <h2>Status</h2>
+        <div class="status-legend">
+          <span class="legend-item"><span class="legend-dot" data-state="idle"></span><span class="legend-label">idle</span></span>
+          <span class="legend-item"><span class="legend-dot" data-state="watching"></span><span class="legend-label">watching</span></span>
+          <span class="legend-item"><span class="legend-dot" data-state="in_trade"></span><span class="legend-label">in trade</span></span>
+          <span class="legend-item"><span class="legend-dot" data-state="closed"></span><span class="legend-label">closed</span></span>
+          <span class="legend-item"><span class="legend-dot" data-state="blocked"></span><span class="legend-label">blocked</span></span>
+          <i class="info info--left" data-tip="idle — No setup loaded. Waiting for today's setup to be submitted.&#10;&#10;watching — Setup loaded. Monitoring price for Entry 1 trigger.&#10;&#10;in trade — Position open. Managing stops, scaling in, watching for VWAP exit or stop hit.&#10;&#10;closed — Trade finished for today. No more entries will be taken.&#10;&#10;blocked — Trading off today: DVS volatility gate active, or daily lock triggered after a winning trade."></i>
+        </div>
+      </div>
+      <div id="status-pane-body"></div>
     </section>
   </main>
 
@@ -162,19 +169,6 @@
     </form>
     <div class="form-scroll-gradient" aria-hidden="true"></div>
     <div class="form-scroll-hint" aria-hidden="true">scroll for more</div>
-  </dialog>
-
-  <dialog id="status-dialog" class="status-dialog">
-    <div class="dialog-head">
-      <h2>Current status</h2>
-      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
-      <button type="button" class="dialog-close" id="btn-status-close" aria-label="Close">×</button>
-    </div>
-    <p class="confirm-sub">A read-only snapshot of the engine and the setup it's operating on right now.</p>
-    <div id="status-dialog-body"></div>
-    <div class="confirm-actions">
-      <button type="button" id="btn-status-ok">Close</button>
-    </div>
   </dialog>
 
   <dialog id="help-dialog" class="help-dialog">

@@ -49,6 +49,7 @@ export interface Bootstrap {
     currentStop: number;
     vwapTarget: number;
     fills: number;
+    fillDetails: Array<{ entryNumber: 1 | 2 | 3; price: number; allocationPct: number }>;
     breakEvenActive: boolean;
   } | null;
   /**

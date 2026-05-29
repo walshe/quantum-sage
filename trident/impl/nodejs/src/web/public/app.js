@@ -108,10 +108,8 @@ function applyLang(lang) {
 
   document.documentElement.lang = lang;
 
-  // Dynamic dialogs build their content with tx() at open-time, so they won't
-  // update via the snapshot mechanism above. Rebuild any that are currently open.
-  const statusDlg = $('#status-dialog');
-  if (statusDlg?.open) showStatusDialog().catch(console.error);
+  // Status pane is always visible — rebuild it so translated labels update live.
+  renderStatusPanel();
 }
 
 function toggleLang() {
@@ -131,46 +129,37 @@ const state = {
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
 };
+// Last history envelope received — kept so handleBootstrap can fall back to it
+// when the bootstrap's currentSignal is null (engine clears signal on close).
+let _lastHistory = [];
 
 function setEngineChip(s) {
   state.engine = s;
-  const chip = $('#engine-chip');
-  chip.dataset.state = s;
-  const enLabel =
-    s === 'connected' ? 'Connected' :
-    s === 'reconnecting' ? 'Reconnecting…' : 'Disconnected';
-  const valEl = chip.querySelector('.chip-value');
-  valEl.textContent = tx(enLabel);
-  // Reset i18n snapshot so the next applyLang() works against the new English source.
-  _i18nTextSnap.delete(valEl);
-
   // Show/hide the full-page connection overlay.
+  // Note: we do NOT hide the overlay on 'connected' here — we wait until the
+  // bootstrap message is processed (handleBootstrap calls this after setting
+  // all state). This prevents a brief flash of stale 'idle' state between the
+  // moment the WebSocket opens and the moment the bootstrap arrives.
   const overlay = $('#ws-overlay');
-  if (!overlay) return;
-  if (s === 'connected') {
-    overlay.classList.add('is-hidden');
-  } else {
-    overlay.classList.remove('is-hidden');
-    $('#ws-overlay-text').textContent =
-      s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
-    $('#ws-overlay-sub').textContent =
-      s === 'reconnecting'
-        ? 'Connection dropped — retrying…'
-        : 'Waiting for the engine process to respond.';
+  if (overlay) {
+    if (s !== 'connected') {
+      overlay.classList.remove('is-hidden');
+      $('#ws-overlay-text').textContent =
+        s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
+      $('#ws-overlay-sub').textContent =
+        s === 'reconnecting'
+          ? 'Connection dropped — retrying…'
+          : 'Waiting for the engine process to respond.';
+    }
+    // Overlay is hidden by handleBootstrap once state is fully set.
   }
+  renderStatusPanel();
 }
 function setStateChip(s, locked) {
   state.position = s;
   state.dailyLocked = !!locked;
-  const chip = $('#state-chip');
-  const enLabel = locked ? 'locked' : s;
-  chip.dataset.state = locked ? 'blocked' : s;
-  const valEl = chip.querySelector('.chip-value');
-  valEl.textContent = tx(enLabel);
-  _i18nTextSnap.delete(valEl);
   // Page title badge: prefix with 🔴 while a trade is open so it's visible from other tabs.
-  const baseTitle = 'Trident';
-  document.title = s === 'in_trade' ? `🔴 IN TRADE — ${baseTitle}` : baseTitle;
+  document.title = s === 'in_trade' ? '🔴 IN TRADE — Trident' : 'Trident';
 }
 function renderSignalCard() {
   const s = state.currentSignal;
@@ -275,7 +264,7 @@ function connectWs() {
   ws.addEventListener('message', evt => {
     let msg;
     try { msg = JSON.parse(evt.data); } catch { return; }
-    if (msg.kind === 'history') handleHistory(msg.data);
+    if (msg.kind === 'history') { _lastHistory = msg.data; handleHistory(msg.data); }
     else if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
     else if (msg.kind === 'event') handleEvent(msg.data);
   });
@@ -287,12 +276,32 @@ function connectWs() {
  * bootstrap's CONNECTED row is appended. Clears the log first so no
  * duplicate rows appear on reconnect.
  * State chips are NOT updated here — the bootstrap that follows sets them.
+ * Returns the events array so handleBootstrap can mine it for signal data.
  */
 function handleHistory(events) {
   $('#log').innerHTML = '';
   for (const ev of events) {
     appendLogRow(ev);
   }
+  return events;
+}
+
+// Most recent SIGNAL_LOADED payload from a history/event array, or null.
+function latestSignalFromHistory(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev.type === 'SIGNAL_LOADED' && ev.raw?.filePath) {
+      return {
+        filePath:      ev.raw.filePath,
+        updateSeq:     ev.raw.signal?.meta?.update_seq,
+        dvs:           ev.raw.signal?.volatility?.dvs,
+        vwap:          ev.raw.signal?.vwap?.value,
+        biasDirection: ev.raw.signal?.bias?.direction ?? null,
+        _signal:       ev.raw.signal ?? null,
+      };
+    }
+  }
+  return null;
 }
 
 function handleBootstrap(b) {
@@ -302,7 +311,11 @@ function handleBootstrap(b) {
     symEl.textContent = b.symbol;
     _i18nTextSnap.delete(symEl); // symbol name is never translatable — keep it on lang toggle
   }
-  state.currentSignal = b.currentSignal;
+  // The engine clears currentSignal when a position closes. If the bootstrap
+  // has no signal but the ring buffer contains a recent SIGNAL_LOADED, seed
+  // the UI from it so the nav card and status pane aren't blank until the next
+  // live scanSignalDirOnce event arrives.
+  state.currentSignal = b.currentSignal ?? latestSignalFromHistory(_lastHistory);
   state.openPosition = b.position ?? null;
   if (b.stopPoints != null) state.stopPoints = b.stopPoints;
   renderSignalCard();
@@ -354,6 +367,126 @@ function handleBootstrap(b) {
     severity: 'info',
     actionRequired: false,
   });
+
+  // All state is now correctly set from the bootstrap. Safe to reveal the panel.
+  // Hiding the overlay here (rather than on WS open) ensures the user never sees
+  // a stale 'idle' state in the status pane between connection and bootstrap receipt.
+  const overlay = $('#ws-overlay');
+  if (overlay) overlay.classList.add('is-hidden');
+
+  renderStatusPanel();
+}
+
+// ---------------------------------------------------------------------------
+// Status pane — live always-visible panel on the right half of the main area
+// ---------------------------------------------------------------------------
+function renderStatusPanel() {
+  const pane = $('#status-pane');
+  const body = $('#status-pane-body');
+  if (!pane || !body) return;
+
+  // Drive the pane's data-state so CSS can apply colours + animation.
+  const engineState = state.dailyLocked ? 'blocked' : (state.position ?? 'idle');
+  pane.dataset.state = engineState;
+
+  body.innerHTML = '';
+
+  const spRow = (key, valText, valClass) => {
+    const row = el('div', { class: 'sp-row' });
+    row.append(el('span', { class: 'sp-key', text: tx(key) }));
+    const v = el('span', { class: `sp-val${valClass ? ' ' + valClass : ''}`, text: valText });
+    row.append(v);
+    return row;
+  };
+
+  // ── Engine section ──────────────────────────────────────
+  const engSec = el('div', { class: 'sp-section' });
+  engSec.append(el('h3', { text: tx('Engine') }));
+
+  const connTxt =
+    state.engine === 'connected'    ? tx('Connected') :
+    state.engine === 'reconnecting' ? tx('Reconnecting…') : tx('Disconnected');
+  const connClass =
+    state.engine === 'connected'    ? 'is-closed' :
+    state.engine === 'reconnecting' ? 'is-locked' : 'is-blocked';
+  engSec.append(spRow('Connection', connTxt, connClass));
+
+  const stateLabel = state.dailyLocked ? tx('locked') : tx(state.position ?? 'idle');
+  const stateClass =
+    state.position === 'in_trade'  ? 'is-in-trade' :
+    state.position === 'watching'  ? 'is-watching'  :
+    state.position === 'closed'    ? 'is-closed'    :
+    state.position === 'blocked'   ? 'is-blocked'   :
+    state.dailyLocked              ? 'is-locked'    : '';
+  engSec.append(spRow('State', stateLabel, stateClass));
+
+  const lockTxt = state.dailyLocked
+    ? tx('Locked — no more trades today')
+    : tx('Not locked');
+  engSec.append(spRow('Daily lock', lockTxt, state.dailyLocked ? 'is-locked' : ''));
+  body.append(engSec);
+
+  // ── Setup section ───────────────────────────────────────
+  const setupSec = el('div', { class: 'sp-section' });
+  setupSec.append(el('h3', { text: tx('Current setup') }));
+  if (state.currentSignal) {
+    const cs = state.currentSignal;
+    setupSec.append(spRow('File', baseName(cs.filePath) || '—', ''));
+    setupSec.append(spRow('Seq', String(cs.updateSeq ?? '—'), ''));
+    setupSec.append(spRow('DVS', cs.dvs != null ? String(cs.dvs) : '—', ''));
+    setupSec.append(spRow('VWAP', cs.vwap != null ? fmtNum(cs.vwap) : '—', ''));
+    setupSec.append(spRow('Bias', cs.biasDirection ?? '—', ''));
+  } else {
+    setupSec.append(el('div', { class: 'sp-empty', text: tx('No setup loaded today.') }));
+  }
+  body.append(setupSec);
+
+  // ── Position section (only when in trade) ──────────────
+  if (state.openPosition) {
+    const p = state.openPosition;
+    const posSec = el('div', { class: 'sp-section' });
+    posSec.append(el('h3', { text: tx('Open position') }));
+    posSec.append(spRow('Direction', p.direction.toUpperCase(), 'is-in-trade'));
+    posSec.append(spRow('Avg entry', fmtNum(p.avgEntry), ''));
+    posSec.append(spRow('Stop', fmtNum(p.currentStop), 'is-blocked'));
+    posSec.append(spRow('Target (VWAP)', fmtNum(p.vwapTarget), 'is-closed'));
+    // Individual fills — show each entry's price and size if available.
+    const details = p.fillDetails ?? [];
+    if (details.length > 0) {
+      details.forEach(f => {
+        posSec.append(spRow(
+          `${tx('Entry')} ${f.entryNumber}`,
+          `${fmtNum(f.price)}  (${f.allocationPct}%)`,
+          ''
+        ));
+      });
+    } else {
+      // Fallback: just show the count if fill details aren't available.
+      posSec.append(spRow(tx('Fills'), String(p.fills), ''));
+    }
+    posSec.append(spRow('Breakeven', p.breakEvenActive ? tx('Active') : tx('Not yet'), p.breakEvenActive ? 'is-closed' : ''));
+    body.append(posSec);
+  }
+
+  // ── Trade plan section (watching or in_trade) ───────────
+  const showPlan = state.position === 'watching' || state.position === 'in_trade';
+  if (showPlan && state.currentSignal) {
+    const sig = state.currentSignal._signal;
+    if (sig) {
+      const planSec = el('div', { class: 'sp-section' });
+      planSec.append(el('h3', { text: tx('Trade plan') }));
+      planSec.append(buildTradePlanNote(sig));
+      body.append(planSec);
+    } else {
+      // Bootstrap gave us only the summary — fetch the full signal once and re-render.
+      fetch('/signals/latest').then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.signal && state.currentSignal) {
+          state.currentSignal._signal = data.signal;
+          renderStatusPanel();
+        }
+      }).catch(() => {});
+    }
+  }
 }
 
 function describeEngineState(b) {
@@ -388,6 +521,8 @@ function handleEvent(data) {
         dvs: raw.signal?.volatility?.dvs,
         vwap: raw.signal?.vwap?.value,
         biasDirection: raw.signal?.bias?.direction ?? null,
+        // Full signal kept so the trade plan note can be rendered in the status panel.
+        _signal: raw.signal ?? null,
       };
       renderSignalCard();
       state.history.unshift({ ts: data.timestamp, tag: 'SIGNAL', text: raw.filePath });
@@ -402,6 +537,7 @@ function handleEvent(data) {
       if (state.position !== 'in_trade') {
         setStateChip('watching', state.dailyLocked);
       }
+      renderStatusPanel();
       break;
 
     case 'SIGNAL_INVALID':
@@ -413,25 +549,51 @@ function handleEvent(data) {
       setStateChip('watching', state.dailyLocked);
       state.openPosition = null;
       if (raw.stopPoints != null) state.stopPoints = raw.stopPoints;
+      renderStatusPanel();
       break;
-    case 'ENTRY_TRIGGERED':
+    case 'ENTRY_TRIGGERED': {
       setStateChip('in_trade', state.dailyLocked);
-      // Keep openPosition in sync so the status panel always shows live stop/entry.
+      // Accumulate fill details — each ENTRY_TRIGGERED carries the new fill.
+      const prevFills = state.openPosition?.fillDetails ?? [];
+      const newFill = raw.entryNumber != null ? {
+        entryNumber: raw.entryNumber,
+        price: raw.price ?? raw.avgEntry,
+        allocationPct: raw.allocationPct,
+      } : null;
+      const fillDetails = newFill
+        ? [...prevFills.filter(f => f.entryNumber !== newFill.entryNumber), newFill]
+            .sort((a, b) => a.entryNumber - b.entryNumber)
+        : prevFills;
       state.openPosition = {
-        direction:      raw.direction,
-        avgEntry:       raw.avgEntry,
-        currentStop:    raw.currentStop,
-        fills:          3 - raw.fillsRemaining,
+        direction:       raw.direction,
+        avgEntry:        raw.avgEntry,
+        currentStop:     raw.currentStop,
+        vwapTarget:      raw.vwapTarget ?? state.openPosition?.vwapTarget ?? null,
+        fills:           3 - raw.fillsRemaining,
+        fillDetails,
         breakEvenActive: state.openPosition?.breakEvenActive ?? false,
       };
+      renderStatusPanel();
       break;
+    }
     case 'BREAKEVEN_TRIGGERED':
       if (state.openPosition) state.openPosition.currentStop = raw.newStop;
       if (state.openPosition) state.openPosition.breakEvenActive = true;
+      renderStatusPanel();
       break;
-    case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); state.openPosition = null; break;
-    case 'DAILY_LOCK':     setStateChip(state.position, true); break;
-    case 'DVS_GATE_BLOCKED': setStateChip('blocked', state.dailyLocked); break;
+    case 'POSITION_CLOSED':
+      setStateChip('closed', state.dailyLocked);
+      state.openPosition = null;
+      renderStatusPanel();
+      break;
+    case 'DAILY_LOCK':
+      setStateChip(state.position, true);
+      renderStatusPanel();
+      break;
+    case 'DVS_GATE_BLOCKED':
+      setStateChip('blocked', state.dailyLocked);
+      renderStatusPanel();
+      break;
     case 'NO_TRADE_SETUP':
       // Engine has no active setup (stale signal discarded, expiry before entry,
       // or invalidation before entry). Reset to idle so the analyst knows to
@@ -439,6 +601,7 @@ function handleEvent(data) {
       setStateChip('idle', state.dailyLocked);
       state.currentSignal = null;
       renderSignalCard();
+      renderStatusPanel();
       break;
   }
 }
@@ -768,36 +931,6 @@ function closeFormModal() {
 // Status dialog: read-only "what is the engine doing right now" view.
 // Fetches the loaded signal from /signals/latest so values are fresh.
 // ---------------------------------------------------------------------------
-async function showStatusDialog() {
-  const dlg = $('#status-dialog');
-  const body = $('#status-dialog-body');
-  body.innerHTML = '';
-  body.append(buildEngineStateSection(null));
-
-  // Best-effort fetch; if no signal, show a placeholder.
-  let loadedSignal = null;
-  try {
-    const res = await fetch('/signals/latest');
-    if (res.ok) {
-      const data = await res.json();
-      loadedSignal = data.signal ?? null;
-    }
-  } catch { /* leave loadedSignal null */ }
-
-  if (loadedSignal) {
-    const sec = buildSummarySection(loadedSignal);
-    sec.querySelector('h3').textContent = tx('Currently loaded setup');
-    body.append(sec);
-  } else {
-    const sec = el('section', { class: 'confirm-section' });
-    sec.append(el('h3', { text: tx('Currently loaded setup') }));
-    sec.append(el('div', { class: 'confirm-headline', text: tx('No setup loaded today.') }));
-    body.append(sec);
-  }
-
-  if (!dlg.open) dlg.showModal();
-}
-
 function collectForm() {
   // Build SignalFile from dotted-name inputs.
   const form = $('#signal-form');
@@ -1347,7 +1480,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Top-strip action buttons each mutate the form then open the modal.
-  $('#state-chip').addEventListener('click', () => { showStatusDialog().catch(console.error); });
   $('#btn-new').addEventListener('click', () => { resetForNewSignal(); openFormModal(); });
   $('#btn-update').addEventListener('click', () => { bumpUpdateSeq(); openFormModal(); });
   $('#btn-prefill').addEventListener('click', async () => {
@@ -1359,10 +1491,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);
-
-  // Status dialog close (X + bottom Close button).
-  $('#btn-status-close').addEventListener('click', () => $('#status-dialog').close());
-  $('#btn-status-ok').addEventListener('click', () => $('#status-dialog').close());
 
   // Help dialog open + close.
   $('#btn-help').addEventListener('click', () => {

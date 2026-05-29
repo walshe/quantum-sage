@@ -45,36 +45,6 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
 }
 .chip-label { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.06em; }
 .chip-value { font-weight: 600; }
-/* State chip is a button — give it interactive affordances */
-#state-chip {
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-#state-chip:hover { background: color-mix(in srgb, var(--fg) 6%, var(--bg-input)); }
-#state-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-#engine-chip[data-state="connected"]    { border-color: var(--ok);   color: var(--ok); }
-#engine-chip[data-state="reconnecting"] { border-color: var(--warn); color: var(--warn); }
-#engine-chip[data-state="disconnected"] { border-color: var(--err);  color: var(--err); }
-#state-chip[data-state="in_trade"] {
-  border-color: var(--accent);
-  animation: trade-pulse 2.4s ease-in-out infinite;
-}
-@keyframes trade-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(59,130,246,0);
-    border-color: var(--accent);
-    background: var(--bg-input);
-  }
-  50% {
-    box-shadow: 0 0 16px 6px rgba(59,130,246,0.6);
-    border-color: #93c5fd;
-    background: color-mix(in srgb, var(--accent) 22%, var(--bg-input));
-  }
-}
-#state-chip[data-state="blocked"]  { border-color: var(--err); }
-#state-chip[data-state="closed"]   { border-color: var(--lock); }
 .chip--price .chip-value {
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   letter-spacing: 0.02em;
@@ -127,14 +97,86 @@ details[open].history summary::before { content: '▼ '; }
 
 /* ---------- Main area: full-width log ---------- */
 .main-area {
-  flex: 1; display: flex; flex-direction: column;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   min-height: 0;
 }
 .log-pane {
-  flex: 1;
   background: var(--bg);
   padding: 1rem; overflow-y: auto; min-height: 0;
+  border-right: 1px solid var(--border);
 }
+
+/* ── Status pane ─────────────────────────────────────────── */
+.status-pane {
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  padding: 1rem; overflow-y: auto; min-height: 0;
+  border-left: 3px solid var(--border);
+  transition: border-color 0.4s, background 0.4s;
+}
+
+/* Per-state accent colours */
+.status-pane[data-state="idle"]     { border-left-color: var(--border); }
+.status-pane[data-state="watching"] { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 4%, var(--bg)); }
+.status-pane[data-state="in_trade"] { border-left-color: var(--accent); animation: status-glow 2.4s ease-in-out infinite; }
+.status-pane[data-state="closed"]   { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 4%, var(--bg)); }
+.status-pane[data-state="blocked"]  { border-left-color: var(--err); background: color-mix(in srgb, var(--err) 4%, var(--bg)); }
+
+@keyframes status-glow {
+  0%, 100% { background: var(--bg);                                              border-left-color: var(--accent); }
+  50%       { background: color-mix(in srgb, var(--accent) 10%, var(--bg));      border-left-color: #93c5fd;
+              box-shadow: inset 4px 0 18px -4px rgba(59,130,246,0.35); }
+}
+
+.status-pane-head {
+  display: flex; align-items: center; gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+.status-pane-head h2 { margin: 0; }
+
+/* Legend */
+.status-legend {
+  display: flex; align-items: center;
+  gap: 0.15rem;          /* tight gap — dot and label are a visual unit */
+  flex-wrap: wrap;
+  column-gap: 0.15rem;
+  row-gap: 0.25rem;
+}
+/* Each dot+label pair is wrapped so gap between pairs is larger */
+.legend-item {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  margin-right: 0.65rem;
+}
+.legend-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.legend-dot[data-state="idle"]     { background: var(--fg-dim); }
+.legend-dot[data-state="watching"] { background: var(--warn); }
+.legend-dot[data-state="in_trade"] { background: var(--accent); }
+.legend-dot[data-state="closed"]   { background: var(--ok); }
+.legend-dot[data-state="blocked"]  { background: var(--err); }
+.legend-label { font-size: 10px; color: var(--fg-dim); }
+
+/* Status pane content rows */
+.sp-section { margin-bottom: 1rem; }
+.sp-section h3 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--fg-dim);
+  margin: 0 0 0.4rem; padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+.sp-row { display: flex; gap: 0.5rem; margin-bottom: 0.25rem; font-size: 13px; line-height: 1.4; }
+.sp-key { color: var(--fg-dim); min-width: 110px; flex-shrink: 0; }
+.sp-val { color: var(--fg); }
+.sp-val.is-in-trade { color: var(--accent); font-weight: 600; }
+.sp-val.is-watching { color: var(--warn); font-weight: 600; }
+.sp-val.is-closed   { color: var(--ok);   font-weight: 600; }
+.sp-val.is-blocked  { color: var(--err);  font-weight: 600; }
+.sp-val.is-locked   { color: var(--warn); font-weight: 600; }
+.sp-empty { font-size: 13px; color: var(--fg-dim); font-style: italic; }
 .optional {
   font-size: 10px;
   font-weight: 400;
@@ -372,7 +414,8 @@ fieldset > label:nth-of-type(even):not(.wide) .info::after {
   left: auto; right: 0;
 }
 /* Explicit right-anchored variant for icons near the right edge of the page. */
-.info--end::after { left: auto !important; right: 0 !important; }
+.info--end::after  { left: auto !important; right: 0 !important; }
+.info--left::after { left: auto !important; right: 0 !important; }
 input, select, textarea {
   background: var(--bg-input); color: var(--fg);
   border: 1px solid var(--border); border-radius: 4px;
@@ -642,23 +685,6 @@ label.sell > input:focus { border-color: var(--accent); }
 }
 
 /* ---------- Status dialog ---------- */
-.status-dialog {
-  background: var(--bg-raised);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.2rem 1.3rem 1rem;
-  width: min(680px, 95vw);
-  max-height: 90vh;
-  overflow: hidden;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
-}
-.status-dialog[open] {
-  display: flex;
-  flex-direction: column;
-}
-.status-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
-#status-dialog-body { overflow-y: auto; flex: 1; min-height: 0; padding-right: 0.3rem; }
 
 /* ---------- Help dialog ---------- */
 .help-dialog {
@@ -828,7 +854,11 @@ label.sell > input:focus { border-color: var(--accent); }
   color: var(--fg);
   margin-bottom: 0.6rem;
   line-height: 1.6;
+  word-break: break-word;
+  white-space: normal;
 }
+/* In the status panel the note gets less horizontal room — tighten the font slightly */
+.sp-section .trade-plan-note { font-size: 11.5px; }
 .trade-plan-label { font-weight: 600; color: var(--accent); }
 .trade-plan-footnote { color: var(--fg-dim); font-style: italic; font-size: 11.5px; }
 .check {
@@ -921,8 +951,7 @@ label.sell > input:focus { border-color: var(--accent); }
   transition: opacity 0.3s ease;
 }
 .ws-overlay.is-hidden {
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 .ws-overlay-stage {
   width: 52px;
