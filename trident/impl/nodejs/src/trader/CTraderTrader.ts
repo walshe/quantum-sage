@@ -14,6 +14,7 @@
 
 import { CTraderSession, PT } from '../price-feed/CTraderSession.js';
 import type { CTraderSessionConfig } from '../price-feed/CTraderSession.js';
+import type { AccountInfo } from '../notifier/Notifier.js';
 import { getLogger } from '../logger.js';
 
 const log = getLogger('CTraderTrader');
@@ -22,12 +23,7 @@ const POLL_INTERVAL_MS = 30_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface AccountInfo {
-  balance:        number;
-  equity:         number;
-  unrealizedPnl:  number;
-  currency:       string;
-}
+export type { AccountInfo };
 
 export interface AccountMeta {
   login:      number;
