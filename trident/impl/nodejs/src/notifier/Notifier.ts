@@ -15,7 +15,12 @@ export type NotificationEvent =
   | {
       type: 'SETUP_READY';
       direction: Direction;
+      /** Alt direction for two-sided (neutral bias) watching. Present only when both sides are active. */
+      altDirection?: Direction;
+      bias: 'long' | 'short' | 'neutral' | null;
       entries: EntryLevel[];
+      /** Alt entry chain for two-sided watching. Present only when bias=neutral and both level pairs exist. */
+      altEntries?: EntryLevel[];
       stopPoints: number;
       vwap: number;
     }

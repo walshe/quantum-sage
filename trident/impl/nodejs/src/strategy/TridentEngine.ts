@@ -36,10 +36,19 @@ export class TridentEngine {
   private signalFilePath: string | null = null;
   private activeLevels: ActiveLevels | null = null;
   private tradeSetup: EntryLevel[] | null = null;
+  /** Second entry chain for two-sided (neutral bias) watching. Cleared once one side triggers. */
+  private tradeSetupAlt: EntryLevel[] | null = null;
   private position: ActivePosition | null = null;
   private dailyLocked = false;
   private timeExitTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotPath: string | null;
+  /**
+   * Human-readable reason the engine last transitioned to idle without a trade.
+   * Included in the bootstrap so clients that connect/reconnect after the event
+   * still see why the engine went idle. Cleared when a new signal is loaded.
+   * Not persisted — a restart implies a fresh context.
+   */
+  private lastIdleReason: string | null = null;
 
   constructor(config: QSConfig, notifier: Notifier, opts: { snapshotPath?: string | null } = {}) {
     this.config = config;
@@ -70,6 +79,7 @@ export class TridentEngine {
     this.signalFilePath = restored.signalFilePath;
     this.activeLevels = restored.activeLevels;
     this.tradeSetup = restored.tradeSetup;
+    this.tradeSetupAlt = restored.tradeSetupAlt;
     this.position = restored.position;
     this.dailyLocked = restored.dailyLocked;
 
@@ -102,6 +112,7 @@ export class TridentEngine {
         signalFilePath: this.signalFilePath,
         activeLevels: this.activeLevels,
         tradeSetup: this.tradeSetup,
+        tradeSetupAlt: this.tradeSetupAlt,
         position: this.position,
       }));
     } catch (err) {
@@ -167,6 +178,7 @@ export class TridentEngine {
 
     this.currentSignal = signal;
     this.signalFilePath = filePath;
+    this.lastIdleReason = null; // a new signal supersedes any prior idle reason
 
     const levels = resolveActiveLevels(signal);
     this.activeLevels = levels;
@@ -194,9 +206,22 @@ export class TridentEngine {
 
     log.debug('Price tick', { price, state: this.state });
 
-    // Time-exit safety net. The scheduled timer handles the normal case, but
-    // after a crash/restart the deadline may have passed while we were down.
-    // This check catches that (and any other timer miss) on the next tick.
+    // New-day check: if the loaded signal is from a previous calendar day and
+    // no position is open, discard it cleanly without emitting a misleading
+    // action-required POSITION_CLOSED event. The engine runs continuously
+    // overnight, so without this the first price tick of a new session would
+    // trigger the expiry path and tell the analyst to "close a LONG position"
+    // that was never opened.
+    if (this.state === 'watching') {
+      const todayDate = new Date().toISOString().slice(0, 10);
+      if (this.currentSignal.meta.date !== todayDate) {
+        await this.discardStaleSignal();
+        return;
+      }
+    }
+
+    // Time-exit safety net: after a crash/restart the deadline may have passed
+    // while the engine was down. This check catches that on the next tick.
     if (
       this.state === 'in_trade' &&
       this.position &&
@@ -204,21 +229,6 @@ export class TridentEngine {
     ) {
       log.warn('Time-exit deadline detected on price tick', { price });
       await this.closePosition(price, 'time_exit');
-      return;
-    }
-
-    // Invalidation check (always runs, even before entry)
-    const { void_above, void_below, expiry } = this.currentSignal.invalidation;
-    if (price >= void_above || price <= void_below) {
-      log.warn('Invalidation boundary hit', { price, void_above, void_below });
-      await this.closePosition(price, 'invalidation');
-      return;
-    }
-
-    // Expiry check
-    if (isPastExpiry(this.currentSignal.meta.date, expiry)) {
-      log.warn('Setup expiry reached', { expiry });
-      await this.closePosition(price, 'expiry');
       return;
     }
 
@@ -274,11 +284,44 @@ export class TridentEngine {
       return;
     }
 
+    // Two-sided watching: bias=neutral with both level pairs present.
+    // Engine watches both Entry 1 prices simultaneously; whichever side
+    // price reaches first becomes the trade. The other side is cancelled.
+    if (biasDir === 'neutral' && canLong && canShort) {
+      const longEntries  = calculateEntries('long',  levels.max_buy_2!,  levels.max_buy_1!,  this.config);
+      const shortEntries = calculateEntries('short', levels.max_sell_2!, levels.max_sell_1!, this.config);
+      this.tradeSetup    = longEntries;
+      this.tradeSetupAlt = shortEntries;
+      this.state = 'watching';
+
+      log.info('Two-sided setup ready — watching both Entry 1 prices', {
+        longEntry1:  longEntries[0].price,
+        shortEntry1: shortEntries[0].price,
+        vwap: signal.vwap.value,
+        stop_points: this.config.trident.stop_loss_points,
+      });
+
+      await this.notifier.notify({
+        type: 'SETUP_READY',
+        direction: 'long',
+        altDirection: 'short',
+        bias: 'neutral',
+        entries: longEntries,
+        altEntries: shortEntries,
+        stopPoints: this.config.trident.stop_loss_points,
+        vwap: signal.vwap.value,
+      });
+
+      this.persist();
+      return;
+    }
+
+    // Single-sided: bias=long, bias=short, or null (defaults to long)
     let direction: 'long' | 'short';
     let innerLevel: number;
     let outerLevel: number;
 
-    if (canLong && (biasDir === 'long' || biasDir === 'neutral' || !biasDir || !canShort)) {
+    if (canLong && (!biasDir || biasDir === 'long' || !canShort)) {
       direction = 'long';
       innerLevel = levels.max_buy_2!;
       outerLevel = levels.max_buy_1!;
@@ -289,7 +332,8 @@ export class TridentEngine {
     }
 
     const entries = calculateEntries(direction, innerLevel, outerLevel, this.config);
-    this.tradeSetup = entries;
+    this.tradeSetup    = entries;
+    this.tradeSetupAlt = null;
     this.state = 'watching';
 
     log.info('Trade setup ready — watching for entry', {
@@ -304,6 +348,7 @@ export class TridentEngine {
     await this.notifier.notify({
       type: 'SETUP_READY',
       direction,
+      bias: (biasDir ?? null) as 'long' | 'short' | 'neutral' | null,
       entries,
       stopPoints: this.config.trident.stop_loss_points,
       vwap: signal.vwap.value,
@@ -319,19 +364,47 @@ export class TridentEngine {
   private async checkEntryTrigger(price: number): Promise<void> {
     if (!this.tradeSetup || !this.currentSignal) return;
 
-    const inferredDirection = this.inferDirection();
-    if (!inferredDirection) return;
+    // Check primary side (tradeSetup).
+    const primaryDir = this.inferDirection(this.tradeSetup);
+    if (primaryDir) {
+      const entry1 = this.tradeSetup[0];
+      log.debug('Checking entry 1 trigger (primary)', {
+        direction: primaryDir,
+        entryPrice: entry1.price,
+        currentPrice: price,
+      });
 
-    const entry1 = this.tradeSetup[0];
-    log.debug('Checking entry 1 trigger', {
-      direction: inferredDirection,
-      entryPrice: entry1.price,
-      currentPrice: price,
-      triggered: inferredDirection === 'long' ? price <= entry1.price : price >= entry1.price,
-    });
+      if (isEntryTriggered(primaryDir, entry1.price, price)) {
+        // Two-sided: primary triggered — cancel the alt chain.
+        if (this.tradeSetupAlt) {
+          log.info('Primary side triggered in two-sided watch — alt chain cancelled', { primaryDir });
+          this.tradeSetupAlt = null;
+        }
+        await this.fillEntry(entry1, price, primaryDir);
+        return;
+      }
+    }
 
-    if (isEntryTriggered(inferredDirection, entry1.price, price)) {
-      await this.fillEntry(entry1, price, inferredDirection);
+    // Check alt side (tradeSetupAlt) — only active during neutral-bias two-sided watching.
+    if (this.tradeSetupAlt) {
+      const altDir = this.inferDirection(this.tradeSetupAlt);
+      if (altDir) {
+        const altEntry1 = this.tradeSetupAlt[0];
+        log.debug('Checking entry 1 trigger (alt)', {
+          direction: altDir,
+          entryPrice: altEntry1.price,
+          currentPrice: price,
+        });
+
+        if (isEntryTriggered(altDir, altEntry1.price, price)) {
+          log.info('Alt side triggered in two-sided watch — promoting alt to primary', { altDir });
+          // Swap: promote alt chain so fillEntry reads the right pendingEntries.
+          this.tradeSetup    = this.tradeSetupAlt;
+          this.tradeSetupAlt = null;
+          await this.fillEntry(altEntry1, price, altDir);
+          return;
+        }
+      }
     }
   }
 
@@ -534,24 +607,54 @@ export class TridentEngine {
         await this.applyDailyLock('one winning trade closed');
       }
     } else if (this.state === 'watching') {
-      log.info('Setup invalidated before entry', { reason, price });
-      await this.notifier.notify({
-        type: 'POSITION_CLOSED',
-        reason,
-        direction: 'long',
-        avgEntry: 0,
-        closePrice: price,
-        pnlPoints: 0,
-      });
+      // No position was ever opened — emit NO_TRADE_SETUP (informational) rather
+      // than POSITION_CLOSED (action-required), which would tell the analyst to
+      // close a position that doesn't exist.
+      const cancelMsg = `Setup cancelled before entry (reason: ${reason})`;
+      log.info(cancelMsg, { reason, price });
+      this.lastIdleReason = cancelMsg;
+      await this.notifier.notify({ type: 'NO_TRADE_SETUP', reason: cancelMsg });
     }
 
     this.position = null;
     this.tradeSetup = null;
+    this.tradeSetupAlt = null;
     this.currentSignal = null;
     this.signalFilePath = null;
     this.activeLevels = null;
     this.state = 'closed';
     this.persist();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stale signal discard
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Discard a signal from a previous calendar day cleanly.
+   *
+   * Called on the first price tick of a new trading session when the engine
+   * was left running overnight with a 'watching' signal that never triggered.
+   * Resets to idle and emits NO_TRADE_SETUP (informational, no action required),
+   * so the analyst knows to submit today's setup.
+   */
+  private async discardStaleSignal(): Promise<void> {
+    const signalDate = this.currentSignal?.meta.date ?? '?';
+    log.warn('Discarding stale signal from previous trading day', { signalDate });
+    this.cancelTimeExitTimer();
+    this.state = 'idle';
+    this.currentSignal = null;
+    this.signalFilePath = null;
+    this.activeLevels = null;
+    this.tradeSetup = null;
+    this.tradeSetupAlt = null;
+    this.position = null;
+    this.lastIdleReason = `Previous day's setup (${signalDate}) expired — no trade was taken`;
+    this.persist();
+    await this.notifier.notify({
+      type: 'NO_TRADE_SETUP',
+      reason: `Previous day's setup (${signalDate}) has expired — submit today's setup to begin trading`,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -601,10 +704,11 @@ export class TridentEngine {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private inferDirection(): 'long' | 'short' | null {
-    if (!this.tradeSetup || this.tradeSetup.length === 0) return null;
-    const e1 = this.tradeSetup[0].price;
-    const e3 = this.tradeSetup[2].price;
+  private inferDirection(entries?: EntryLevel[]): 'long' | 'short' | null {
+    const setup = entries ?? this.tradeSetup;
+    if (!setup || setup.length < 3) return null;
+    const e1 = setup[0].price;
+    const e3 = setup[2].price;
     return e3 < e1 ? 'long' : 'short';
   }
 
@@ -636,6 +740,32 @@ export class TridentEngine {
     return this.signalFilePath;
   }
 
+  getTradeSetup(): EntryLevel[] | null {
+    return this.tradeSetup;
+  }
+
+  getAltTradeSetup(): EntryLevel[] | null {
+    return this.tradeSetupAlt;
+  }
+
+  getTradeDirection(): 'long' | 'short' | null {
+    return this.inferDirection();
+  }
+
+  getAltTradeDirection(): 'long' | 'short' | null {
+    return this.tradeSetupAlt ? this.inferDirection(this.tradeSetupAlt) : null;
+  }
+
+  /**
+   * Human-readable reason the engine last went idle without taking a trade
+   * (stale signal discarded, or cancelled before entry).
+   * Null when idle from a clean start or after a signal was subsequently loaded.
+   * Included in the bootstrap so reconnecting clients see why the engine is idle.
+   */
+  getLastIdleReason(): string | null {
+    return this.lastIdleReason;
+  }
+
   reset(): void {
     this.cancelTimeExitTimer();
     this.state = 'idle';
@@ -643,6 +773,7 @@ export class TridentEngine {
     this.signalFilePath = null;
     this.activeLevels = null;
     this.tradeSetup = null;
+    this.tradeSetupAlt = null;
     this.position = null;
     this.dailyLocked = false;
     log.info('Engine reset for new trading day');
@@ -678,7 +809,3 @@ function resolveActiveLevels(signal: SignalFile): ActiveLevels {
   };
 }
 
-function isPastExpiry(date: string, expiryTime: string): boolean {
-  const expiry = new Date(`${date}T${expiryTime}:00`);
-  return Date.now() >= expiry.getTime();
-}

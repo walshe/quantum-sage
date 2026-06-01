@@ -12,6 +12,24 @@ const $ = sel => document.querySelector(sel);
 // Strip any absolute path, keep just the filename.
 const baseName = p => (p ? String(p).split('/').pop() : '');
 
+/**
+ * Format a timestamp for display in the log.
+ * Accepts an ISO 8601 string (from isoTimestamp) and returns "HH:MM:SS TZ"
+ * in the browser's local timezone — so the analyst sees times in their own
+ * timezone regardless of where the engine is running.
+ * Falls back to the raw string if it's not parseable as ISO (legacy path).
+ */
+function fmtTime(value) {
+  if (!value) return '??:??:??';
+  if (!value.includes('T')) return value; // plain HH:MM:SS legacy fallback
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const hms = d.toTimeString().slice(0, 8);
+  const shortTz = d.toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+  const longTz  = d.toLocaleTimeString(undefined, { timeZoneName: 'long'  }).split(' ').slice(1).join(' ');
+  return `${hms} ${shortTz} (${longTz})`;
+}
+
 // ---------------------------------------------------------------------------
 // i18n: English (source) ↔ Italian (window.TRIDENT_I18N from i18n.js)
 // ---------------------------------------------------------------------------
@@ -82,11 +100,16 @@ function applyLang(lang) {
     el.setAttribute('title', tx(_i18nTitleSnap.get(el), lang));
   });
 
-  // Lang toggle button shows the OTHER language as its label.
-  const btn = document.getElementById('btn-lang');
-  if (btn) btn.textContent = lang === 'en' ? 'IT' : 'EN';
+  // All lang toggle buttons (top bar + dialog headers) show the OTHER language as label.
+  const label = lang === 'en' ? 'IT' : 'EN';
+  document.querySelectorAll('#btn-lang, [data-lang-toggle]').forEach(btn => {
+    btn.textContent = label;
+  });
 
   document.documentElement.lang = lang;
+
+  // Status pane is always visible — rebuild it so translated labels update live.
+  renderStatusPanel();
 }
 
 function toggleLang() {
@@ -102,53 +125,48 @@ const state = {
   dailyLocked: false,
   currentSignal: null,
   openPosition: null, // bootstrap snapshot of an in-flight position, if any
+  stopPoints: null,   // from SETUP_READY — used to show worst-case stop in trade plan
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
 };
+// Last history envelope received — kept so handleBootstrap can fall back to it
+// when the bootstrap's currentSignal is null (engine clears signal on close).
+let _lastHistory = [];
 
 function setEngineChip(s) {
   state.engine = s;
-  const chip = $('#engine-chip');
-  chip.dataset.state = s;
-  const enLabel =
-    s === 'connected' ? 'Connected' :
-    s === 'reconnecting' ? 'Reconnecting…' : 'Disconnected';
-  const valEl = chip.querySelector('.chip-value');
-  valEl.textContent = tx(enLabel);
-  // Reset i18n snapshot so the next applyLang() works against the new English source.
-  _i18nTextSnap.delete(valEl);
-
   // Show/hide the full-page connection overlay.
+  // Note: we do NOT hide the overlay on 'connected' here — we wait until the
+  // bootstrap message is processed (handleBootstrap calls this after setting
+  // all state). This prevents a brief flash of stale 'idle' state between the
+  // moment the WebSocket opens and the moment the bootstrap arrives.
   const overlay = $('#ws-overlay');
-  if (!overlay) return;
-  if (s === 'connected') {
-    overlay.classList.add('is-hidden');
-  } else {
-    overlay.classList.remove('is-hidden');
-    $('#ws-overlay-text').textContent =
-      s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
-    $('#ws-overlay-sub').textContent =
-      s === 'reconnecting'
-        ? 'Connection dropped — retrying…'
-        : 'Waiting for the engine process to respond.';
+  if (overlay) {
+    if (s !== 'connected') {
+      overlay.classList.remove('is-hidden');
+      $('#ws-overlay-text').textContent =
+        s === 'reconnecting' ? 'Reconnecting…' : 'Connecting to server…';
+      $('#ws-overlay-sub').textContent =
+        s === 'reconnecting'
+          ? 'Connection dropped — retrying…'
+          : 'Waiting for the engine process to respond.';
+    }
+    // Overlay is hidden by handleBootstrap once state is fully set.
   }
+  renderStatusPanel();
 }
 function setStateChip(s, locked) {
   state.position = s;
   state.dailyLocked = !!locked;
-  const chip = $('#state-chip');
-  const enLabel = locked ? 'locked' : s;
-  chip.dataset.state = locked ? 'blocked' : s;
-  const valEl = chip.querySelector('.chip-value');
-  valEl.textContent = tx(enLabel);
-  _i18nTextSnap.delete(valEl);
+  // Page title badge: prefix with 🔴 while a trade is open so it's visible from other tabs.
+  document.title = s === 'in_trade' ? '🔴 IN TRADE — Trident' : 'Trident';
 }
 function renderSignalCard() {
   const s = state.currentSignal;
   const el = $('#signal-card-body');
   if (!s) { el.textContent = tx('None loaded'); return; }
   const filename = baseName(s.filePath) || '(unknown)';
-  const bias = s.biasDirection ? `${s.biasDirection}/${s.biasConfidence ?? '?'}` : '—';
+  const bias = s.biasDirection ?? '—';
   el.textContent = `${filename}\nseq ${s.updateSeq} • DVS ${s.dvs} • VWAP ${s.vwap} • bias ${bias}`;
 }
 
@@ -165,22 +183,27 @@ function severityClass(data) {
 }
 
 function appendLogRow(data) {
-  // Coalesce repeats: if the new row has the same tag + headline as the last,
-  // bump a counter on the existing row instead of appending a duplicate.
   const log = $('#log');
+
+  // Coalesce only if the immediately preceding row matches.
+  let matchRow = null;
   const last = log.lastElementChild;
   if (last && last.dataset.tag === data.tag && last.dataset.head === data.headline) {
-    const count = (parseInt(last.dataset.count || '1', 10)) + 1;
-    last.dataset.count = String(count);
-    let badge = last.querySelector('.count');
+    matchRow = last;
+  }
+
+  if (matchRow) {
+    const count = (parseInt(matchRow.dataset.count || '1', 10)) + 1;
+    matchRow.dataset.count = String(count);
+    let badge = matchRow.querySelector('.count');
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'count';
-      last.querySelector('.head').after(badge);
+      matchRow.querySelector('.head').after(badge);
     }
     badge.textContent = `×${count}`;
-    // Update timestamp to the latest occurrence.
-    last.querySelector('.ts').textContent = `[${data.timestamp}]`;
+    // Update timestamp to the latest occurrence (browser local time + TZ label).
+    matchRow.querySelector('.ts').textContent = `[${fmtTime(data.isoTimestamp ?? data.timestamp)}]`;
     return;
   }
 
@@ -190,7 +213,7 @@ function appendLogRow(data) {
   li.dataset.head = data.headline;
 
   const ts = document.createElement('span');
-  ts.className = 'ts'; ts.textContent = `[${data.timestamp}]`;
+  ts.className = 'ts'; ts.textContent = `[${fmtTime(data.isoTimestamp ?? data.timestamp)}]`;
   const tag = document.createElement('span');
   tag.className = 'tag'; tag.textContent = `[${data.tag}]`;
   const head = document.createElement('span');
@@ -241,9 +264,44 @@ function connectWs() {
   ws.addEventListener('message', evt => {
     let msg;
     try { msg = JSON.parse(evt.data); } catch { return; }
-    if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
+    if (msg.kind === 'history') { _lastHistory = msg.data; handleHistory(msg.data); }
+    else if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
     else if (msg.kind === 'event') handleEvent(msg.data);
   });
+}
+
+/**
+ * Replays the server's ring buffer of recent events into the log.
+ * Called before handleBootstrap so the log is fully rebuilt before the
+ * bootstrap's CONNECTED row is appended. Clears the log first so no
+ * duplicate rows appear on reconnect.
+ * State chips are NOT updated here — the bootstrap that follows sets them.
+ * Returns the events array so handleBootstrap can mine it for signal data.
+ */
+function handleHistory(events) {
+  $('#log').innerHTML = '';
+  for (const ev of events) {
+    appendLogRow(ev);
+  }
+  return events;
+}
+
+// Most recent SIGNAL_LOADED payload from a history/event array, or null.
+function latestSignalFromHistory(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev.type === 'SIGNAL_LOADED' && ev.raw?.filePath) {
+      return {
+        filePath:      ev.raw.filePath,
+        updateSeq:     ev.raw.signal?.meta?.update_seq,
+        dvs:           ev.raw.signal?.volatility?.dvs,
+        vwap:          ev.raw.signal?.vwap?.value,
+        biasDirection: ev.raw.signal?.bias?.direction ?? null,
+        _signal:       ev.raw.signal ?? null,
+      };
+    }
+  }
+  return null;
 }
 
 function handleBootstrap(b) {
@@ -253,14 +311,28 @@ function handleBootstrap(b) {
     symEl.textContent = b.symbol;
     _i18nTextSnap.delete(symEl); // symbol name is never translatable — keep it on lang toggle
   }
-  state.currentSignal = b.currentSignal;
+  // The engine clears currentSignal when a position closes. If the bootstrap
+  // has no signal but the ring buffer contains a recent SIGNAL_LOADED, seed
+  // the UI from it so the nav card and status pane aren't blank until the next
+  // live scanSignalDirOnce event arrives.
+  state.currentSignal = b.currentSignal ?? latestSignalFromHistory(_lastHistory);
   state.openPosition = b.position ?? null;
+  if (b.stopPoints != null) state.stopPoints = b.stopPoints;
   renderSignalCard();
+
+  // Show server timezone note in the form so the analyst knows which timezone
+  // to use when entering times (timestamp, expiry, vwap.updated_at).
+  if (b.serverTz) {
+    const tzNote = $('#server-tz-note');
+    if (tzNote) {
+      tzNote.textContent = `🕐 Times in this form are interpreted in the server timezone: ${b.serverTz.offsetStr} (${b.serverTz.ianaName})`;
+      tzNote.hidden = false;
+    }
+  }
 
   // Synthesise a log entry that captures the engine's current state so the
   // pane isn't blank on connect. The real event stream will only contain
   // things that happen from this moment onwards.
-  const ts = new Date(b.serverTime).toTimeString().slice(0, 8);
   const headline = describeEngineState(b);
   const detail = [];
   if (b.currentSignal) {
@@ -273,13 +345,20 @@ function handleBootstrap(b) {
     state.history.unshift({ ts: ts, tag: 'SIGNAL', text: b.currentSignal.filePath });
     renderHistory();
   }
+  if (b.lastIdleReason) {
+    // Engine went idle due to a non-trade event (stale signal, expiry before
+    // entry, invalidation before entry). Surface the reason here so the analyst
+    // sees it even if they connected/reconnected after the live event fired.
+    detail.push(`ℹ️ ${b.lastIdleReason}`);
+  }
   if (b.position) {
     detail.push(
       `Position: ${b.position.direction.toUpperCase()} — avg ${b.position.avgEntry}, stop ${b.position.currentStop}, ${b.position.fills} fill(s)`
     );
   }
   appendLogRow({
-    timestamp: ts,
+    timestamp: fmtTime(b.serverTime),
+    isoTimestamp: b.serverTime,
     type: 'BOOTSTRAP',
     tag: 'CONNECTED',
     headline,
@@ -288,6 +367,126 @@ function handleBootstrap(b) {
     severity: 'info',
     actionRequired: false,
   });
+
+  // All state is now correctly set from the bootstrap. Safe to reveal the panel.
+  // Hiding the overlay here (rather than on WS open) ensures the user never sees
+  // a stale 'idle' state in the status pane between connection and bootstrap receipt.
+  const overlay = $('#ws-overlay');
+  if (overlay) overlay.classList.add('is-hidden');
+
+  renderStatusPanel();
+}
+
+// ---------------------------------------------------------------------------
+// Status pane — live always-visible panel on the right half of the main area
+// ---------------------------------------------------------------------------
+function renderStatusPanel() {
+  const pane = $('#status-pane');
+  const body = $('#status-pane-body');
+  if (!pane || !body) return;
+
+  // Drive the pane's data-state so CSS can apply colours + animation.
+  const engineState = state.dailyLocked ? 'blocked' : (state.position ?? 'idle');
+  pane.dataset.state = engineState;
+
+  body.innerHTML = '';
+
+  const spRow = (key, valText, valClass) => {
+    const row = el('div', { class: 'sp-row' });
+    row.append(el('span', { class: 'sp-key', text: tx(key) }));
+    const v = el('span', { class: `sp-val${valClass ? ' ' + valClass : ''}`, text: valText });
+    row.append(v);
+    return row;
+  };
+
+  // ── Engine section ──────────────────────────────────────
+  const engSec = el('div', { class: 'sp-section' });
+  engSec.append(el('h3', { text: tx('Engine') }));
+
+  const connTxt =
+    state.engine === 'connected'    ? tx('Connected') :
+    state.engine === 'reconnecting' ? tx('Reconnecting…') : tx('Disconnected');
+  const connClass =
+    state.engine === 'connected'    ? 'is-closed' :
+    state.engine === 'reconnecting' ? 'is-locked' : 'is-blocked';
+  engSec.append(spRow('Connection', connTxt, connClass));
+
+  const stateLabel = state.dailyLocked ? tx('locked') : tx(state.position ?? 'idle');
+  const stateClass =
+    state.position === 'in_trade'  ? 'is-in-trade' :
+    state.position === 'watching'  ? 'is-watching'  :
+    state.position === 'closed'    ? 'is-closed'    :
+    state.position === 'blocked'   ? 'is-blocked'   :
+    state.dailyLocked              ? 'is-locked'    : '';
+  engSec.append(spRow('State', stateLabel, stateClass));
+
+  const lockTxt = state.dailyLocked
+    ? tx('Locked — no more trades today')
+    : tx('Not locked');
+  engSec.append(spRow('Daily lock', lockTxt, state.dailyLocked ? 'is-locked' : ''));
+  body.append(engSec);
+
+  // ── Setup section ───────────────────────────────────────
+  const setupSec = el('div', { class: 'sp-section' });
+  setupSec.append(el('h3', { text: tx('Current setup') }));
+  if (state.currentSignal) {
+    const cs = state.currentSignal;
+    setupSec.append(spRow('File', baseName(cs.filePath) || '—', ''));
+    setupSec.append(spRow('Seq', String(cs.updateSeq ?? '—'), ''));
+    setupSec.append(spRow('DVS', cs.dvs != null ? String(cs.dvs) : '—', ''));
+    setupSec.append(spRow('VWAP', cs.vwap != null ? fmtNum(cs.vwap) : '—', ''));
+    setupSec.append(spRow('Bias', cs.biasDirection ?? '—', ''));
+  } else {
+    setupSec.append(el('div', { class: 'sp-empty', text: tx('No setup loaded today.') }));
+  }
+  body.append(setupSec);
+
+  // ── Position section (only when in trade) ──────────────
+  if (state.openPosition) {
+    const p = state.openPosition;
+    const posSec = el('div', { class: 'sp-section' });
+    posSec.append(el('h3', { text: tx('Open position') }));
+    posSec.append(spRow('Direction', p.direction.toUpperCase(), 'is-in-trade'));
+    posSec.append(spRow('Avg entry', fmtNum(p.avgEntry), ''));
+    posSec.append(spRow('Stop', fmtNum(p.currentStop), 'is-blocked'));
+    posSec.append(spRow('Target (VWAP)', fmtNum(p.vwapTarget), 'is-closed'));
+    // Individual fills — show each entry's price and size if available.
+    const details = p.fillDetails ?? [];
+    if (details.length > 0) {
+      details.forEach(f => {
+        posSec.append(spRow(
+          `${tx('Entry')} ${f.entryNumber}`,
+          `${fmtNum(f.price)}  (${f.allocationPct}%)`,
+          ''
+        ));
+      });
+    } else {
+      // Fallback: just show the count if fill details aren't available.
+      posSec.append(spRow(tx('Fills'), String(p.fills), ''));
+    }
+    posSec.append(spRow('Breakeven', p.breakEvenActive ? tx('Active') : tx('Not yet'), p.breakEvenActive ? 'is-closed' : ''));
+    body.append(posSec);
+  }
+
+  // ── Trade plan section (watching or in_trade) ───────────
+  const showPlan = state.position === 'watching' || state.position === 'in_trade';
+  if (showPlan && state.currentSignal) {
+    const sig = state.currentSignal._signal;
+    if (sig) {
+      const planSec = el('div', { class: 'sp-section' });
+      planSec.append(el('h3', { text: tx('Trade plan') }));
+      planSec.append(buildTradePlanNote(sig));
+      body.append(planSec);
+    } else {
+      // Bootstrap gave us only the summary — fetch the full signal once and re-render.
+      fetch('/signals/latest').then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.signal && state.currentSignal) {
+          state.currentSignal._signal = data.signal;
+          renderStatusPanel();
+        }
+      }).catch(() => {});
+    }
+  }
 }
 
 function describeEngineState(b) {
@@ -322,7 +521,8 @@ function handleEvent(data) {
         dvs: raw.signal?.volatility?.dvs,
         vwap: raw.signal?.vwap?.value,
         biasDirection: raw.signal?.bias?.direction ?? null,
-        biasConfidence: raw.signal?.bias?.confidence ?? null,
+        // Full signal kept so the trade plan note can be rendered in the status panel.
+        _signal: raw.signal ?? null,
       };
       renderSignalCard();
       state.history.unshift({ ts: data.timestamp, tag: 'SIGNAL', text: raw.filePath });
@@ -332,7 +532,12 @@ function handleEvent(data) {
         setSubmitStatus(`Loaded ${state.pendingSubmitName}`, 'ok');
         state.pendingSubmitName = null;
       }
-      setStateChip('watching', state.dailyLocked);
+      // Engine ignores new signals while in_trade — don't clobber the state chip.
+      // (scanSignalDirOnce fires SIGNAL_LOADED on every restart regardless of engine state.)
+      if (state.position !== 'in_trade') {
+        setStateChip('watching', state.dailyLocked);
+      }
+      renderStatusPanel();
       break;
 
     case 'SIGNAL_INVALID':
@@ -340,11 +545,64 @@ function handleEvent(data) {
       renderHistory();
       break;
 
-    case 'SETUP_READY':    setStateChip('watching', state.dailyLocked); break;
-    case 'ENTRY_TRIGGERED':setStateChip('in_trade', state.dailyLocked); break;
-    case 'POSITION_CLOSED':setStateChip('closed',   state.dailyLocked); state.openPosition = null; break;
-    case 'DAILY_LOCK':     setStateChip(state.position, true); break;
-    case 'DVS_GATE_BLOCKED': setStateChip('blocked', state.dailyLocked); break;
+    case 'SETUP_READY':
+      setStateChip('watching', state.dailyLocked);
+      state.openPosition = null;
+      if (raw.stopPoints != null) state.stopPoints = raw.stopPoints;
+      renderStatusPanel();
+      break;
+    case 'ENTRY_TRIGGERED': {
+      setStateChip('in_trade', state.dailyLocked);
+      // Accumulate fill details — each ENTRY_TRIGGERED carries the new fill.
+      const prevFills = state.openPosition?.fillDetails ?? [];
+      const newFill = raw.entryNumber != null ? {
+        entryNumber: raw.entryNumber,
+        price: raw.price ?? raw.avgEntry,
+        allocationPct: raw.allocationPct,
+      } : null;
+      const fillDetails = newFill
+        ? [...prevFills.filter(f => f.entryNumber !== newFill.entryNumber), newFill]
+            .sort((a, b) => a.entryNumber - b.entryNumber)
+        : prevFills;
+      state.openPosition = {
+        direction:       raw.direction,
+        avgEntry:        raw.avgEntry,
+        currentStop:     raw.currentStop,
+        vwapTarget:      raw.vwapTarget ?? state.openPosition?.vwapTarget ?? null,
+        fills:           3 - raw.fillsRemaining,
+        fillDetails,
+        breakEvenActive: state.openPosition?.breakEvenActive ?? false,
+      };
+      renderStatusPanel();
+      break;
+    }
+    case 'BREAKEVEN_TRIGGERED':
+      if (state.openPosition) state.openPosition.currentStop = raw.newStop;
+      if (state.openPosition) state.openPosition.breakEvenActive = true;
+      renderStatusPanel();
+      break;
+    case 'POSITION_CLOSED':
+      setStateChip('closed', state.dailyLocked);
+      state.openPosition = null;
+      renderStatusPanel();
+      break;
+    case 'DAILY_LOCK':
+      setStateChip(state.position, true);
+      renderStatusPanel();
+      break;
+    case 'DVS_GATE_BLOCKED':
+      setStateChip('blocked', state.dailyLocked);
+      renderStatusPanel();
+      break;
+    case 'NO_TRADE_SETUP':
+      // Engine has no active setup (stale signal discarded, expiry before entry,
+      // or invalidation before entry). Reset to idle so the analyst knows to
+      // submit today's setup.
+      setStateChip('idle', state.dailyLocked);
+      state.currentSignal = null;
+      renderSignalCard();
+      renderStatusPanel();
+      break;
   }
 }
 
@@ -392,7 +650,19 @@ function fillForm(signal, { resetDateTime = true } = {}) {
   const setField = (path, value) => {
     const el = form.querySelector(`[name="${path}"]`);
     if (!el) return;
-    if (value === null || value === undefined) { el.value = ''; return; }
+    if (value === null || value === undefined) {
+      // For <select> elements, only clear to '' if the dropdown actually has an
+      // empty option — otherwise leave the HTML default (the `selected` attribute).
+      // This prevents a pre-fill with no bias from overriding the neutral default.
+      if (el.tagName === 'SELECT') {
+        const hasEmptyOpt = Array.from(el.options).some(o => o.value === '');
+        if (hasEmptyOpt) el.value = '';
+        // else: leave whatever the HTML `selected` attribute set (e.g. neutral)
+      } else {
+        el.value = '';
+      }
+      return;
+    }
     el.value = value;
   };
   const walk = (obj, prefix) => {
@@ -661,36 +931,6 @@ function closeFormModal() {
 // Status dialog: read-only "what is the engine doing right now" view.
 // Fetches the loaded signal from /signals/latest so values are fresh.
 // ---------------------------------------------------------------------------
-async function showStatusDialog() {
-  const dlg = $('#status-dialog');
-  const body = $('#status-dialog-body');
-  body.innerHTML = '';
-  body.append(buildEngineStateSection(null));
-
-  // Best-effort fetch; if no signal, show a placeholder.
-  let loadedSignal = null;
-  try {
-    const res = await fetch('/signals/latest');
-    if (res.ok) {
-      const data = await res.json();
-      loadedSignal = data.signal ?? null;
-    }
-  } catch { /* leave loadedSignal null */ }
-
-  if (loadedSignal) {
-    const sec = buildSummarySection(loadedSignal);
-    sec.querySelector('h3').textContent = tx('Currently loaded setup');
-    body.append(sec);
-  } else {
-    const sec = el('section', { class: 'confirm-section' });
-    sec.append(el('h3', { text: tx('Currently loaded setup') }));
-    sec.append(el('div', { class: 'confirm-headline', text: tx('No setup loaded today.') }));
-    body.append(sec);
-  }
-
-  if (!dlg.open) dlg.showModal();
-}
-
 function collectForm() {
   // Build SignalFile from dotted-name inputs.
   const form = $('#signal-form');
@@ -699,10 +939,10 @@ function collectForm() {
     meta: {}, volatility: {}, vwap: {}, ranges: {}, levels: {},
     levels_recal: {
       level_time: null, max_sell_1: null, max_sell_2: null,
-      max_buy_1: null,  max_buy_2: null, supporto: null, resistenza: null,
+      max_buy_1: null,  max_buy_2: null,
       additional: [],
     },
-    bias: {}, invalidation: {},
+    bias: {},
   };
   const numericFields = new Set([
     'meta.update_seq', 'meta.futures_last', 'meta.cash_last', 'meta.basis',
@@ -710,8 +950,6 @@ function collectForm() {
     'vwap.value',
     'ranges.range_1_up', 'ranges.range_2_up', 'ranges.range_2_down', 'ranges.range_1_down',
     'levels.max_sell_1', 'levels.max_sell_2', 'levels.max_buy_1', 'levels.max_buy_2',
-    'levels.supporto', 'levels.resistenza',
-    'invalidation.void_above', 'invalidation.void_below',
   ]);
   for (const el of form.elements) {
     if (!el.name || !el.name.includes('.')) continue;
@@ -734,7 +972,6 @@ function collectForm() {
   // Drop empty optional fields so the YAML stays clean.
   if (signal.meta.contract == null || signal.meta.contract === '') delete signal.meta.contract;
   if (!signal.bias?.direction) delete signal.bias;
-  if (!signal.invalidation.notes) delete signal.invalidation.notes;
   return signal;
 }
 
@@ -764,14 +1001,7 @@ function fieldsForError(msg) {
     fields.add('levels.max_buy_1');  fields.add('levels.max_buy_2');
     fields.add('levels.max_sell_1'); fields.add('levels.max_sell_2');
   }
-  if (/Invalidation boundaries must bracket/.test(msg)) {
-    fields.add('invalidation.void_below'); fields.add('invalidation.void_above');
-    fields.add('meta.futures_last');
-  }
   if (/^dvs \(/.test(msg)) fields.add('volatility.dvs');
-  if (/Setup timestamp .* must be before expiry/.test(msg)) {
-    fields.add('meta.timestamp'); fields.add('invalidation.expiry');
-  }
   if (/Setup is stale/.test(msg)) {
     fields.add('meta.timestamp');
   }
@@ -940,8 +1170,9 @@ function buildEngineStateSection(signalAboutToSubmit) {
   }
   if (state.openPosition) {
     const p = state.openPosition;
+    const beTag = p.breakEvenActive ? ` • ${tx('BE')}` : '';
     addRow(tx('Open position'),
-      `${p.direction.toUpperCase()} • avg ${fmtNum(p.avgEntry)} • stop ${fmtNum(p.currentStop)} • ${p.fills} fill(s)${p.breakEvenActive ? ' • BE' : ''}`);
+      `${p.direction.toUpperCase()} • ${tx('avg entry')} ${fmtNum(p.avgEntry)} • ${tx('stop')} ${fmtNum(p.currentStop)} • ${p.fills} ${tx('fill(s)')}${beTag}`);
   }
   sec.append(grid);
 
@@ -986,46 +1217,101 @@ function synthesiseAction(signal) {
   return { tone: 'ok', text: tx('Engine will load this as the active setup and start watching for Entry 1.') };
 }
 
+/**
+ * Computes a worst-case stop price for one side of the trade plan.
+ * Uses the same midpoint formula as the trade plan display (raw midpoint,
+ * no config ±offset — Entry 2 is approximate but accurate within 2 pts).
+ * Allocations are the fixed 32.5 / 35 / 32.5 split.
+ * Returns null if stopPoints is unknown or inner level is absent.
+ */
+function worstCaseStop(direction, inner, outer, stopPts) {
+  const present = v => v != null && v !== '';
+  if (!stopPts || !present(inner)) return null;
+  const e1 = Number(inner);
+  const e3 = present(outer) ? Number(outer) : null;
+  const avgEntry = e3 != null
+    ? (e1 * 32.5 + (((e1 + e3) / 2) * 35) + e3 * 32.5) / 100
+    : e1;
+  const stop = direction === 'long' ? avgEntry - stopPts : avgEntry + stopPts;
+  const ctx = e3 != null
+    ? tx('worst case if all 3 fill')
+    : tx('single entry');
+  return `🛑 ${tx('Stop')}: ${fmtNum(stop)} (${tx('pre-trade estimate')} — ${ctx}, ${stopPts} ${tx('pts from avg entry')})`;
+}
+
 function buildTradePlanNote(signal) {
-  const l = signal.levels, inv = signal.invalidation, bias = signal.bias;
-  const dir  = bias?.direction?.toLowerCase();
-  const conf = bias?.confidence ? ` (${bias.confidence})` : '';
+  const l = signal.levels, bias = signal.bias;
+  const dir = bias?.direction?.toLowerCase();
 
   const has = v => v != null && v !== '';
   const parts = [];
 
-  parts.push(dir ? `Bias: ${dir}${conf}.` : 'Two-sided setup (no directional bias).');
+  // Two-sided: neutral bias with both level pairs present — engine watches both Entry 1s.
+  const isTwoSided = dir === 'neutral' && has(l.max_buy_2) && has(l.max_sell_2);
 
-  if (dir !== 'short' && has(l.max_buy_2)) {
+  const biasNote = dir === 'long'    ? tx('Bias: long.')
+                 : dir === 'short'   ? tx('Bias: short.')
+                 : dir === 'neutral' ? (isTwoSided
+                     ? tx('Bias: neutral — watching both sides, first trigger wins.')
+                     : tx('Bias: neutral — one side only (incomplete level pair on the other side).'))
+                 :                     tx('No bias set — defaulting to long.');
+  parts.push(biasNote);
+
+  if (isTwoSided) {
+    // Show both chains side by side.
     const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
-    let s = `Buy entry: watching for ${fmtNum(l.max_buy_2)} BUY INNER (Entry 1)`;
-    if (midBuy != null) s += ` → ${fmtNum(midBuy)} mid (Entry 2, derived)`;
-    if (has(l.max_buy_1)) s += ` → ${fmtNum(l.max_buy_1)} BUY OUTER (Entry 3)`;
-    parts.push(s + ' → engine enters long.');
-  }
-  if (dir !== 'long' && has(l.max_sell_2)) {
+    let buyStr = '⬆️ ' + tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
+    if (midBuy != null) buyStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
+    if (has(l.max_buy_1)) buyStr += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
+    parts.push(buyStr + ' → ' + tx('engine enters long.'));
+    const buyStop = worstCaseStop('long', l.max_buy_2, l.max_buy_1, state.stopPoints);
+    if (buyStop) parts.push(buyStop);
+
     const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
-    let s = `Sell entry: watching for ${fmtNum(l.max_sell_2)} SELL INNER (Entry 1)`;
-    if (midSell != null) s += ` → ${fmtNum(midSell)} mid (Entry 2, derived)`;
-    if (has(l.max_sell_1)) s += ` → ${fmtNum(l.max_sell_1)} SELL OUTER (Entry 3)`;
-    parts.push(s + ' → engine enters short.');
+    let sellStr = '⬇️ ' + tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
+    if (midSell != null) sellStr += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
+    if (has(l.max_sell_1)) sellStr += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
+    parts.push(sellStr + ' → ' + tx('engine enters short.'));
+    const sellStop = worstCaseStop('short', l.max_sell_2, l.max_sell_1, state.stopPoints);
+    if (sellStop) parts.push(sellStop);
+  } else {
+    // Single-sided: bias=long, bias=short, or neutral with only one pair of levels.
+    const effectiveDir = (dir === 'short') ? 'short' : 'long';
+
+    if (effectiveDir === 'long' && has(l.max_buy_2)) {
+      const midBuy = has(l.max_buy_1) ? (Number(l.max_buy_1) + Number(l.max_buy_2)) / 2 : null;
+      let s = '⬆️ ' + tx('Buy entry: watching for {price} BUY INNER (Entry 1)').replace('{price}', fmtNum(l.max_buy_2));
+      if (midBuy != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midBuy));
+      if (has(l.max_buy_1)) s += ' → ' + tx('{price} BUY OUTER (Entry 3)').replace('{price}', fmtNum(l.max_buy_1));
+      parts.push(s + ' → ' + tx('engine enters long.'));
+      const buyStop = worstCaseStop('long', l.max_buy_2, l.max_buy_1, state.stopPoints);
+      if (buyStop) parts.push(buyStop);
+    }
+    if (effectiveDir === 'short' && has(l.max_sell_2)) {
+      const midSell = has(l.max_sell_1) ? (Number(l.max_sell_1) + Number(l.max_sell_2)) / 2 : null;
+      let s = '⬇️ ' + tx('Sell entry: watching for {price} SELL INNER (Entry 1)').replace('{price}', fmtNum(l.max_sell_2));
+      if (midSell != null) s += ' → ' + tx('{price} mid (Entry 2, derived)').replace('{price}', fmtNum(midSell));
+      if (has(l.max_sell_1)) s += ' → ' + tx('{price} SELL OUTER (Entry 3)').replace('{price}', fmtNum(l.max_sell_1));
+      parts.push(s + ' → ' + tx('engine enters short.'));
+      const sellStop = worstCaseStop('short', l.max_sell_2, l.max_sell_1, state.stopPoints);
+      if (sellStop) parts.push(sellStop);
+    }
   }
 
   if (has(signal.vwap?.value)) {
-    parts.push(`Profit target: VWAP at ${fmtNum(signal.vwap.value)} — entire position closes when price reaches VWAP.`);
+    parts.push('🎯 ' + tx('Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.').replace('{vwap}', fmtNum(signal.vwap.value)));
   }
-
-  const voidParts = [];
-  if (has(inv?.void_below)) voidParts.push(`below ${fmtNum(inv.void_below)}`);
-  if (has(inv?.void_above)) voidParts.push(`above ${fmtNum(inv.void_above)}`);
-  let voidStr = voidParts.length ? `Void if price ${voidParts.join(' or ')} before entry` : '';
-  if (inv?.expiry) voidStr += (voidStr ? `, or after ${inv.expiry}` : `Expires ${inv.expiry}`) + '.';
-  else if (voidStr) voidStr += '.';
-  if (voidStr) parts.push(voidStr);
 
   const note = el('div', { class: 'trade-plan-note' });
   note.append(el('span', { class: 'trade-plan-label', text: 'Trade plan — ' }));
   note.append(document.createTextNode(parts.join('  ')));
+  if (state.stopPoints) {
+    note.append(document.createElement('br'));
+    const fn = document.createElement('span');
+    fn.className = 'trade-plan-footnote';
+    fn.textContent = tx('ℹ️ Once in a trade the status panel shows the live stop.');
+    note.append(fn);
+  }
   return note;
 }
 
@@ -1034,7 +1320,7 @@ function buildSummarySection(signal) {
   sec.append(el('h3', { text: tx('Setup summary') }));
   sec.append(buildTradePlanNote(signal));
   const grid = el('div', { class: 'confirm-grid' });
-  const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels, inv = signal.invalidation;
+  const m = signal.meta, v = signal.volatility, w = signal.vwap, r = signal.ranges, l = signal.levels;
 
   const row = (k, val) => {
     grid.append(el('span', { class: 'k', text: k }));
@@ -1049,12 +1335,8 @@ function buildSummarySection(signal) {
   const _midBuy  = (l.max_buy_1  != null && l.max_buy_2  != null) ? (Number(l.max_buy_1)  + Number(l.max_buy_2))  / 2 : null;
   row(tx('SELL levels'), `INNER ${fmtNum(l.max_sell_2)}  →  mid ${fmtNum(_midSell)} (derived)  →  OUTER ${fmtNum(l.max_sell_1)}`);
   row(tx('BUY levels'),  `INNER ${fmtNum(l.max_buy_2)}  →  mid ${fmtNum(_midBuy)} (derived)  →  OUTER ${fmtNum(l.max_buy_1)}`);
-  if (l.supporto != null || l.resistenza != null) {
-    row(tx('Support / Resistance'), `${fmtNum(l.supporto)}  /  ${fmtNum(l.resistenza)}`);
-  }
-  row(tx('Invalidation (futures)'), `void below ${fmtNum(inv.void_below)}  •  void above ${fmtNum(inv.void_above)}  •  expiry ${inv.expiry}`);
   if (signal.bias?.direction) {
-    row(tx('Bias'), `${signal.bias.direction}/${signal.bias.confidence ?? '—'}`);
+    row(tx('Bias'), signal.bias.direction);
   }
   sec.append(grid);
   return sec;
@@ -1198,7 +1480,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Top-strip action buttons each mutate the form then open the modal.
-  $('#btn-status').addEventListener('click', () => { showStatusDialog().catch(console.error); });
   $('#btn-new').addEventListener('click', () => { resetForNewSignal(); openFormModal(); });
   $('#btn-update').addEventListener('click', () => { bumpUpdateSeq(); openFormModal(); });
   $('#btn-prefill').addEventListener('click', async () => {
@@ -1210,10 +1491,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);
-
-  // Status dialog close (X + bottom Close button).
-  $('#btn-status-close').addEventListener('click', () => $('#status-dialog').close());
-  $('#btn-status-ok').addEventListener('click', () => $('#status-dialog').close());
 
   // Help dialog open + close.
   $('#btn-help').addEventListener('click', () => {
@@ -1277,6 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-clear-log').addEventListener('click', () => { $('#log').innerHTML = ''; });
   $('#btn-lang').addEventListener('click', toggleLang);
+  document.querySelectorAll('[data-lang-toggle]').forEach(btn => btn.addEventListener('click', toggleLang));
   applyLang(currentLang);
 
   // Default date/time to now so a blank form is submittable after pre-fill.

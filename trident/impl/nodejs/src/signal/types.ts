@@ -1,7 +1,6 @@
 export type ExecutionInstrument = 'ES' | 'US500.cash' | 'SPX';
 export type VolatilityRegime = 'compressed' | 'normal' | 'elevated' | 'extreme';
 export type BiasDirection = 'long' | 'short' | 'neutral';
-export type BiasConfidence = 'low' | 'medium' | 'high';
 export type VwapSource = 'manual' | 'live_feed';
 
 export interface SignalMeta {
@@ -50,21 +49,11 @@ export interface SignalLevels {
   max_sell_2: number | null;
   max_buy_1: number | null;
   max_buy_2: number | null;
-  supporto: number | null;
-  resistenza: number | null;
   additional: unknown[];
 }
 
 export interface SignalBias {
   direction: BiasDirection;
-  confidence: BiasConfidence;
-  notes?: string;
-}
-
-export interface SignalInvalidation {
-  void_above: number;
-  void_below: number;
-  expiry: string;
   notes?: string;
 }
 
@@ -77,7 +66,6 @@ export interface SignalFile {
   levels: SignalLevels;
   levels_recal: SignalLevels;
   bias?: SignalBias;
-  invalidation: SignalInvalidation;
 }
 
 /** The levels that qs-signal-engine actually operates on (morning or recal). */

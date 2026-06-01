@@ -716,7 +716,25 @@ Given BUY INNER = 6467 and BUY OUTER = 6440:
 > published, untriggered morning levels are
 > invalidated and replaced.
 
-### 7.9 System Logic Priority
+### 7.9 Directional Bias
+
+The setup file carries an optional `bias.direction` field that guides which
+side the engine trades. Default is `neutral`.
+
+| Bias value | Engine behaviour |
+|------------|-----------------|
+| `neutral`  | Watch both Entry 1 prices simultaneously. Whichever side (long or short) is hit first becomes the trade; the other side is cancelled. Requires both BUY INNER+OUTER **and** SELL INNER+OUTER to be present. If only one pair is present, falls back to that side. |
+| `long`     | Only take the long setup (requires BUY INNER+OUTER). |
+| `short`    | Only take the short setup (requires SELL INNER+OUTER). |
+
+**Two-sided watching** (neutral bias, both pairs present):
+- Engine keeps two entry chains in memory simultaneously.
+- On every price tick, both Entry 1 prices are checked.
+- The first side to trigger wins; the other is discarded immediately.
+- Snapshot persistence includes the alt chain (`tradeSetupAlt`) so
+  two-sided watching survives an engine restart.
+
+### 7.10 System Logic Priority
 
 QS should evaluate in this order:
 

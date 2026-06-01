@@ -83,12 +83,11 @@ if (useMock) {
   sampleSignal.meta.date = new Date().toISOString().slice(0, 10);
   sampleSignal.meta.timestamp = new Date().toTimeString().slice(0, 5);
   sampleSignal.vwap.updated_at = new Date().toTimeString().slice(0, 5);
-  sampleSignal.invalidation.expiry = '23:59';
 
   // The sample signal has max_buy_1: null and bias: long, so neither side
   // can set up. For the demo, supply a max_buy_1 and use neutral bias
   // so the engine picks the short side (both SELL levels are present).
-  sampleSignal.bias = { direction: 'neutral', confidence: 'medium' };
+  sampleSignal.bias = { direction: 'neutral' };
 
   await engine.loadSignal(sampleSignal, '<mock>');
 
@@ -108,8 +107,8 @@ if (useMock) {
   ]);
 
   // This is the critical wiring line — every price tick from the feed drives the
-  // engine's entire decision loop: entry triggers, exit conditions, breakeven,
-  // invalidation checks. Without this, the engine never reacts to market prices.
+  // engine's entire decision loop: entry triggers, exit conditions, breakeven.
+  // Without this, the engine never reacts to market prices.
   feed.subscribe(price => engine.onPriceUpdate(price));
   await feed.connect();
 
@@ -281,6 +280,8 @@ function buildBootstrap(): Bootstrap {
     state: engine.getState(),
     dailyLocked: engine.isLockedForDay(),
     symbol: process.env.CTRADER_SYMBOL ?? 'US500',
+    lastIdleReason: engine.getLastIdleReason(),
+    serverTz: getServerTz(),
     currentSignal: signal && signalPath ? {
       filePath: signalPath,
       date: signal.meta.date,
@@ -289,7 +290,6 @@ function buildBootstrap(): Bootstrap {
       dvs: signal.volatility.dvs,
       vwap: signal.vwap.value,
       biasDirection: signal.bias?.direction ?? null,
-      biasConfidence: signal.bias?.confidence ?? null,
     } : null,
     position: position ? {
       direction: position.direction,
@@ -297,9 +297,28 @@ function buildBootstrap(): Bootstrap {
       currentStop: position.currentStop,
       vwapTarget: position.vwapTarget,
       fills: position.fills.length,
+      fillDetails: position.fills.map(f => ({
+        entryNumber: f.entryNumber,
+        price: f.price,
+        allocationPct: f.allocationPct,
+      })),
       breakEvenActive: position.breakEvenActive,
     } : null,
+    stopPoints: config.trident.stop_loss_points,
   };
+}
+
+function getServerTz(): { ianaName: string; offsetStr: string } {
+  const now = new Date();
+  const ianaName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const offsetMins = -now.getTimezoneOffset(); // positive = east of UTC
+  const sign = offsetMins >= 0 ? '+' : '-';
+  const h = Math.floor(Math.abs(offsetMins) / 60);
+  const m = Math.abs(offsetMins) % 60;
+  const offsetStr = m > 0
+    ? `UTC${sign}${h}:${String(m).padStart(2, '0')}`
+    : `UTC${sign}${h}`;
+  return { ianaName, offsetStr };
 }
 
 function writeEnvKey(key: string, value: string): void {

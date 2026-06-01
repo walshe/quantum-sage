@@ -20,7 +20,7 @@
  * Other invariants carried over:
  *   - `execution_instrument` is always `US500.cash`.
  *   - Missing values are `null` — never fabricated.
- *   - `bias` and `invalidation` are typed by the analyst, not from screenshots.
+ *   - `bias` is typed by the analyst, not from screenshots.
  *
  * The provider wraps the model's output in a strict JSON schema (tool call /
  * response_format), so the prompt focuses on what to extract, not on
@@ -50,7 +50,9 @@ Intraday". Read from this:
 - "SKEW Index Close" → \`volatility.skew\`
 
 ### Right panel — DVS box
-- Green box value → \`volatility.dvs\` (today's current DVS).
+- Green/yellow box value → \`volatility.dvs\` (today's current DVS).
+  **When two DVS values are shown (Morning column and Opening Bell Range
+  column), always use the Morning (left column) DVS value.**
 - Purple box value → \`volatility.dvs_prior\` — this is **yesterday's closing
   DVS**, not a same-day recalibration value. **Set \`dvs_prior\` to \`null\`
   unless a value is explicitly labeled as "yesterday", "previous session", or
@@ -58,8 +60,7 @@ Intraday". Read from this:
 
 ### Right panel — ranges and levels (the most important section)
 
-The panel shows four labeled rows. **Use the LEFT column values** (today's
-session values; the right column is the prior-session comparison):
+The panel shows four labeled rows. Each row maps to a field pair:
 
 | Panel label  | \`ranges.*\` field | \`levels.*\` field | Display name |
 |---|---|---|---|
@@ -68,14 +69,40 @@ session values; the right column is the prior-session comparison):
 | Range 2 down | \`range_2_down\` | \`max_buy_2\`  | BUY INNER    |
 | Range 1 down | \`range_1_down\` | \`max_buy_1\`  | BUY OUTER    |
 
-**Populate both \`ranges.*\` and \`levels.*\` with the same values from this
-panel.** All four values are in **ES futures terms**.
+**Populate both \`ranges.*\` and \`levels.*\` with the same values.**
+All four values are in **ES futures terms**.
 
 The ordering must satisfy:
   \`max_buy_1\` (BUY OUTER) < \`max_buy_2\` (BUY INNER) < \`max_sell_2\` (SELL INNER) < \`max_sell_1\` (SELL OUTER)
 
 If that ordering is violated, emit a warning but still report the extracted
 numbers — do not swap or correct values silently.
+
+**Two-column panel — "Morning" and "Opening Bell Range":**
+Some charts show two side-by-side columns of range values. You can identify
+each column by its visual appearance:
+- **LEFT column = "Morning"** — cells have a **green/teal background**; the
+  column is labelled "Morning" in vertical amber/orange text.
+- **RIGHT column = "Opening Bell Range"** — cells have a **white background**;
+  the column is labelled "Opening Bell Range" (or "Bell Range") in vertical
+  green text.
+
+**Rule — which column to use:**
+Check all four values in the WHITE-background (Opening Bell Range) column.
+- If every value is \`0.00\`: the opening bell has not fired. Use the
+  **GREEN-background (Morning)** column values for all four range/level fields.
+- If any value is non-zero: the opening bell has fired. You MUST use the
+  **WHITE-background (Opening Bell Range)** column values for all four
+  range/level fields.
+
+Read all four rows (Range 1 up, Range 2 up, Range 2 down, Range 1 down)
+from the same column. There is a DVS box between Range 2 up and Range 2 down
+— do not let this interrupt your column selection. Continue reading from the
+same chosen column for Range 2 down and Range 1 down after the DVS box.
+
+**DVS with two columns:** Always read DVS from the LEFT/GREEN-background
+(Morning) column DVS box. Ignore the white-background (Opening Bell Range)
+DVS value entirely — do not assign it to any field.
 
 **Important — multiple IV Smile screenshots:**
 FB may occasionally upload two IV Smile charts (morning and afternoon). Both
@@ -84,22 +111,17 @@ recalibration, not a prior-day chart. Use the later chart's range values for
 \`levels.*\` if both sets are present. \`dvs_prior\` is still \`null\` unless
 explicitly labeled as yesterday's value.
 
-**Important — two-column data panel:**
-Some IV Smile charts show a two-column data panel. The **left column** contains
-the morning session reading; the **right column** contains the
-afternoon/recalibrated reading. Both columns are today's data. The
-right-column DVS value MUST NOT be assigned to \`dvs_prior\`.
-
 ## Hard rules
 
-- **All four range/level values must be extracted** from the right panel. If a
-  row is visible, extract it. Use \`null\` only when a row is genuinely absent.
+- **All four range/level values must be extracted.** If a row is visible,
+  extract it. Use \`null\` only when a row is genuinely absent from the chart.
+  A value of \`0.00\` in the Opening Bell Range column is NOT absent — it
+  means the opening bell has not yet fired; follow the two-column rule above.
 - **ranges.\* and levels.\* carry the same values** — populate both.
 - \`levels.level_time\` should be set to \`null\` (no separate level timestamp
   from this chart).
-- **Do not invent**: \`vwap\`, \`bias\`, \`invalidation.void_above/below\`,
-  \`invalidation.expiry\`, \`meta.cash_last\`, or \`meta.basis\` — leave all
-  as \`null\`. The analyst fills them in manually.
+- **Do not invent**: \`vwap\` — leave it as \`null\`. The analyst fills it in manually.
+  \`meta.cash_last\` and \`meta.basis\` are optional — leave as \`null\` if not visible.
 - **Always set \`execution_instrument\` to \`"US500.cash"\`**.
 - **Date format**: YYYY-MM-DD. **Time format**: HH:MM 24-hour.
 - **Missing values must be \`null\`** — never guess or interpolate.
@@ -118,6 +140,10 @@ After extraction, add concise human-readable strings:
   "Meta: 2026-05-12 10:20 ESM6 7409.25"
   "Volatility: DVS 57.52 (normal), skew 140.21"
   "BUY OUTER 7349.25 • BUY INNER 7379.75 • SELL INNER 7462.25 • SELL OUTER 7492.75"
+  If the chart has two columns, add one short column note — no colour or
+  technical detail, just which set was used and why:
+  "Opening Bell Range column used"
+  "Morning column used (Opening Bell Range not yet active)"
 - \`warnings\`: trigger any of these that apply:
   * "DVS above 75 — Trident's DVS gate will block all trades today"
   * "BUY OUTER (Range 1 down) missing — long entries will not fire"
@@ -125,7 +151,7 @@ After extraction, add concise human-readable strings:
   * "SELL OUTER (Range 1 up) missing — short entries will not fire"
   * "SELL INNER (Range 2 up) missing — short entries limited to single target"
   * "Level ordering violated — check the extracted values"
-  * "VWAP / bias / invalidation must be entered manually before submitting"
+  * "VWAP must be entered manually before submitting"
 
 ## Output
 

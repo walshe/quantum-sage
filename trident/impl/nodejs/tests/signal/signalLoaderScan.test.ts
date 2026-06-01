@@ -31,8 +31,6 @@ levels:
   max_sell_2: 6582
   max_buy_1: null
   max_buy_2: 6467
-  supporto: null
-  resistenza: null
   additional: []
 levels_recal:
   level_time: null
@@ -40,11 +38,8 @@ levels_recal:
   max_sell_2: null
   max_buy_1: null
   max_buy_2: null
-  supporto: null
-  resistenza: null
   additional: []
-bias: { direction: "neutral", confidence: "medium" }
-invalidation: { void_above: 6700, void_below: 6430, expiry: "23:59" }
+bias: { direction: "neutral" }
 `;
 }
 

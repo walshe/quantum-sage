@@ -29,8 +29,6 @@ function makeValid(): ExtractionResult {
         max_sell_2: 5230,
         max_buy_1: 5183,
         max_buy_2: 5198,
-        supporto: null,
-        resistenza: null,
         additional: [],
       },
       levels_recal: {
@@ -39,12 +37,9 @@ function makeValid(): ExtractionResult {
         max_sell_2: null,
         max_buy_1: null,
         max_buy_2: null,
-        supporto: null,
-        resistenza: null,
         additional: [],
       },
-      bias: { direction: null as unknown as 'long', confidence: null as unknown as 'low' },
-      invalidation: { void_above: null as unknown as number, void_below: null as unknown as number, expiry: null as unknown as string },
+      bias: { direction: null as unknown as 'long' },
     },
     notes: ['Meta extracted successfully'],
     warnings: ['VWAP must be entered manually'],
@@ -93,11 +88,6 @@ describe('validateExtractionResult', () => {
     }
   });
 
-  it('rejects an invalid bias.confidence enum value', () => {
-    const bad = makeValid();
-    (bad.signal.bias as unknown as Record<string, unknown>)['confidence'] = 'super';
-    expect(() => validateExtractionResult(bad)).toThrowError(OutputValidationError);
-  });
 
   it('rejects an invalid volatility.regime enum value', () => {
     const bad = makeValid();

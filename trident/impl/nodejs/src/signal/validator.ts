@@ -11,7 +11,6 @@ export interface ValidationResult {
 
 const VALID_REGIMES = ['compressed', 'normal', 'elevated', 'extreme'];
 const VALID_DIRECTIONS = ['long', 'short', 'neutral'];
-const VALID_CONFIDENCES = ['low', 'medium', 'high'];
 const VALID_INSTRUMENTS = ['ES', 'US500.cash', 'SPX'];
 
 export function validateSignal(
@@ -38,7 +37,6 @@ export function validateSignal(
   if (!signal.vwap)         errors.push('Missing required section: vwap');
   if (!signal.ranges)       errors.push('Missing required section: ranges');
   if (!signal.levels)       errors.push('Missing required section: levels');
-  if (!signal.invalidation) errors.push('Missing required section: invalidation');
 
   if (errors.length > 0) return { valid: false, errors, warnings };
 
@@ -97,9 +95,7 @@ export function validateSignal(
     ['levels.max_sell_2', max_sell_2],
     ['levels.max_buy_1', max_buy_1],
     ['levels.max_buy_2', max_buy_2],
-    ['vwap.value', signal.vwap.value],
-    ['invalidation.void_above', signal.invalidation.void_above],
-    ['invalidation.void_below', signal.invalidation.void_below],
+    ['vwap.value',       signal.vwap.value],
   ];
   for (const [label, price] of pricesToCheck) {
     if (price !== null && (price <= 0 || Math.abs(price - ref) / ref > 0.2)) {
@@ -134,15 +130,7 @@ export function validateSignal(
     errors.push('vwap.value must be present and > 0');
   }
 
-  // Rule 11: invalidation boundaries
-  if (!(signal.invalidation.void_below < ref && ref < signal.invalidation.void_above)) {
-    errors.push(
-      `Invalidation boundaries must bracket futures_last: ` +
-        `void_below (${signal.invalidation.void_below}) < futures_last (${ref}) < void_above (${signal.invalidation.void_above})`
-    );
-  }
-
-  // Rule 12: enum values
+  // Rule 11: enum values
   if (!VALID_REGIMES.includes(signal.volatility.regime)) {
     errors.push(`volatility.regime "${signal.volatility.regime}" is not valid. Expected: ${VALID_REGIMES.join(', ')}`);
   }
@@ -153,21 +141,10 @@ export function validateSignal(
     if (!VALID_DIRECTIONS.includes(signal.bias.direction)) {
       errors.push(`bias.direction "${signal.bias.direction}" is not valid`);
     }
-    if (!VALID_CONFIDENCES.includes(signal.bias.confidence)) {
-      errors.push(`bias.confidence "${signal.bias.confidence}" is not valid`);
-    }
   }
 
-  // Rule 13: timestamp before expiry
+  // Rule 12: stale check
   const signalTime = parseTimeOnDate(signal.meta.date, signal.meta.timestamp);
-  const expiryTime = parseTimeOnDate(signal.meta.date, signal.invalidation.expiry);
-  if (signalTime >= expiryTime) {
-    errors.push(
-      `Setup timestamp (${signal.meta.timestamp}) must be before expiry (${signal.invalidation.expiry})`
-    );
-  }
-
-  // Rule 14: stale check
   const nowMs = Date.now();
   const signalAgeHours = (nowMs - signalTime.getTime()) / (1000 * 60 * 60);
   if (signalAgeHours > opts.staleThresholdHours) {
@@ -176,7 +153,7 @@ export function validateSignal(
     );
   }
 
-  // Rule 15: VWAP freshness (warning only)
+  // Rule 13: VWAP freshness (warning only)
   const vwapTime = parseTimeOnDate(signal.meta.date, signal.vwap.updated_at);
   const vwapAgeMinutes = (nowMs - vwapTime.getTime()) / (1000 * 60);
   if (vwapAgeMinutes > opts.vwapStalenessWarnMinutes) {

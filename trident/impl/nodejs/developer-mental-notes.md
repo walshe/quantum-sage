@@ -101,11 +101,16 @@ trimmed-down version of the levels section that the engine actually works with
 This is the gatekeeper. Takes a parsed `SignalFile` and runs the full set of
 trust checks: schema version, required sections, range/buy/sell ordering,
 **at least one tradeable level pair (both BUY INNER+OUTER or both SELL INNER+OUTER)**,
-price sanity (within 20% of `futures_last`), basis range and basis math,
-DVS range, VWAP presence, invalidation boundaries bracket `futures_last`,
-enum values (regime/instrument/direction/confidence), timestamp before
-expiry, setup staleness, and VWAP staleness (warning only). Returns
-`{ valid, errors, warnings }` — errors block trading, warnings just log.
+price sanity (within 20% of `futures_last`), basis range and basis math (nullable
+— skipped when `cash_last` / `basis` are null), DVS range, VWAP presence,
+enum values (regime, instrument, bias direction), setup staleness, and VWAP
+staleness (warning only). Returns `{ valid, errors, warnings }` — errors block
+trading, warnings just log.
+
+**Removed fields (2026-05-28):** `invalidation` (`void_above`/`void_below`/`expiry`),
+`supporto`/`resistenza` optional levels, and `bias.confidence` were all removed from
+the schema — they never appeared in the original docx spec and added unnecessary
+complexity. `CloseReason` no longer includes `'invalidation'` or `'expiry'`.
 
 The validator runs in two places that matter:
 - The web server's `POST /signals` endpoint, so a bad submission is rejected
@@ -289,11 +294,27 @@ the web server is up without restructuring the engine.
 
 ### `WebSocketNotifier.ts`
 Bridges engine events to connected browser tabs over a `ws` server (mounted at
-`/events` by the web server module). On every new client it sends a
-`{ kind: 'bootstrap', data }` envelope with current engine state — drives the
-status band on a freshly-opened tab. Subsequent events go out as
-`{ kind: 'event', data }`. `PRICE_UPDATE` events are throttled (default
-500ms) so a quiet UI doesn't get hammered by tick frequency.
+`/events` by the web server module).
+
+**Three envelope kinds the client receives on connect:**
+1. `{ kind: 'history', data: [...] }` — ring buffer of last 150 non-price events.
+   Sent *first* so the browser can rebuild the log before state is reset.
+2. `{ kind: 'bootstrap', data }` — current engine state (status chip, position,
+   loaded signal). Sent immediately after history.
+
+**Subsequent events** go out as `{ kind: 'event', data }`.
+`PRICE_UPDATE` events are throttled (default 500ms) and NOT buffered — they never
+appear in the ring buffer.
+
+**Why the ring buffer (2026-05-28):** before this change, `getReplayEvent` would
+replay only `SETUP_READY` when the engine was in `watching` state, leaving the
+log blank on reconnects for any other state. The client had a `searchAll` dedup
+hack to suppress duplicate rows. Both problems disappear with the ring buffer:
+- All non-price events are buffered server-side (last 150 entries).
+- On every connect, the client clears its log and replays the buffer before
+  processing the bootstrap.
+- No special-case replay, no dedup hack needed.
+`buildSetupReplayEvent` and the `getReplayEvent` constructor option are gone.
 
 ### `eventFormatter.ts`
 Pure function that turns a `NotificationEvent` into the row shape the web
@@ -400,21 +421,36 @@ Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
 `setupTrade()`. If a trade is already active, ignores the new levels (doesn't
 disrupt the open trade). If daily lock is on, also ignores.
 
-**`setupTrade()`** — looks at available levels and bias to decide direction. If
-both sides are available, uses the bias direction; falls back to long. Calculates
-the three entry prices using the calculator, sets state to `watching`, fires
-`SETUP_READY` to the notifier.
+**`setupTrade()`** — looks at available levels and bias to decide direction.
+
+- `bias=long` / missing levels on short side → single-sided long watch.
+- `bias=short` / missing levels on long side → single-sided short watch.
+- `bias=neutral` **and both level pairs present** → two-sided watch: calculates
+  two independent entry chains, stores them in `this.tradeSetup` (long primary)
+  and `this.tradeSetupAlt` (short alt), fires `SETUP_READY` with both chains.
+- `bias=neutral` but only one pair → falls back to whichever side is available.
+- `null` bias defaults to long when the long pair is present.
+
+Sets state to `watching`, fires `SETUP_READY` to the notifier.
 
 **`onPriceUpdate(price)`** — called on every price tick from the feed. This is
 the main loop. In order:
 1. Fires `PRICE_UPDATE` to the notifier (suppressed by default).
 2. If not watching or in trade, returns immediately.
-3. Checks invalidation boundaries — if price breaks out of the void range, closes
-   everything.
-4. Checks expiry — if past the setup's expiry time, closes everything.
-5. If `watching`: checks whether Entry 1 has been triggered.
-6. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
+3. **New-day check** (watching state only) — if the loaded signal's `meta.date`
+   is before today, calls `discardStaleSignal()` and returns. This is the path
+   taken on the first price tick of a new session when the engine was left running
+   overnight (market closed, no ticks, expiry never fired in-memory).
+4. If `watching`: `checkEntryTrigger()` — checks the primary Entry 1; if that
+   misses and `tradeSetupAlt` is present, also checks the alt Entry 1. Whichever
+   fires first promotes itself to primary, the other is discarded.
+5. If `in_trade`: checks exit conditions first (stop, VWAP, +33 hard exit, +25
    breakeven), then checks pending entries (Entry 2, Entry 3).
+
+**`discardStaleSignal()`** — called when a previous-day signal is found on a new
+trading day. Resets everything to idle and emits `NO_TRADE_SETUP` (informational).
+Does NOT emit `POSITION_CLOSED` — no position was ever open, so no action is
+required from the analyst.
 
 **`fillEntry()`** — called when an entry triggers. Creates a `Fill`, updates or
 creates the `ActivePosition`, recalculates avg entry and stop, resets the 180-min
@@ -425,7 +461,10 @@ priority order: stop hit → close; VWAP hit → close; +33 pts → close; +25 p
 activate breakeven (move stop, cancel pending entries, don't close).
 
 **`closePosition()`** — tears down the position, cancels the timer, fires
-`POSITION_CLOSED`. If it was a win, calls `applyDailyLock()`.
+`POSITION_CLOSED`. If it was a win, calls `applyDailyLock()`. If no position was
+open (state='watching'), emits `NO_TRADE_SETUP` instead — "close your position"
+is wrong when the analyst never opened one. The reason is formatted into a
+human-readable message (expiry, invalidation, etc.).
 
 **Time exit timer** — reset every time a new entry fills (the 180 minutes counts
 from the *last* fill, per the PRD). If it fires, closes the position at whatever
@@ -523,20 +562,31 @@ Three contracts: `ImageInput` (`{ bytes, mimeType, filename? }`),
 and `VisionProvider` (`{ name, model, extractSignal(images, systemPrompt) }`).
 Provider implementations swap the SDK without changing anything upstream.
 
-### `providers/index.ts` + `providers/LangChainExtractionProvider.ts`
-`buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `openai`)
+### `providers/index.ts` + `providers/ClaudeExtractionProvider.ts` + `providers/LangChainExtractionProvider.ts`
+`buildVisionProvider()` selects from `TRIDENT_AI_PROVIDER` (default `anthropic`)
 and returns `null` if the chosen provider isn't configured (e.g. no
-`OPENAI_API_KEY`). Severity of the disable-log depends on whether the operator
+`ANTHROPIC_API_KEY`). Severity of the disable-log depends on whether the operator
 *explicitly* asked for a provider — explicit + missing key is `error`, implicit
 default + missing key is `info` (operator never asked for AI).
 
-`LangChainExtractionProvider` implements `VisionProvider` using LangChain's
-`ChatOpenAI` + `.withStructuredOutput()` (with `includeRaw: true` to retain
-token usage). It replaces the previous hand-rolled `OpenAIProvider` — same
-underlying OpenAI API call, industry-standard framework wrapper. LangSmith
-tracing is suppressed in the constructor (`LANGCHAIN_TRACING_V2=false`), so no
-LangSmith account is needed. The archived `OpenAIProvider.ts` lives in
-`providers/_archive/` for easy rollback during the POC.
+**Active provider: `ClaudeExtractionProvider`** — uses the Anthropic SDK directly
+(not LangChain). `tool_choice: { type: "tool", name: "return_extracted_signal" }`
+forces a single structured tool call. The system prompt uses `cache_control: { type: "ephemeral" }` 
+for prompt caching — input tokens cost ~90% less after the first call of a session
+(5-minute cache TTL). Set `TRIDENT_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`
+in `.env`. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`).
+
+**Why Claude, not GPT-4o:** GPT-4o has a hard spatial column bias when reading
+two-column chart panels. When the IV Smile panel shows "Morning" (green background,
+left) and "Opening Bell Range" (white background, right) side by side, GPT-4o
+reliably reads the left (Morning) column for rows that appear *below* the DVS box
+visual break — even with explicit emphatic instructions naming the column and its
+background colour. Claude (`claude-sonnet-4-6`) passes the same three golden-dataset
+fixtures at 100% first-try. The cost difference is negligible for this workload
+(<1 call/day, ~2 500 tokens/call).
+
+`LangChainExtractionProvider` remains available (`TRIDENT_AI_PROVIDER=openai`) for
+rollback. The archived `OpenAIProvider.ts` lives in `providers/_archive/`.
 
 ### `extractionGraph.ts`
 LangGraph `StateGraph` that models the extraction pipeline as four nodes:
@@ -589,11 +639,11 @@ The `{ allowed: boolean; reason?: string }` decision shape replaces the old
 `{ allow: boolean }` — note the field name change if you're reading old git history.
 
 ### `outputValidator.ts`
-Runtime defence against schema violations that slip through the OpenAI tool
-schema enforcement. Checks: numeric fields are not strings, enum fields use
-valid values (`bias.direction`, `bias.confidence`, `volatility.regime`),
-`dvs` is 0–200, price levels are positive. Emits `OUTPUT_VALIDATION_FAILED`
-log entry with `errors: string[]` before throwing.
+Runtime defence against schema violations that slip through the tool schema
+enforcement. Checks: numeric fields are not strings, enum fields use valid
+values (`bias.direction`, `volatility.regime`), `dvs` is 0–200, price levels
+are positive. Emits `OUTPUT_VALIDATION_FAILED` log entry with `errors: string[]`
+before throwing. (`bias.confidence` was removed from the schema in 2026-05-28.)
 
 `VolatilityRegime` values the validator accepts: `compressed`, `normal`,
 `elevated`, `extreme` (matches the TypeScript type — the spec doc said `low`
@@ -729,8 +779,8 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   reconstituted from the WebSocket bootstrap envelope on every connect.
 - **AI is optional and never authoritative.** The setup extractor pre-fills
   the form; the analyst always reviews; the validator gates entry into the
-  engine. Removing `OPENAI_API_KEY` reverts the dashboard to manual entry —
-  nothing else changes.
+  engine. Removing `ANTHROPIC_API_KEY` (or clearing `TRIDENT_AI_PROVIDER`)
+  reverts the dashboard to manual entry — nothing else changes.
 - **Observability is optional and lives entirely in `index.ts`.**
   `src/observability/` defines the `MetricsBackend` interface, `NoopBackend`
   (the default), `PrometheusBackend` (`prom-client` + `/metrics` endpoint),

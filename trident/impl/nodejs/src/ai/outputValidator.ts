@@ -11,7 +11,6 @@ export class OutputValidationError extends Error {
 }
 
 const BIAS_DIRECTIONS = new Set(['long', 'short', 'neutral']);
-const BIAS_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const VOLATILITY_REGIMES = new Set(['compressed', 'normal', 'elevated', 'extreme']);
 
 /**
@@ -99,7 +98,7 @@ export function validateExtractionResult(result: unknown): ExtractionResult {
   for (const block of ['levels', 'levels_recal']) {
     if (sig[block] != null) {
       const levels = sig[block] as Record<string, unknown>;
-      for (const field of ['max_sell_1', 'max_sell_2', 'max_buy_1', 'max_buy_2', 'supporto', 'resistenza']) {
+      for (const field of ['max_sell_1', 'max_sell_2', 'max_buy_1', 'max_buy_2']) {
         checkNumericOrNull(levels, field, errors, `signal.${block}.${field}`);
         const val = levels[field];
         if (val !== null && val !== undefined && typeof val === 'number' && val <= 0) {
@@ -118,11 +117,6 @@ export function validateExtractionResult(result: unknown): ExtractionResult {
         errors.push(`signal.bias.direction invalid: "${bias['direction']}" — expected long, short, or neutral`);
       }
     }
-    if (bias['confidence'] !== null && bias['confidence'] !== undefined) {
-      if (typeof bias['confidence'] !== 'string' || !BIAS_CONFIDENCES.has(bias['confidence'] as string)) {
-        errors.push(`signal.bias.confidence invalid: "${bias['confidence']}" — expected low, medium, or high`);
-      }
-    }
   }
 
   // ── meta numeric fields ───────────────────────────────────────────────────
@@ -132,14 +126,6 @@ export function validateExtractionResult(result: unknown): ExtractionResult {
     for (const field of ['futures_last', 'cash_last', 'basis', 'update_seq']) {
       checkNumericOrNull(meta, field, errors, `signal.meta.${field}`);
     }
-  }
-
-  // ── invalidation numeric fields ───────────────────────────────────────────
-
-  if (sig['invalidation'] != null) {
-    const inv = sig['invalidation'] as Record<string, unknown>;
-    checkNumericOrNull(inv, 'void_above', errors, 'signal.invalidation.void_above');
-    checkNumericOrNull(inv, 'void_below', errors, 'signal.invalidation.void_below');
   }
 
   throwIfErrors(errors, result);
