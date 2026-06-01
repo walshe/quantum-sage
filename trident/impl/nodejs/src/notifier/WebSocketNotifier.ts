@@ -1,5 +1,5 @@
 import type { WebSocket, WebSocketServer } from 'ws';
-import type { Notifier, NotificationEvent } from './Notifier.js';
+import type { Notifier, NotificationEvent, AccountInfo } from './Notifier.js';
 import { formatEvent } from './eventFormatter.js';
 import { getLogger } from '../logger.js';
 
@@ -58,12 +58,15 @@ export interface Bootstrap {
    * waiting for a SETUP_READY event to carry it.
    */
   stopPoints: number;
+  /** Live demo account balance and unrealized PnL. Null when no trader is configured. */
+  account: AccountInfo | null;
 }
 
 type Envelope =
-  | { kind: 'bootstrap'; data: Bootstrap }
-  | { kind: 'event'; data: Record<string, unknown> }
-  | { kind: 'history'; data: Array<Record<string, unknown>> };
+  | { kind: 'bootstrap';      data: Bootstrap }
+  | { kind: 'event';          data: Record<string, unknown> }
+  | { kind: 'history';        data: Array<Record<string, unknown>> }
+  | { kind: 'account_update'; data: AccountInfo };
 
 /**
  * Broadcasts engine notifications to connected browser clients and sends each
@@ -127,6 +130,16 @@ export class WebSocketNotifier implements Notifier {
   }
 
   async notify(event: NotificationEvent): Promise<void> {
+    if (event.type === 'ACCOUNT_UPDATE') {
+      const { type: _, ...info } = event;
+      const payload = this.encode({ kind: 'account_update', data: info as AccountInfo });
+      for (const client of this.clients) {
+        if (client.readyState === 1) {
+          try { client.send(payload); } catch { /* close handler will remove it */ }
+        }
+      }
+      return;
+    }
     if (event.type === 'PRICE_UPDATE') {
       if (!this.includePriceUpdates) return;
       const now = Date.now();

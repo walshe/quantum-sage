@@ -1,6 +1,13 @@
 import type { SignalFile } from '../signal/types.js';
 import type { EntryLevel, Direction, CloseReason } from '../strategy/types.js';
 
+export interface AccountInfo {
+  balance:       number;
+  equity:        number;
+  unrealizedPnl: number;
+  currency:      string;
+}
+
 /**
  * Every significant engine event is typed here.
  * The notifier implementation decides how to present it
@@ -45,7 +52,8 @@ export type NotificationEvent =
     }
   | { type: 'DAILY_LOCK'; reason: string }
   | { type: 'PRICE_UPDATE'; price: number }
-  | { type: 'ENGINE_ERROR'; message: string };
+  | { type: 'ENGINE_ERROR'; message: string }
+  | ({ type: 'ACCOUNT_UPDATE' } & AccountInfo);
 
 /**
  * Output channel abstraction.

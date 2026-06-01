@@ -57,6 +57,9 @@ export const PT = {
   GET_TRENDBAR_RES:     2138,
   TRADER_REQ:           2120,   // account details (balance, equity) — used by CTraderTrader
   TRADER_RES:           2121,
+  RECONCILE_REQ:        2124,   // reconcile open positions — also contains balance info
+  RECONCILE_RES:        2125,
+  EXECUTION_EVENT:      2126,   // order fill / rejection events
   GET_ACCOUNTS_REQ:     2149,
   GET_ACCOUNTS_RES:     2150,
   ERROR_RES:            2142,
@@ -301,6 +304,15 @@ export class CTraderSession {
         if (this.settle) {
           log.error('cTrader API error during handshake', { errorCode, description });
           this.settle(new Error(`cTrader error ${errorCode}: ${description}`));
+          break;
+        }
+
+        // Known demo-server noise: the broker pushes these events internally
+        // after account auth but demo environments don't support them.
+        // Suppress at warn level rather than surfacing as errors.
+        const DEMO_NOISE = ['SymbolsForConversion', 'ProtoOASymbolChangedEvent'];
+        if (DEMO_NOISE.some(s => description.includes(s))) {
+          log.warn('Ignoring unsupported demo server event', { errorCode, description });
           break;
         }
 
