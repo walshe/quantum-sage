@@ -6,6 +6,9 @@ export interface AccountInfo {
   equity:        number;
   unrealizedPnl: number;
   currency:      string;
+  login:         number;
+  brokerName:    string;
+  isLive:        boolean;
 }
 
 /**

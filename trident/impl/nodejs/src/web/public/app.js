@@ -631,6 +631,7 @@ function updatePriceChip(data) {
 function updateAccountChip(account) {
   const balEl = $('#account-chip-value');
   const pnlEl = $('#unrealized-pnl');
+  const tipEl = $('#account-chip-tip');
   if (!balEl || !pnlEl) return;
 
   if (!account) {
@@ -639,10 +640,19 @@ function updateAccountChip(account) {
     return;
   }
 
-  const { balance, unrealizedPnl, currency } = account;
+  const { balance, unrealizedPnl, currency, login, brokerName, isLive } = account;
   const sym = currency === 'EUR' ? '€' : currency;
   balEl.textContent = `${sym} ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   _i18nTextSnap.delete(balEl);
+
+  // Build dynamic tooltip with account identity
+  if (tipEl) {
+    const accountType = isLive ? 'Live' : 'Demo';
+    const broker = brokerName || 'Broker';
+    const loginStr = login ? ` · ${login}` : '';
+    tipEl.dataset.tip =
+      `${accountType} account — ${broker}${loginStr}\n\nBalance refreshes every 30 seconds.\n\nDashes mean no trader connection yet.`;
+  }
 
   if (unrealizedPnl === 0) {
     pnlEl.hidden = true;

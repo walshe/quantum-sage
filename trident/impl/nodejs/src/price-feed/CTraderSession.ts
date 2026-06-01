@@ -77,6 +77,7 @@ interface CTraderAccount {
   ctidTraderAccountId: number;
   isLive:              boolean;
   traderLogin:         number;
+  brokerTitleShort?:   string;
 }
 
 export interface CTraderSessionConfig {
@@ -102,7 +103,10 @@ export class CTraderSession {
   private ws:             WebSocket | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private msgCounter = 0;
-  private _accountId: number | null = null;
+  private _accountId:    number | null = null;
+  private _traderLogin:  number | null = null;
+  private _brokerName:   string | null = null;
+  private _isLive:       boolean = false;
 
   // Consumer-registered handlers, keyed by payloadType
   private readonly handlers = new Map<number, MessageHandler>();
@@ -117,9 +121,10 @@ export class CTraderSession {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  get accountId(): number | null {
-    return this._accountId;
-  }
+  get accountId():   number | null { return this._accountId; }
+  get traderLogin(): number | null { return this._traderLogin; }
+  get brokerName():  string | null { return this._brokerName; }
+  get isLive():      boolean       { return this._isLive; }
 
   /**
    * Register a handler for a specific cTrader payload type.
@@ -257,11 +262,15 @@ export class CTraderSession {
           return;
         }
 
-        this._accountId = account.ctidTraderAccountId;
+        this._accountId   = account.ctidTraderAccountId;
+        this._traderLogin = account.traderLogin;
+        this._brokerName  = account.brokerTitleShort ?? null;
+        this._isLive      = account.isLive;
         log.info('Using account', {
-          accountId: this._accountId,
-          login:     account.traderLogin,
-          isLive:    account.isLive,
+          accountId:  this._accountId,
+          login:      account.traderLogin,
+          isLive:     account.isLive,
+          brokerName: account.brokerTitleShort,
         });
 
         this.send({

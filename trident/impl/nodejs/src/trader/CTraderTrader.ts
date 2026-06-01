@@ -131,7 +131,12 @@ export class CTraderTrader {
     this.lastEquity  = equity;
 
     if (changed) {
-      this.cfg.onAccountUpdate({ balance, equity, unrealizedPnl, currency });
+      this.cfg.onAccountUpdate({
+        balance, equity, unrealizedPnl, currency,
+        login:      this.session.traderLogin ?? 0,
+        brokerName: this.session.brokerName  ?? '',
+        isLive:     this.session.isLive,
+      });
     }
 
     // Start the poll after the first successful response.

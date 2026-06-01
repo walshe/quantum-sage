@@ -164,6 +164,9 @@ let latestAccount: AccountInfo | null =
         equity:        Number(env.CTRADER_ACCOUNT_BALANCE),
         unrealizedPnl: 0,
         currency:      env.CTRADER_ACCOUNT_CURRENCY ?? 'USD',
+        login:         env.CTRADER_ACCOUNT_ID ? Number(env.CTRADER_ACCOUNT_ID) : 0,
+        brokerName:    '',   // filled in by TRADER_RES when available
+        isLive:        false,
       }
     : null;
 
