@@ -96,6 +96,19 @@ const SIGNAL_TOOL_SCHEMA = {
   required: ['signal', 'notes', 'warnings'],
 };
 
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+type SupportedMimeType = typeof SUPPORTED_MIME_TYPES[number];
+
+function assertSupportedMimeType(mimeType: string): SupportedMimeType {
+  if ((SUPPORTED_MIME_TYPES as readonly string[]).includes(mimeType)) {
+    return mimeType as SupportedMimeType;
+  }
+  throw new Error(
+    `ClaudeExtractionProvider: unsupported image MIME type "${mimeType}" — ` +
+    `supported: ${SUPPORTED_MIME_TYPES.join(', ')}`
+  );
+}
+
 export interface ClaudeExtractionProviderOpts {
   apiKey: string;
   model?: string;
@@ -146,7 +159,7 @@ export class ClaudeExtractionProvider implements VisionProvider {
         type: 'image' as const,
         source: {
           type: 'base64' as const,
-          media_type: img.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          media_type: assertSupportedMimeType(img.mimeType),
           data: img.bytes.toString('base64'),
         },
       })),
