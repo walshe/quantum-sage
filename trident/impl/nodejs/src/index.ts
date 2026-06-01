@@ -20,6 +20,7 @@ import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { CTraderTrader } from './trader/CTraderTrader.js';
 import type { AccountInfo } from './notifier/Notifier.js';
+import type { AccountMeta } from './trader/CTraderTrader.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
 import { LoggerNotifier } from './notifier/LoggerNotifier.js';
 import { MultiNotifier } from './notifier/MultiNotifier.js';
@@ -242,6 +243,14 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
     noHeartbeat:    env.CTRADER_NO_HEARTBEAT === 'true',
     refreshToken:   env.CTRADER_REFRESH_TOKEN,
     tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
+    onAccountMeta: (meta: AccountMeta) => {
+      // Merge broker info into whatever balance data we already have (env seed or
+      // a prior TRADER_RES). Fires immediately after handshake, before TRADER_RES.
+      if (latestAccount) {
+        latestAccount = { ...latestAccount, ...meta };
+        notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount }).catch(() => {});
+      }
+    },
     onAccountUpdate: (info: AccountInfo) => {
       latestAccount = info;
       notifier.notify({ type: 'ACCOUNT_UPDATE', ...info }).catch(() => {});

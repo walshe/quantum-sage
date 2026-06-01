@@ -29,8 +29,16 @@ export interface AccountInfo {
   currency:       string;
 }
 
+export interface AccountMeta {
+  login:      number;
+  brokerName: string;
+  isLive:     boolean;
+}
+
 export interface CTraderTraderConfig extends CTraderSessionConfig {
-  onAccountUpdate: (info: AccountInfo) => void;
+  onAccountUpdate:  (info: AccountInfo) => void;
+  /** Called immediately after account auth, before TRADER_RES arrives. */
+  onAccountMeta?:   (meta: AccountMeta) => void;
   /** Override the poll interval (ms). Defaults to 30 000. */
   pollIntervalMs?: number;
 }
@@ -61,6 +69,14 @@ export class CTraderTrader {
     });
 
     await this.session.connect();
+
+    // Fire metadata immediately — broker name and login are known from the
+    // handshake regardless of whether TRADER_RES ever arrives (e.g. demo servers).
+    this.cfg.onAccountMeta?.({
+      login:      this.session.traderLogin ?? 0,
+      brokerName: this.session.brokerName  ?? '',
+      isLive:     this.session.isLive,
+    });
   }
 
   async disconnect(): Promise<void> {
