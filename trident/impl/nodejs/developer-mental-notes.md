@@ -157,10 +157,35 @@ simulate specific price scenarios without a live feed.
 > **Mental model:** the mock is a recorded script. Give it a sequence of prices
 > and it plays them back at whatever speed you want.
 
+### `CTraderSession.ts`
+Extracted in the `extract-ctrader-session` refactor. Owns everything that is
+broker-level plumbing: WebSocket lifecycle, the three-step auth handshake
+(app auth → account list → account auth), heartbeat, and token refresh.
+
+Exposes three things to consumers:
+- `connect()` — opens the socket and drives the handshake. Resolves after
+  `ACCOUNT_AUTH_RES` (the session is fully authenticated). Rejects on any error.
+- `send(msg)` — sends a JSON message on the open socket. Returns the
+  `clientMsgId` attached to the message so callers can correlate responses.
+- `onMessage(payloadType, handler)` — registers a handler for a specific
+  payload type. One handler per type. Registered before `connect()` so they
+  are in place before any messages arrive.
+
+**Architecture decision (C2):** each consumer (`CTraderPriceFeed`, future
+`CTraderTrader`) creates its own `CTraderSession` instance — two WebSocket
+connections, two auth handshakes. This gives independent reconnect: if the
+price feed drops, position management continues, and vice versa. The cost is
+two connections; the benefit is fault isolation in a financial system.
+
+**ERROR_RES routing:** the session handles heartbeat-rejection errors and
+handshake errors internally. Post-auth errors are dispatched to the consumer's
+registered `ERROR_RES` handler (or logged if none is registered).
+
 ### `CTraderPriceFeed.ts`
-The real price feed. Connects to the cTrader Open API over a WebSocket
-(`wss://live1.p.ctrader.com:5036`) using the JSON protocol (port 5036 — no
-protobuf dependency needed).
+The real price feed. Delegates WebSocket/auth to `CTraderSession`; owns only
+the price-feed concerns: symbol resolution, spot subscription, OHLCV bar
+fetching. External interface (`CTraderPriceFeedConfig`, `PriceFeed` methods,
+`getTodayBars()`) is unchanged.
 
 **Config it needs** (all read from `.env` via `index.ts`):
 - `clientId` / `clientSecret` — your cTrader app credentials
@@ -168,23 +193,13 @@ protobuf dependency needed).
 - `symbolName` — e.g. `"US500"` — the instrument to subscribe to
 - `accountId` (optional) — if omitted, picks the first live account automatically
 
-**What `connect()` does** — drives a five-step handshake over the open socket,
-then resolves:
-1. **App auth** — sends client ID + secret (`payloadType 2100`). Proves this is
-   a registered cTrader application.
-2. **Get account list** — exchanges the access token for a list of trading
-   accounts (`payloadType 2149`). Resolves the `ctidTraderAccountId` the engine
-   will trade on.
-3. **Account auth** — authorises the chosen account for this session
-   (`payloadType 2102`).
-4. **Symbol list** — fetches every symbol available on the account
-   (`payloadType 2115`) and finds the `symbolId` that matches `symbolName`. If
-   the name doesn't match anything exactly, it tries a prefix match. If still
-   nothing, `connect()` rejects with an error listing the first 20 available
-   symbols — useful for figuring out what FB's broker calls the instrument.
-5. **Subscribe spots** — subscribes to the real-time bid/ask stream for that
-   symbol (`payloadType 2119`). Once the confirmation arrives, `connect()`
-   resolves and ticks start flowing.
+**What `connect()` does:**
+1. Registers handlers on the session for its payload types.
+2. Awaits `session.connect()` — session drives app auth → accounts → account auth.
+3. The `ACCOUNT_AUTH_RES` handler fires during step 2 (async, 2s delay for demo
+   compatibility) to start symbol resolution (SYMBOL_LIST_REQ or configured symbolId).
+4. `CTraderPriceFeed.connect()` then waits for `SUBSCRIBE_SPOTS_RES` or the first
+   `SPOT_EVENT` before resolving — meaning the full connection is confirmed end-to-end.
 
 **Prices**: cTrader sends bid and ask as integers (actual price × 100,000).
 The feed divides by 100,000 and delivers the mid-price `(bid + ask) / 2`
