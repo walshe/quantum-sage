@@ -320,13 +320,6 @@ export class CTraderPriceFeed implements PriceFeed {
         }
       }
 
-      // Demo servers trigger an internal SymbolsForConversion lookup on spot
-      // subscription. Demo environments don't support this — safe to ignore.
-      if (description.includes('SymbolsForConversion')) {
-        log.warn('Ignoring unsupported SymbolsForConversion request (demo limitation — does not affect price feed)');
-        return;
-      }
-
       log.error('cTrader API error (post-auth)', { errorCode, description });
     });
   }

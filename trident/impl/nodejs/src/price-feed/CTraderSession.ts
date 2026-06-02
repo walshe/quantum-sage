@@ -57,6 +57,9 @@ export const PT = {
   GET_TRENDBAR_RES:     2138,
   TRADER_REQ:           2120,   // account details (balance, equity) — used by CTraderTrader
   TRADER_RES:           2121,
+  RECONCILE_REQ:        2124,   // reconcile open positions — also contains balance info
+  RECONCILE_RES:        2125,
+  EXECUTION_EVENT:      2126,   // order fill / rejection events
   GET_ACCOUNTS_REQ:     2149,
   GET_ACCOUNTS_RES:     2150,
   ERROR_RES:            2142,
@@ -74,6 +77,7 @@ interface CTraderAccount {
   ctidTraderAccountId: number;
   isLive:              boolean;
   traderLogin:         number;
+  brokerTitleShort?:   string;
 }
 
 export interface CTraderSessionConfig {
@@ -99,7 +103,10 @@ export class CTraderSession {
   private ws:             WebSocket | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private msgCounter = 0;
-  private _accountId: number | null = null;
+  private _accountId:    number | null = null;
+  private _traderLogin:  number | null = null;
+  private _brokerName:   string | null = null;
+  private _isLive:       boolean = false;
 
   // Consumer-registered handlers, keyed by payloadType
   private readonly handlers = new Map<number, MessageHandler>();
@@ -114,9 +121,10 @@ export class CTraderSession {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  get accountId(): number | null {
-    return this._accountId;
-  }
+  get accountId():   number | null { return this._accountId; }
+  get traderLogin(): number | null { return this._traderLogin; }
+  get brokerName():  string | null { return this._brokerName; }
+  get isLive():      boolean       { return this._isLive; }
 
   /**
    * Register a handler for a specific cTrader payload type.
@@ -254,11 +262,15 @@ export class CTraderSession {
           return;
         }
 
-        this._accountId = account.ctidTraderAccountId;
+        this._accountId   = account.ctidTraderAccountId;
+        this._traderLogin = account.traderLogin;
+        this._brokerName  = account.brokerTitleShort ?? null;
+        this._isLive      = account.isLive;
         log.info('Using account', {
-          accountId: this._accountId,
-          login:     account.traderLogin,
-          isLive:    account.isLive,
+          accountId:  this._accountId,
+          login:      account.traderLogin,
+          isLive:     account.isLive,
+          brokerName: account.brokerTitleShort,
         });
 
         this.send({
@@ -301,6 +313,15 @@ export class CTraderSession {
         if (this.settle) {
           log.error('cTrader API error during handshake', { errorCode, description });
           this.settle(new Error(`cTrader error ${errorCode}: ${description}`));
+          break;
+        }
+
+        // Known demo-server noise: the broker pushes these events internally
+        // after account auth but demo environments don't support them.
+        // Suppress at warn level rather than surfacing as errors.
+        const DEMO_NOISE = ['SymbolsForConversion', 'ProtoOASymbolChangedEvent'];
+        if (DEMO_NOISE.some(s => description.includes(s))) {
+          log.warn('Ignoring unsupported demo server event', { errorCode, description });
           break;
         }
 

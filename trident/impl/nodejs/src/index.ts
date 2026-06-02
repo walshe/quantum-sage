@@ -18,6 +18,9 @@ import { loadConfig } from './config/loader.js';
 import { watchSignalDir, loadSignalFile, scanSignalDirOnce } from './signal/loader.js';
 import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
+import { CTraderTrader } from './trader/CTraderTrader.js';
+import type { AccountInfo } from './notifier/Notifier.js';
+import type { AccountMeta } from './trader/CTraderTrader.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
 import { LoggerNotifier } from './notifier/LoggerNotifier.js';
 import { MultiNotifier } from './notifier/MultiNotifier.js';
@@ -153,6 +156,21 @@ const tickRateInterval = setInterval(() => {
 }, 60_000);
 tickRateInterval.unref();
 
+// Seed from env if TRADER_REQ isn't supported by the broker's demo server.
+// TRADER_RES overrides this when it arrives (e.g. on live accounts).
+let latestAccount: AccountInfo | null =
+  env.CTRADER_ACCOUNT_BALANCE
+    ? {
+        balance:       Number(env.CTRADER_ACCOUNT_BALANCE),
+        equity:        Number(env.CTRADER_ACCOUNT_BALANCE),
+        unrealizedPnl: 0,
+        currency:      env.CTRADER_ACCOUNT_CURRENCY ?? 'USD',
+        login:         env.CTRADER_ACCOUNT_ID ? Number(env.CTRADER_ACCOUNT_ID) : 0,
+        brokerName:    '',   // filled in by TRADER_RES when available
+        isLive:        false,
+      }
+    : null;
+
 if (!env.CTRADER_CLIENT_ID || !env.CTRADER_CLIENT_SECRET || !env.CTRADER_ACCESS_TOKEN) {
   log.warn('No cTrader credentials — price feed inactive');
   log.info('Run auth:ctrader to configure credentials, or use --mock for a demo');
@@ -210,6 +228,56 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
   };
 
   await connectWithRetry();
+
+  // CTraderTrader: separate session (C2) for balance + equity polling.
+  const traderConfig = {
+    clientId:       env.CTRADER_CLIENT_ID,
+    clientSecret:   env.CTRADER_CLIENT_SECRET,
+    accessToken:    env.CTRADER_ACCESS_TOKEN,
+    accountId:      env.CTRADER_ACCOUNT_ID ? Number(env.CTRADER_ACCOUNT_ID) : undefined,
+    // CTRADER_TRADER_WS_URL lets the trader use a different server than the
+    // price feed. Useful when the broker's demo account needs the live endpoint
+    // for TRADER_REQ (e.g. Pepperstone: demo prices on demo.ctraderapi.com,
+    // account queries on live.ctraderapi.com).
+    wsUrl:          env.CTRADER_TRADER_WS_URL ?? env.CTRADER_WS_URL,
+    noHeartbeat:    env.CTRADER_NO_HEARTBEAT === 'true',
+    refreshToken:   env.CTRADER_REFRESH_TOKEN,
+    tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
+    onAccountMeta: (meta: AccountMeta) => {
+      // Merge broker info into whatever balance data we already have (env seed or
+      // a prior TRADER_RES). Fires immediately after handshake, before TRADER_RES.
+      if (latestAccount) {
+        latestAccount = { ...latestAccount, ...meta };
+        notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount }).catch(() => {});
+      }
+    },
+    onAccountUpdate: (info: AccountInfo) => {
+      latestAccount = info;
+      notifier.notify({ type: 'ACCOUNT_UPDATE', ...info }).catch(() => {});
+    },
+  };
+
+  const connectTraderWithRetry = async () => {
+    while (true) {
+      const trader = new CTraderTrader(traderConfig);
+      try {
+        log.info('Connecting CTraderTrader');
+        await trader.connect();
+        log.info('CTraderTrader connected');
+        return;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.error('CTraderTrader connection failed, retrying', { error: msg, retryMs: 5000 });
+        await trader.disconnect().catch(() => {});
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+  };
+
+  // Don't await — runs in the background alongside the price feed.
+  connectTraderWithRetry().catch(err => {
+    log.error('CTraderTrader retry loop exited', { error: (err as Error).message });
+  });
 }
 
 // Load a specific signal file immediately if provided
@@ -305,6 +373,7 @@ function buildBootstrap(): Bootstrap {
       breakEvenActive: position.breakEvenActive,
     } : null,
     stopPoints: config.trident.stop_loss_points,
+    account: latestAccount,
   };
 }
 

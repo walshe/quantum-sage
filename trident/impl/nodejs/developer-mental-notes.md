@@ -138,6 +138,36 @@ Three functions:
 
 ---
 
+## Trader — `src/trader/`
+
+### `CTraderTrader.ts`
+Fetches live demo account balance and equity from the cTrader Open API. Owns its
+own `CTraderSession` (C2 design — independent from the price feed).
+
+**What it does:**
+- On `ACCOUNT_AUTH_RES`: sends `ProtoOATraderReq` (payloadType **2120**)
+- On `ProtoOATraderRes` (payloadType **2121**): decodes balance + equity, fires `onAccountUpdate`
+- Polls every 30 seconds after the first response; skips the poll if `session.accountId` is null
+
+**TRADER_RES field names (verify on first run — log is emitted automatically):**
+- `payload.trader.balance` — integer; divide by `10 ** moneyDigits`
+- `payload.trader.equity` — may or may not be present depending on API version; falls back to balance (unrealizedPnl = 0) if absent
+- `payload.trader.moneyDigits` — decimal places (usually 2)
+- `payload.trader.currency` — currency name; defaults to `"EUR"` if absent
+
+**unrealizedPnl** = equity − balance, rounded to 2dp. This is the floating P&L
+on any open position as seen by the broker. It is NOT computed from the engine's
+position state — it comes from the API.
+
+**Callback fires only on change** — identical consecutive values are suppressed to avoid noise.
+
+**Wired in `index.ts`** alongside the price feed: creates a `CTraderTrader` when
+cTrader credentials are present, runs it through the same `connectWithRetry` loop pattern.
+`latestAccount` is stored in module scope and included in `buildBootstrap()` so late-joining
+browser tabs see the current balance immediately.
+
+---
+
 ## Price feed — `src/price-feed/`
 
 ### `PriceFeed.ts` (interface)

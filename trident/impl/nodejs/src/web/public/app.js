@@ -267,6 +267,7 @@ function connectWs() {
     if (msg.kind === 'history') { _lastHistory = msg.data; handleHistory(msg.data); }
     else if (msg.kind === 'bootstrap') handleBootstrap(msg.data);
     else if (msg.kind === 'event') handleEvent(msg.data);
+    else if (msg.kind === 'account_update') updateAccountChip(msg.data);
   });
 }
 
@@ -318,6 +319,7 @@ function handleBootstrap(b) {
   state.currentSignal = b.currentSignal ?? latestSignalFromHistory(_lastHistory);
   state.openPosition = b.position ?? null;
   if (b.stopPoints != null) state.stopPoints = b.stopPoints;
+  updateAccountChip(b.account ?? null);
   renderSignalCard();
 
   // Show server timezone note in the form so the analyst knows which timezone
@@ -624,6 +626,44 @@ function updatePriceChip(data) {
   _i18nTextSnap.delete(el); // price is numeric — never translatable
   const chip = $('#price-chip');
   if (chip) chip.dataset.state = 'live';
+}
+
+function updateAccountChip(account) {
+  const balEl = $('#account-chip-value');
+  const pnlEl = $('#unrealized-pnl');
+  const tipEl = $('#account-chip-tip');
+  if (!balEl || !pnlEl) return;
+
+  if (!account) {
+    balEl.textContent = '—';
+    pnlEl.hidden = true;
+    return;
+  }
+
+  const { balance, unrealizedPnl, currency, login, brokerName, isLive } = account;
+  const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+  const sym = CURRENCY_SYMBOLS[currency] ?? currency;
+  balEl.textContent = `${sym} ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  _i18nTextSnap.delete(balEl);
+
+  // Build dynamic tooltip with account identity
+  if (tipEl) {
+    const accountType = isLive ? 'Live' : 'Demo';
+    const broker = brokerName || 'Broker';
+    const loginStr = login ? ` · ${login}` : '';
+    tipEl.dataset.tip =
+      `${accountType} account — ${broker}${loginStr}\n\nBalance refreshes every 30 seconds.\n\nDashes mean no trader connection yet.`;
+  }
+
+  if (unrealizedPnl === 0) {
+    pnlEl.hidden = true;
+  } else {
+    const prefix = unrealizedPnl > 0 ? '+' : '';
+    pnlEl.textContent = `${prefix}${sym} ${unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    pnlEl.className = 'chip-pnl ' + (unrealizedPnl > 0 ? 'pnl--positive' : 'pnl--negative');
+    pnlEl.hidden = false;
+    _i18nTextSnap.delete(pnlEl);
+  }
 }
 
 // ---------------------------------------------------------------------------

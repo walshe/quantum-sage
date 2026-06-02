@@ -21,6 +21,11 @@
       <span class="chip-label">Price <i class="info" data-tip="Latest price the engine has seen from the broker feed.&#10;&#10;Updates at most twice a second to keep the tab responsive.&#10;&#10;Dashes mean no ticks yet (engine just started or feed disconnected)."></i></span>
       <span class="chip-value" id="price-chip-value">—</span>
     </div>
+    <div class="chip chip--account" id="account-chip">
+      <span class="chip-label">Account <i class="info" id="account-chip-tip" data-tip="Account balance from the broker.&#10;&#10;Refreshes every 30 seconds.&#10;&#10;Dashes mean no trader connection yet."></i></span>
+      <span class="chip-value" id="account-chip-value">—</span>
+      <span class="chip-pnl" id="unrealized-pnl" hidden></span>
+    </div>
     <div class="signal-card" id="signal-card">
       <span class="chip-label">Current setup <i class="info" data-tip="Filename and key fields of the setup file the engine is currently operating on.&#10;&#10;Shows 'None loaded' until one arrives.&#10;&#10;Updates when a new setup is picked up from the setups/ folder or submitted through this form."></i></span>
       <span class="signal-card-body" id="signal-card-body">None loaded</span>
