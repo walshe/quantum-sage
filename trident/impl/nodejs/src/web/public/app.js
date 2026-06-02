@@ -641,7 +641,8 @@ function updateAccountChip(account) {
   }
 
   const { balance, unrealizedPnl, currency, login, brokerName, isLive } = account;
-  const sym = currency === 'EUR' ? '€' : currency;
+  const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+  const sym = CURRENCY_SYMBOLS[currency] ?? currency;
   balEl.textContent = `${sym} ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   _i18nTextSnap.delete(balEl);
 

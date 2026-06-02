@@ -126,7 +126,7 @@ export class CTraderTrader {
     const equityRaw = trader['equity'] as number | undefined;
     const equity    = equityRaw !== undefined ? equityRaw / divisor : balance;
 
-    const unrealizedPnl = Math.round((equity - balance) * 100) / 100;
+    const unrealizedPnl = Number((equity - balance).toFixed(2));
 
     // Currency: try common field names, default to EUR (FB's account currency).
     const currency = (
