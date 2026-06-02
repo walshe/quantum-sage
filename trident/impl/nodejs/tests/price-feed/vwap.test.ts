@@ -83,10 +83,11 @@ describe('CTraderPriceFeed — getTodayBars()', () => {
 
     const sentMessages: string[] = [];
     const fakeWs = { readyState: WebSocket.OPEN, send: (m: string) => sentMessages.push(m) };
-    const feedAny = feed as unknown as Record<string, unknown>;
-    feedAny['ws']        = fakeWs;
-    feedAny['accountId'] = 12345;
-    feedAny['symbolId']  = 42;
+    const feedAny   = feed as unknown as Record<string, unknown>;
+    const sessionAny = (feedAny['session'] as unknown) as Record<string, unknown>;
+    sessionAny['ws']        = fakeWs;
+    sessionAny['_accountId'] = 12345;
+    feedAny['symbolId']      = 42;
 
     const barsPromise = feed.getTodayBars();
 
@@ -113,10 +114,11 @@ describe('CTraderPriceFeed — getTodayBars()', () => {
     const feed = new CTraderPriceFeed({
       clientId: 'c', clientSecret: 's', accessToken: 'a', symbolName: 'US500',
     });
-    const feedAny = feed as unknown as Record<string, unknown>;
-    feedAny['ws']        = { readyState: WebSocket.OPEN, send: () => {} };
-    feedAny['accountId'] = 12345;
-    feedAny['symbolId']  = 42;
+    const feedAny    = feed as unknown as Record<string, unknown>;
+    const sessionAny = (feedAny['session'] as unknown) as Record<string, unknown>;
+    sessionAny['ws']         = { readyState: WebSocket.OPEN, send: () => {} };
+    sessionAny['_accountId'] = 12345;
+    feedAny['symbolId']      = 42;
 
     const barsPromise = feed.getTodayBars();
     vi.advanceTimersByTime(10_001);

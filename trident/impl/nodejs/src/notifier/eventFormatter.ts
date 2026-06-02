@@ -182,6 +182,13 @@ function formatEventCore(
         headline: event.message,
         detail: [], action: null, severity: 'error', actionRequired,
       };
+
+    case 'ACCOUNT_UPDATE':
+      return {
+        timestamp, type: event.type, tag: 'ACCOUNT',
+        headline: `Balance: ${event.currency} ${event.balance.toFixed(2)}`,
+        detail: [], action: null, severity: 'info', actionRequired,
+      };
   }
 }
 

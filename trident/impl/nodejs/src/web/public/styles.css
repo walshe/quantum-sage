@@ -45,11 +45,20 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
 }
 .chip-label { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.06em; }
 .chip-value { font-weight: 600; }
-.chip--price .chip-value {
+.chip--price .chip-value,
+.chip--account .chip-value {
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   letter-spacing: 0.02em;
 }
 #price-chip[data-state="live"] { border-color: var(--accent); }
+.chip-pnl {
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pnl--positive { color: #4caf7d; }
+.pnl--negative { color: #e05c5c; }
 .signal-card {
   display: flex; flex-direction: column; gap: 2px;
   padding: 0.35rem 0.7rem;
