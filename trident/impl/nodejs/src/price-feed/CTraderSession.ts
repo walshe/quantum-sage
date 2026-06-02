@@ -284,12 +284,15 @@ export class CTraderSession {
       }
 
       case PT.ACCOUNT_AUTH_RES: {
-        // Auth handshake complete. Dispatch to consumer handler (if any) first,
-        // then resolve connect() — consumer may send follow-up messages in its
-        // handler (e.g. SYMBOL_LIST_REQ) and these must be queued before resolve.
+        // Settle first: starts heartbeat and resolves connect() before any
+        // consumer handler runs. This ensures:
+        // 1. Heartbeat is active before any follow-up messages are sent.
+        // 2. A throwing consumer handler cannot leave connect() pending forever.
+        // Consumer handlers that schedule follow-ups (e.g. via setTimeout) will
+        // run against a fully-initialised session.
+        this.settle?.();
         const handler = this.handlers.get(PT.ACCOUNT_AUTH_RES);
         if (handler) handler(msg);
-        this.settle?.();
         break;
       }
 
