@@ -4,6 +4,8 @@ FROM node:20-alpine AS builder
 WORKDIR /build
 
 COPY package*.json ./
+# Build tools needed for native dev modules (e.g. better-sqlite3 via mongoose)
+RUN apk add --no-cache python3 make g++
 RUN npm ci
 
 COPY tsconfig.json ./
