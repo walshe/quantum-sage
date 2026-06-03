@@ -457,6 +457,8 @@ export class TridentEngine {
         vwapTarget: this.currentSignal.vwap.value,
         lastFillTime: fill.filledAt,
         breakEvenActive: false,
+        entrySignalFilePath: this.signalFilePath ?? '',
+        entrySignal: this.currentSignal,
       };
       this.state = 'in_trade';
       this.resetTimeExitTimer();
@@ -504,7 +506,10 @@ export class TridentEngine {
       allocationPct: entry.allocationPct,
       avgEntry: this.position.avgEntry,
       currentStop: this.position.currentStop,
+      vwapTarget: this.position.vwapTarget,
       fillsRemaining: this.position.pendingEntries.length,
+      entrySignalFilePath: this.position.entrySignalFilePath,
+      entrySignal: this.position.entrySignal,
     });
 
     this.persist();

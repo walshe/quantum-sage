@@ -371,6 +371,8 @@ function buildBootstrap(): Bootstrap {
         allocationPct: f.allocationPct,
       })),
       breakEvenActive: position.breakEvenActive,
+      entrySignalFilePath: position.entrySignalFilePath,
+      entrySignal: position.entrySignal,
     } : null,
     stopPoints: config.trident.stop_loss_points,
     account: latestAccount,

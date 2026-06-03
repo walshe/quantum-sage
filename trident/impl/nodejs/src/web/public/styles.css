@@ -985,3 +985,42 @@ label.sell > input:focus { border-color: var(--accent); }
   font-size: 12px;
   color: var(--fg-dim);
 }
+
+/* ── Updated trade plan disclosure ── */
+.sp-updated-plan {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+.sp-updated-plan summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--warn);
+  user-select: none;
+  list-style: none;
+}
+.sp-updated-plan summary::-webkit-details-marker { display: none; }
+.sp-updated-plan[open] summary { margin-bottom: 0.5rem; }
+
+/* ── Certainty overlay ── */
+#certainty-overlay[hidden] { display: none; }
+#certainty-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1000;
+}
+#certainty-overlay img {
+  max-width: min(480px, 90vw);
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+#certainty-overlay.fade-out {
+  animation: certainty-fade 0.6s ease-out forwards;
+}
+@keyframes certainty-fade {
+  to { opacity: 0; }
+}

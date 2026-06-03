@@ -344,7 +344,7 @@ function handleBootstrap(b) {
     );
     // Seed history so Today shows the already-loaded signal even if the tab
     // connected after the engine picked it up.
-    state.history.unshift({ ts: ts, tag: 'SIGNAL', text: b.currentSignal.filePath });
+    state.history.unshift({ ts: b.currentSignal.timestamp, tag: 'SIGNAL', text: b.currentSignal.filePath });
     renderHistory();
   }
   if (b.lastIdleReason) {
@@ -443,6 +443,68 @@ function renderStatusPanel() {
   }
   body.append(setupSec);
 
+  // ── Trade plan section (watching or in_trade) ───────────
+  const showPlan = state.position === 'watching' || state.position === 'in_trade';
+  if (showPlan && state.currentSignal) {
+    const planSec = el('div', { class: 'sp-section' });
+
+    const inTrade     = state.position === 'in_trade';
+    const entrySig    = inTrade ? state.openPosition?.entrySignal    : null;
+    const entryPath   = inTrade ? state.openPosition?.entrySignalFilePath : null;
+    const sigUpdated  = inTrade && entryPath && state.currentSignal.filePath &&
+                        baseName(state.currentSignal.filePath) !== baseName(entryPath);
+
+    // While in_trade, show the plan from the signal that opened the position.
+    // When watching, show the current signal's plan.
+    const planSig = (inTrade && entrySig) ? entrySig : state.currentSignal._signal;
+
+    planSec.append(el('h3', { text: tx('Trade plan') + (inTrade && entrySig ? tx(' (at entry)') : '') }));
+
+    if (planSig) {
+      planSec.append(buildTradePlanNote(planSig));
+    } else {
+      // Bootstrap gave us only the summary — fetch the full signal once and re-render.
+      fetch('/signals/latest').then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.signal && state.currentSignal) {
+          state.currentSignal._signal = data.signal;
+          if (inTrade && state.openPosition && !state.openPosition.entrySignal) {
+            state.openPosition.entrySignal = data.signal;
+            state.openPosition.entrySignalFilePath = state.currentSignal.filePath;
+          }
+          renderStatusPanel();
+        }
+      }).catch(() => {});
+    }
+
+    // If a new signal was loaded during the trade, show it collapsed below.
+    if (sigUpdated) {
+      const updatedSig = state.currentSignal._signal;
+      const details = document.createElement('details');
+      details.className = 'sp-updated-plan';
+      const summary = document.createElement('summary');
+      summary.textContent = `⚠️ ${tx('Signal updated since entry')} — ${baseName(state.currentSignal.filePath)}`;
+      details.append(summary);
+      if (updatedSig) {
+        details.append(buildTradePlanNote(updatedSig));
+      } else {
+        const note = document.createElement('p');
+        note.style.color = 'var(--fg-dim)';
+        note.style.fontSize = '12px';
+        note.textContent = tx('Loading…');
+        details.append(note);
+        fetch('/signals/latest').then(r => r.ok ? r.json() : null).then(data => {
+          if (data?.signal && state.currentSignal) {
+            state.currentSignal._signal = data.signal;
+            renderStatusPanel();
+          }
+        }).catch(() => {});
+      }
+      planSec.append(details);
+    }
+
+    body.append(planSec);
+  }
+
   // ── Position section (only when in trade) ──────────────
   if (state.openPosition) {
     const p = state.openPosition;
@@ -468,26 +530,6 @@ function renderStatusPanel() {
     }
     posSec.append(spRow('Breakeven', p.breakEvenActive ? tx('Active') : tx('Not yet'), p.breakEvenActive ? 'is-closed' : ''));
     body.append(posSec);
-  }
-
-  // ── Trade plan section (watching or in_trade) ───────────
-  const showPlan = state.position === 'watching' || state.position === 'in_trade';
-  if (showPlan && state.currentSignal) {
-    const sig = state.currentSignal._signal;
-    if (sig) {
-      const planSec = el('div', { class: 'sp-section' });
-      planSec.append(el('h3', { text: tx('Trade plan') }));
-      planSec.append(buildTradePlanNote(sig));
-      body.append(planSec);
-    } else {
-      // Bootstrap gave us only the summary — fetch the full signal once and re-render.
-      fetch('/signals/latest').then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.signal && state.currentSignal) {
-          state.currentSignal._signal = data.signal;
-          renderStatusPanel();
-        }
-      }).catch(() => {});
-    }
   }
 }
 
@@ -567,13 +609,16 @@ function handleEvent(data) {
             .sort((a, b) => a.entryNumber - b.entryNumber)
         : prevFills;
       state.openPosition = {
-        direction:       raw.direction,
-        avgEntry:        raw.avgEntry,
-        currentStop:     raw.currentStop,
-        vwapTarget:      raw.vwapTarget ?? state.openPosition?.vwapTarget ?? null,
-        fills:           3 - raw.fillsRemaining,
+        direction:            raw.direction,
+        avgEntry:             raw.avgEntry,
+        currentStop:          raw.currentStop,
+        vwapTarget:           raw.vwapTarget ?? state.openPosition?.vwapTarget ?? null,
+        fills:                3 - raw.fillsRemaining,
         fillDetails,
-        breakEvenActive: state.openPosition?.breakEvenActive ?? false,
+        breakEvenActive:      state.openPosition?.breakEvenActive ?? false,
+        // Preserve entry signal from Entry 1; subsequent fills carry it too
+        entrySignalFilePath:  raw.entrySignalFilePath ?? state.openPosition?.entrySignalFilePath ?? null,
+        entrySignal:          raw.entrySignal          ?? state.openPosition?.entrySignal          ?? null,
       };
       renderStatusPanel();
       break;
@@ -933,6 +978,17 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
   form.prepend(banner);
 }
 
+function showCertaintyOverlay() {
+  const el = $('#certainty-overlay');
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove('fade-out');
+  setTimeout(() => {
+    el.classList.add('fade-out');
+    el.addEventListener('animationend', () => { el.hidden = true; }, { once: true });
+  }, 4000);
+}
+
 function setSubmitStatus(text, kind) {
   const el = $('#submit-status');
   el.textContent = text;
@@ -1123,6 +1179,7 @@ async function postSignal(signal) {
     }
     state.pendingSubmitName = body.filename;
     setSubmitStatus(`Submitted ${body.filename} — waiting for engine…`, '');
+    showCertaintyOverlay();
     for (const w of body.warnings ?? []) {
       const li = document.createElement('li');
       li.textContent = `⚠ ${w}`;

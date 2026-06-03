@@ -37,4 +37,9 @@ export interface ActivePosition {
   vwapTarget: number;
   lastFillTime: Date;
   breakEvenActive: boolean;
+  /** Signal file that was active when Entry 1 triggered. Stored so the UI
+   *  can show the original trade plan even after a mid-trade signal update. */
+  entrySignalFilePath: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  entrySignal: any; // SignalFile — typed as any to avoid a circular import
 }
