@@ -135,6 +135,8 @@ function deserializePosition(p: SerializedPosition): ActivePosition {
     vwapTarget: p.vwapTarget,
     lastFillTime: new Date(p.lastFillTime),
     breakEvenActive: p.breakEvenActive,
+    entrySignalFilePath: (p as any).entrySignalFilePath ?? '',
+    entrySignal: (p as any).entrySignal ?? null,
   };
 }
 

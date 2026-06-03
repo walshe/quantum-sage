@@ -42,7 +42,12 @@ export type NotificationEvent =
       allocationPct: number;
       avgEntry: number;
       currentStop: number;
+      vwapTarget: number | null;
       fillsRemaining: number;
+      /** Signal that was active when Entry 1 triggered — for original trade plan display. */
+      entrySignalFilePath?: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      entrySignal?: any;
     }
   | { type: 'BREAKEVEN_TRIGGERED'; newStop: number }
   | {

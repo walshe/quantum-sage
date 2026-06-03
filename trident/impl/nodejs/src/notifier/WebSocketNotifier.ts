@@ -51,6 +51,8 @@ export interface Bootstrap {
     fills: number;
     fillDetails: Array<{ entryNumber: 1 | 2 | 3; price: number; allocationPct: number }>;
     breakEvenActive: boolean;
+    entrySignalFilePath: string;
+    entrySignal: unknown;
   } | null;
   /**
    * Stop-loss distance in points (from config). Sent in the bootstrap so the
