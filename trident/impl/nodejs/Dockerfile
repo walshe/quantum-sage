@@ -19,7 +19,7 @@ WORKDIR /app
 
 # Production deps only
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && apk add --no-cache su-exec
 
 # Compiled app
 COPY --from=builder /build/dist ./dist
@@ -31,8 +31,10 @@ COPY --from=builder /build/src/web/public ./src/web/public
 # container starts cleanly if the host paths don't exist yet
 RUN mkdir -p setups logs screenshots
 
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 3000
 
-USER node
-
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "--experimental-vm-modules", "dist/index.js"]
