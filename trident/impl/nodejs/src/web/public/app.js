@@ -128,6 +128,7 @@ const state = {
   stopPoints: null,   // from SETUP_READY — used to show worst-case stop in trade plan
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
+  account: null,      // latest AccountInfo from bootstrap or account_update
 };
 // Last history envelope received — kept so handleBootstrap can fall back to it
 // when the bootstrap's currentSignal is null (engine clears signal on close).
@@ -230,7 +231,20 @@ function appendLogRow(data) {
     act.className = 'act'; act.textContent = `>>> ACTION: ${data.action}`;
     li.append(act);
   }
-  log.append(li);
+
+  // Action-required events (ORDER_FAILED, etc.) go to the TOP of the log, not the bottom.
+  // This ensures critical errors are immediately visible and not scrolled off.
+  if (data.actionRequired) {
+    // Add a visual badge to make it unmissable
+    const badge = document.createElement('span');
+    badge.className = 'action-badge';
+    badge.textContent = '⚠️ ACTION REQUIRED';
+    li.prepend(badge);
+    log.insertAdjacentElement('afterbegin', li);
+  } else {
+    log.append(li);
+  }
+
   // Auto-scroll the pane (not the whole page).
   const pane = document.querySelector('.log-pane');
   pane.scrollTop = pane.scrollHeight;
@@ -529,6 +543,18 @@ function renderStatusPanel() {
       posSec.append(spRow(tx('Fills'), String(p.fills), ''));
     }
     posSec.append(spRow('Breakeven', p.breakEvenActive ? tx('Active') : tx('Not yet'), p.breakEvenActive ? 'is-closed' : ''));
+
+    // Broker P&L from CTraderTrader's unrealizedPnl (updates every 30s).
+    const acct = state.account;
+    if (acct && acct.unrealizedPnl !== 0) {
+      const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+      const sym = CURRENCY_SYMBOLS[acct.currency] ?? acct.currency;
+      const pnl = acct.unrealizedPnl;
+      const prefix = pnl > 0 ? '+' : '';
+      const pnlText = `${prefix}${sym} ${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      posSec.append(spRow('Broker P&L', pnlText, pnl > 0 ? 'pnl--positive' : 'pnl--negative'));
+    }
+
     body.append(posSec);
   }
 }
@@ -647,6 +673,7 @@ function handleEvent(data) {
       // submit today's setup.
       setStateChip('idle', state.dailyLocked);
       state.currentSignal = null;
+      state.openPosition = null;
       renderSignalCard();
       renderStatusPanel();
       break;
@@ -674,6 +701,7 @@ function updatePriceChip(data) {
 }
 
 function updateAccountChip(account) {
+  state.account = account;
   const balEl = $('#account-chip-value');
   const pnlEl = $('#unrealized-pnl');
   const tipEl = $('#account-chip-tip');
@@ -709,6 +737,9 @@ function updateAccountChip(account) {
     pnlEl.hidden = false;
     _i18nTextSnap.delete(pnlEl);
   }
+
+  // Refresh the Open Position panel so the Broker P&L row updates live.
+  if (state.position === 'in_trade') renderStatusPanel();
 }
 
 // ---------------------------------------------------------------------------

@@ -8,9 +8,11 @@
     "build": "tsc",
     "start": "node --experimental-vm-modules dist/index.js",
     "dev": "tsx src/index.ts",
+    "dev:fresh": "rm -f logs/engine-state.json logs/trident.log && rm -f setups/qs_setup_*.yaml && tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "auth:ctrader": "tsx scripts/ctrader-auth.ts",
+    "smoke:order": "tsx scripts/smoke-order.ts",
     "list:symbols": "tsx scripts/list-symbols.ts",
     "test:coverage": "vitest run --coverage",
     "eval": "promptfoo eval --config evals/promptfooconfig.yaml"

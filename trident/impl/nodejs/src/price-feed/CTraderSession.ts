@@ -46,23 +46,28 @@ export const PT = {
   APP_AUTH_RES:         2101,
   ACCOUNT_AUTH_REQ:     2102,
   ACCOUNT_AUTH_RES:     2103,
-  NEW_ORDER_REQ:        2104,   // order execution — used by CTraderTrader
+  VERSION_REQ:          2104,
+  VERSION_RES:          2105,
+  NEW_ORDER_REQ:        2106,   // place order — used by CTraderOrderExecutor
+  AMEND_POSITION_SLTP_REQ: 2110, // amend position stop-loss / take-profit (was wrongly 2112)
+  CLOSE_POSITION_REQ:   2111,   // close position (was wrongly 2140)
   SYMBOL_LIST_REQ:      2114,
   SYMBOL_LIST_RES:      2115,
+  TRADER_REQ:           2121,   // account details (balance, equity) — used by CTraderTrader (was wrongly 2120)
+  TRADER_RES:           2122,   // (was wrongly 2121)
+  RECONCILE_REQ:        2124,
+  RECONCILE_RES:        2125,
+  EXECUTION_EVENT:      2126,   // order fill / rejection events
   SUBSCRIBE_SPOTS_REQ:  2127,
   SUBSCRIBE_SPOTS_RES:  2128,
   UNSUBSCRIBE_SPOTS_REQ: 2129,
   SPOT_EVENT:           2131,
+  ORDER_ERROR_EVENT:    2132,   // order error (e.g. TRADING_BAD_VOLUME)
   GET_TRENDBAR_REQ:     2137,
   GET_TRENDBAR_RES:     2138,
-  TRADER_REQ:           2120,   // account details (balance, equity) — used by CTraderTrader
-  TRADER_RES:           2121,
-  RECONCILE_REQ:        2124,   // reconcile open positions — also contains balance info
-  RECONCILE_RES:        2125,
-  EXECUTION_EVENT:      2126,   // order fill / rejection events
+  ERROR_RES:            2142,
   GET_ACCOUNTS_REQ:     2149,
   GET_ACCOUNTS_RES:     2150,
-  ERROR_RES:            2142,
 } as const;
 
 // ── Types ────────────────────────────────────────────────────────────────────

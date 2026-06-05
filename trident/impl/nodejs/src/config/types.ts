@@ -24,4 +24,9 @@ export interface QSConfig {
     stale_threshold_hours: number;
     vwap_staleness_warn_minutes: number;
   };
+  execution?: {
+    auto_execute: boolean;
+    /** EUR value per index point per lot for the execution instrument. Required when auto_execute is true. */
+    point_value_eur: number;
+  };
 }

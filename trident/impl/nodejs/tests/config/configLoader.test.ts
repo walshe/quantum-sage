@@ -116,3 +116,34 @@ describe('loadConfig — type checks', () => {
     expect(() => loadConfig(TMP)).toThrow('empty or not a valid YAML object');
   });
 });
+
+describe('loadConfig — execution section', () => {
+  it('loads without execution section — auto_execute defaults to absent (false)', () => {
+    write(VALID_YAML);
+    const cfg = loadConfig(TMP);
+    expect(cfg.execution).toBeUndefined();
+  });
+
+  it('accepts execution section with auto_execute false (no point_value_eur required)', () => {
+    write(VALID_YAML + '\nexecution:\n  auto_execute: false\n');
+    const cfg = loadConfig(TMP);
+    expect(cfg.execution?.auto_execute).toBe(false);
+  });
+
+  it('throws when auto_execute true and point_value_eur is missing', () => {
+    write(VALID_YAML + '\nexecution:\n  auto_execute: true\n');
+    expect(() => loadConfig(TMP)).toThrow('point_value_eur');
+  });
+
+  it('throws when auto_execute true and point_value_eur is zero', () => {
+    write(VALID_YAML + '\nexecution:\n  auto_execute: true\n  point_value_eur: 0\n');
+    expect(() => loadConfig(TMP)).toThrow('point_value_eur');
+  });
+
+  it('accepts valid execution section with auto_execute true', () => {
+    write(VALID_YAML + '\nexecution:\n  auto_execute: true\n  point_value_eur: 1\n');
+    const cfg = loadConfig(TMP);
+    expect(cfg.execution?.auto_execute).toBe(true);
+    expect(cfg.execution?.point_value_eur).toBe(1);
+  });
+});

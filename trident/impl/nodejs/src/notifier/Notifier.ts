@@ -61,7 +61,8 @@ export type NotificationEvent =
   | { type: 'DAILY_LOCK'; reason: string }
   | { type: 'PRICE_UPDATE'; price: number }
   | { type: 'ENGINE_ERROR'; message: string }
-  | ({ type: 'ACCOUNT_UPDATE' } & AccountInfo);
+  | ({ type: 'ACCOUNT_UPDATE' } & AccountInfo)
+  | { type: 'ORDER_FAILED'; reason: string; orderId?: string };
 
 /**
  * Output channel abstraction.
@@ -79,5 +80,6 @@ export interface Notifier {
 export function isActionRequired(event: NotificationEvent): boolean {
   return event.type === 'ENTRY_TRIGGERED'
       || event.type === 'BREAKEVEN_TRIGGERED'
-      || event.type === 'POSITION_CLOSED';
+      || event.type === 'POSITION_CLOSED'
+      || event.type === 'ORDER_FAILED';
 }

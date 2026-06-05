@@ -479,6 +479,7 @@ label.sell > input:focus { border-color: var(--accent); }
 #log li .head { font-weight: 500; }
 #log li .det { color: var(--fg-dim); display: block; padding-left: 2rem; }
 #log li .act { color: var(--action); font-weight: 600; display: block; padding-left: 2rem; margin-top: 2px; }
+#log li .action-badge { display: inline-block; background: var(--err); color: white; font-weight: 700; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-right: 0.5rem; }
 /* severity / category styling */
 #log li.sev-signal { border-left-color: var(--signal); }
 #log li.sev-setup  { border-left-color: var(--setup); }

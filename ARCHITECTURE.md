@@ -68,11 +68,13 @@ Analyst (FB)
 
 | Phase | Status | Description |
 |---|---|---|
-| 1 | **Current** | Human analyst submits setup; human trader executes signals manually at broker |
-| 2 | Future | Auto-execution via cTrader Open API (same WebSocket, extended to send orders) |
+| 1 | ✅ Complete | Human analyst submits setup; human trader executes signals manually at broker |
+| 2 | **Current** | Auto-execution via cTrader Open API — `CTraderOrderExecutor` places market orders, manages stop-loss, and closes positions. Gated by `config.execution.auto_execute: true`. |
 | 3 | Future | Automated analysis pipeline replaces the human analyst |
 
 The setup file schema is the stable interface between phases — only the producer (human vs. pipeline) and consumer (manual vs. auto) change.
+
+**Phase 2 architecture**: `CTraderOrderExecutor` implements `Notifier` and sits on the `MultiNotifier` chain. It owns a dedicated `CTraderSession` (C3 — independent from the price feed C1 and balance poller C2). Volume per entry is computed from `config.execution.point_value_eur` and the capital/risk parameters. The `auto_execute` flag defaults to `false` so existing deployments are unaffected until explicitly opted in.
 
 ---
 

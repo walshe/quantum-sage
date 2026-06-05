@@ -347,17 +347,19 @@ in front of a human or into a trading platform.
   time exit, invalidation) and displays those too
 - Human trader decides whether to act
 
-**Phase 2 (automated mode):**
-- Runs as the same standalone Node.js process,
-  extended with order-execution capability
-- Receives tradeable signals from qs-signal-engine
-- Sends orders to the broker via API (cTrader
-  Open API -- already used for price feed)
-- Manages position lifecycle (fills, partials,
-  cancellations) via API responses
-- Enforces broker-level risk limits (margin,
-  daily loss cap)
-- Reports execution status back for logging
+**Phase 2 (automated mode — implemented):**
+- `CTraderOrderExecutor` implements the `Notifier` interface and sits on the
+  `MultiNotifier` chain alongside the console and WebSocket notifiers
+- Enabled via `config.execution.auto_execute: true`; defaults to `false` (advisory)
+- Requires `config.execution.point_value_eur` (EUR per index point per lot) and
+  `CTRADER_SYMBOL_ID` env var
+- On `ENTRY_TRIGGERED`: places a MARKET order at the broker for the computed lot count
+- On `BREAKEVEN_TRIGGERED` / subsequent fills: amends the position stop-loss via
+  `ProtoOAAmendPositionSLTPReq`
+- On `POSITION_CLOSED`: sends `ProtoOAClosePositionReq` for the full position volume
+- On broker rejection: emits `ORDER_FAILED` event (visible in live log); no state rollback
+- Uses a dedicated `CTraderSession` (C3 — fault-isolated from price feed and balance poller)
+- Volume formula: `floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue))`
 
 ### 4.4 Engineer/Developer (EW)
 
