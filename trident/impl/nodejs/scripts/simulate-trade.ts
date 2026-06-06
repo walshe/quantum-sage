@@ -95,6 +95,10 @@ async function injectPrice(price: number): Promise<void> {
   }
 }
 
+async function injectAccountUpdate(unrealizedPnl: number): Promise<void> {
+  await post('/simulate/account', { unrealizedPnl, balance: 49877.71, currency: 'EUR' });
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
@@ -218,6 +222,18 @@ async function main(): Promise<void> {
   console.log('   ✓ Entry 3 fired — all tranches filled');
   await sleep(STEP_MS);
 
+  // Step 5b: price oscillation — a few ticks to show the chip flashing and P&L moving
+  step('Oscillating prices to show P&L changes and price chip flashes…');
+  const ticks = [7478, 7472, 7492, 7498, 7490, 7468, 7495, 7502, 7478];
+  const pnls  = [-120, -190, +150, +220, +80, -250, +110, +190, -120];
+  for (let i = 0; i < ticks.length; i++) {
+    await injectPrice(ticks[i]);
+    await injectAccountUpdate(pnls[i]);
+    await sleep(Math.round(STEP_MS * 0.4));
+  }
+  console.log('   ✓ Price oscillation complete');
+  await sleep(STEP_MS);
+
   // Step 6: Breakeven
   step(`Injecting breakeven price ${SCENARIO.breakeven_price} → expect BREAKEVEN_TRIGGERED`);
   await injectPrice(SCENARIO.breakeven_price);
@@ -228,7 +244,10 @@ async function main(): Promise<void> {
   step(`Injecting VWAP price ${SCENARIO.vwap_price} → expect POSITION_CLOSED`);
   await injectPrice(SCENARIO.vwap_price);
   console.log('   ✓ Position closed at VWAP');
-  await sleep(500);
+  await sleep(300);
+  // Reset P&L to zero — position is closed, nothing open at broker.
+  await injectAccountUpdate(0);
+  await sleep(300);
 
   // Confirm closed
   const final = await getState();

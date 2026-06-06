@@ -51,6 +51,10 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
   letter-spacing: 0.02em;
 }
 #price-chip[data-state="live"] { border-color: var(--accent); }
+#price-chip[data-tick="up"]   { background: color-mix(in srgb, var(--ok)  60%, var(--bg-input)); border-color: var(--ok); transition: background 0.05s, border-color 0.05s; }
+#price-chip[data-tick="down"] { background: color-mix(in srgb, var(--err) 60%, var(--bg-input)); border-color: var(--err); transition: background 0.05s, border-color 0.05s; }
+#price-chip[data-tick="up"]   .chip-value { color: #fff; }
+#price-chip[data-tick="down"] .chip-value { color: #fff; }
 .chip-pnl {
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   font-size: 11px;
@@ -59,6 +63,8 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
 }
 .pnl--positive { color: #4caf7d; }
 .pnl--negative { color: #e05c5c; }
+.sp-val.pnl--positive { color: #22c55e; font-weight: 700; font-size: 13px; }
+.sp-val.pnl--negative { color: #ef4444; font-weight: 700; font-size: 13px; }
 .signal-card {
   display: flex; flex-direction: column; gap: 2px;
   padding: 0.35rem 0.7rem;

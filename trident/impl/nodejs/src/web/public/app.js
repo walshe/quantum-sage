@@ -163,8 +163,9 @@ function setStateChip(s, locked) {
   document.title = s === 'in_trade' ? '🔴 IN TRADE — Trident' : 'Trident';
 }
 function renderSignalCard() {
-  const s = state.currentSignal;
   const el = $('#signal-card-body');
+  if (!el) return;
+  const s = state.currentSignal;
   if (!s) { el.textContent = tx('None loaded'); return; }
   const filename = baseName(s.filePath) || '(unknown)';
   const bias = s.biasDirection ?? '—';
@@ -693,13 +694,26 @@ function renderHistory() {
   $('#history-count').textContent = `(${state.history.length})`;
 }
 
+let _lastPrice = null;
 function updatePriceChip(data) {
   const el = $('#price-chip-value');
   if (!el) return;
-  el.textContent = data.headline; // eventFormatter PRICE_UPDATE headline is fmt(price)
-  _i18nTextSnap.delete(el); // price is numeric — never translatable
+  const newPrice = data.raw?.price ?? null;
   const chip = $('#price-chip');
-  if (chip) chip.dataset.state = 'live';
+  if (chip) {
+    chip.dataset.state = 'live';
+    if (newPrice !== null && _lastPrice !== null) {
+      const dir = newPrice > _lastPrice ? 'up' : newPrice < _lastPrice ? 'down' : null;
+      if (dir) {
+        chip.dataset.tick = dir;
+        clearTimeout(chip._tickTimer);
+        chip._tickTimer = setTimeout(() => { delete chip.dataset.tick; }, 600);
+      }
+    }
+    _lastPrice = newPrice;
+  }
+  el.textContent = data.headline;
+  _i18nTextSnap.delete(el);
 }
 
 function updateAccountChip(account) {

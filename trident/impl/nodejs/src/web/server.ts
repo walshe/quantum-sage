@@ -218,6 +218,23 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     res.json({ ok: true, price });
   });
 
+  app.post('/simulate/account', (req, res) => {
+    if (process.env.NODE_ENV === 'production') return res.status(404).end();
+    const { unrealizedPnl, balance, currency } = req.body as Record<string, unknown>;
+    if (typeof unrealizedPnl !== 'number') {
+      return res.status(400).json({ error: 'body must include unrealizedPnl: number' });
+    }
+    // notifier is defined below — this closure captures it at call time, not definition time.
+    notifier.notify({
+      type: 'ACCOUNT_UPDATE',
+      balance:       typeof balance === 'number' ? balance : 50000,
+      equity:        typeof balance === 'number' ? balance + unrealizedPnl : 50000 + unrealizedPnl,
+      unrealizedPnl,
+      currency:      typeof currency === 'string' ? currency : 'USD',
+    }).catch(() => {});
+    res.json({ ok: true });
+  });
+
   app.post('/signals',(req, res) => {
     const body = req.body as SignalFile;
     if (!body || typeof body !== 'object') {
@@ -244,7 +261,10 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
 
   const server: Server = createServer(app);
   const wss = new WebSocketServer({ server, path: '/events' });
-  const notifier = new WebSocketNotifier(wss, opts.getBootstrap, {
+  // notifier is referenced by the /simulate/account route above via closure.
+  // eslint-disable-next-line prefer-const
+  let notifier!: WebSocketNotifier;
+  notifier = new WebSocketNotifier(wss, opts.getBootstrap, {
     includePriceUpdates: true,
     priceThrottleMs: 500,
   });
