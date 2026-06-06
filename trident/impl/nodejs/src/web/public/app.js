@@ -545,13 +545,15 @@ function renderStatusPanel() {
 
     // Broker P&L from CTraderTrader's unrealizedPnl (updates every 30s).
     const acct = state.account;
-    if (acct && acct.unrealizedPnl !== 0) {
-      const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+    const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+    if (acct && acct.unrealizedPnl != null) {
       const sym = CURRENCY_SYMBOLS[acct.currency] ?? acct.currency;
       const pnl = acct.unrealizedPnl;
       const prefix = pnl > 0 ? '+' : '';
       const pnlText = `${prefix}${sym} ${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      posSec.append(spRow('Broker P&L', pnlText, pnl > 0 ? 'pnl--positive' : 'pnl--negative'));
+      posSec.append(spRow('Broker P&L', pnlText, pnl > 0 ? 'pnl--positive' : pnl < 0 ? 'pnl--negative' : ''));
+    } else {
+      posSec.append(spRow('Broker P&L', '—', ''));
     }
 
     body.append(posSec);
