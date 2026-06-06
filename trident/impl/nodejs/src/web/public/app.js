@@ -948,7 +948,11 @@ async function uploadScreenshots(evt) {
   }
 
   hideAiBusy();
-  if (extracted?.signal) fillForm(extracted.signal, { resetDateTime: false });
+  if (extracted?.signal) {
+    // Force bias to neutral regardless of what the AI extracted — analyst sets this manually.
+    if (extracted.signal.bias) extracted.signal.bias.direction = 'neutral';
+    fillForm(extracted.signal, { resetDateTime: false });
+  }
   renderAiBanner({
     kind: 'ok',
     title: tx('AI pre-fill complete — please review every field before submitting.'),
