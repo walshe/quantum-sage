@@ -181,6 +181,14 @@ details[open].history summary::before { content: '▼ '; }
 .sp-key { color: var(--fg-dim); min-width: 100px; flex-shrink: 0; }
 .sp-val { color: var(--fg); }
 .sp-val.is-in-trade { color: var(--accent); font-weight: 600; }
+.sp-val--flash {
+  padding: 1px 6px; border-radius: 3px;
+  animation: sp-flash 1.8s ease-in-out infinite;
+}
+@keyframes sp-flash {
+  0%, 100% { background: transparent; color: var(--accent); }
+  50%       { background: color-mix(in srgb, var(--accent) 20%, transparent); color: #fff; }
+}
 .sp-val.is-watching { color: var(--warn); font-weight: 600; }
 .sp-val.is-closed   { color: var(--ok);   font-weight: 600; }
 .sp-val.is-blocked  { color: var(--err);  font-weight: 600; }

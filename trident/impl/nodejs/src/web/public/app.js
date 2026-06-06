@@ -426,9 +426,10 @@ function renderStatusPanel() {
     state.engine === 'reconnecting' ? 'is-locked' : 'is-blocked';
   engSec.append(spRow('Connection', connTxt, connClass));
 
-  const stateLabel = state.dailyLocked ? tx('locked') : tx(state.position ?? 'idle');
+  const STATE_LABELS = { idle: 'idle', watching: 'watching', in_trade: 'in trade', closed: 'closed', blocked: 'blocked', locked: 'locked' };
+  const stateLabel = state.dailyLocked ? tx('locked') : tx(STATE_LABELS[state.position] ?? state.position ?? 'idle');
   const stateClass =
-    state.position === 'in_trade'  ? 'is-in-trade' :
+    state.position === 'in_trade'  ? 'is-in-trade sp-val--flash' :
     state.position === 'watching'  ? 'is-watching'  :
     state.position === 'closed'    ? 'is-closed'    :
     state.position === 'blocked'   ? 'is-blocked'   :
