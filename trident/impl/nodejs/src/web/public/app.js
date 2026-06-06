@@ -685,13 +685,15 @@ function handleEvent(data) {
 
 function renderHistory() {
   const list = $('#history-list');
+  if (!list) return;
   list.innerHTML = '';
   for (const h of state.history.slice(0, 20)) {
     const li = document.createElement('li');
     li.textContent = `${h.ts}  ${h.tag.padEnd(7)}  ${baseName(h.text)}`;
     list.append(li);
   }
-  $('#history-count').textContent = `(${state.history.length})`;
+  const countEl = $('#history-count');
+  if (countEl) countEl.textContent = `(${state.history.length})`;
 }
 
 let _lastPrice = null;
