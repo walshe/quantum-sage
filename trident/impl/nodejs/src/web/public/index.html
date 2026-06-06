@@ -23,11 +23,13 @@
     </div>
     <div class="chip chip--account" id="account-chip">
       <span class="chip-label">Account <i class="info" id="account-chip-tip" data-tip="Account balance from the broker.&#10;&#10;Refreshes every 30 seconds.&#10;&#10;Dashes mean no trader connection yet."></i></span>
-      <span class="chip-value" id="account-chip-value">—</span>
-      <span class="chip-pnl" id="unrealized-pnl" hidden></span>
+      <span class="chip-value-row">
+        <span class="chip-value" id="account-chip-value">—</span>
+        <span class="chip-pnl" id="unrealized-pnl" hidden></span>
+      </span>
     </div>
-    <button type="button" id="btn-help" class="lang-toggle" title="Help">Help</button>
-    <button type="button" id="btn-lang" class="lang-toggle" title="Switch language / Cambia lingua">IT</button>
+    <button type="button" id="btn-help" class="icon-btn" title="Help">?</button>
+    <button type="button" id="btn-lang" class="icon-btn" title="Switch language / Cambia lingua">🇮🇹</button>
   </header>
 
   <div class="action-strip">
@@ -69,7 +71,7 @@
   <dialog id="form-dialog" class="form-dialog">
     <div class="dialog-head">
       <h2 id="form-dialog-title">Setup form</h2>
-      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
+      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">🇮🇹</button>
       <button type="button" class="dialog-close" id="btn-form-close" aria-label="Close">×</button>
     </div>
     <div class="ai-overlay" id="ai-overlay" aria-live="polite" aria-busy="true">
@@ -171,7 +173,7 @@
   <dialog id="help-dialog" class="help-dialog">
     <div class="dialog-head">
       <h2>Trident dashboard — quick reference</h2>
-      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">IT</button>
+      <button type="button" class="lang-toggle dialog-lang" data-lang-toggle title="Switch language / Cambia lingua">🇮🇹</button>
       <button type="button" class="dialog-close" id="btn-help-close" aria-label="Close">×</button>
     </div>
     <p class="confirm-sub">A short summary of the buttons, the log tags, and the things that go wrong most often. For the full guide, open <code>PHASE_1_ANALYST_GUIDE.md</code>.</p>

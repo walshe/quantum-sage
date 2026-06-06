@@ -55,6 +55,9 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
 #price-chip[data-tick="down"] { background: color-mix(in srgb, var(--err) 60%, var(--bg-input)); border-color: var(--err); transition: background 0.05s, border-color 0.05s; }
 #price-chip[data-tick="up"]   .chip-value { color: #fff; }
 #price-chip[data-tick="down"] .chip-value { color: #fff; }
+.chip-value-row {
+  display: flex; align-items: baseline; gap: 0.35rem;
+}
 .chip-pnl {
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   font-size: 11px;
@@ -79,6 +82,20 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; le
   font-weight: 700;
   letter-spacing: 0.06em;
 }
+.icon-btn {
+  width: 32px; height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--bg-raised); color: var(--fg); border-color: var(--accent); }
 .history summary {
   cursor: pointer; color: var(--fg-dim); font-size: 13px;
   list-style: none; user-select: none;

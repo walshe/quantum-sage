@@ -101,7 +101,8 @@ function applyLang(lang) {
   });
 
   // All lang toggle buttons (top bar + dialog headers) show the OTHER language as label.
-  const label = lang === 'en' ? 'IT' : 'EN';
+  // Show the flag of the OTHER language (clicking switches to it)
+  const label = lang === 'en' ? '🇮🇹' : '🇬🇧';
   document.querySelectorAll('#btn-lang, [data-lang-toggle]').forEach(btn => {
     btn.textContent = label;
   });
@@ -750,7 +751,8 @@ function updateAccountChip(account) {
     pnlEl.hidden = true;
   } else {
     const prefix = unrealizedPnl > 0 ? '+' : '';
-    pnlEl.textContent = `${prefix}${sym} ${unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const val = unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    pnlEl.textContent = `(${prefix}${sym} ${val})`;
     pnlEl.className = 'chip-pnl ' + (unrealizedPnl > 0 ? 'pnl--positive' : 'pnl--negative');
     pnlEl.hidden = false;
     _i18nTextSnap.delete(pnlEl);
