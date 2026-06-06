@@ -27,6 +27,10 @@ export interface StartWebServerOpts {
   metricsHandler?: (req: Request, res: Response) => Promise<void>;
   /** Returns the live cTrader feed instance, or null/undefined if not active. */
   getPriceFeed?: () => CTraderPriceFeed | null;
+  /** Dev-only: returns current engine state for /api/state polling. */
+  getEngineState?: () => { state: string; dailyLocked: boolean };
+  /** Dev-only: receives a synthetic price tick injected via /simulate/tick. */
+  onSimulatedTick?: (price: number) => void;
 }
 
 export interface WebServerHandle {
@@ -184,6 +188,34 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     if (volumeWarning) result.volumeWarning = true;
     log.info('VWAP calculated', { vwap: result.vwap, barsUsed: bars.length, volumeWarning });
     return res.json(result);
+  });
+
+  // ── Dev-only simulation endpoints ──────────────────────────────────────────
+  // These are strictly gated to non-production environments. They allow the
+  // simulate-trade.ts script to drive the engine through a full trade scenario
+  // for UI review without needing a live broker connection.
+
+  app.get('/api/state', (_req, res) => {
+    if (!opts.getEngineState) return res.status(503).json({ error: 'state not available' });
+    res.json(opts.getEngineState());
+  });
+
+  app.post('/simulate/tick', (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).end();
+    }
+    if (opts.config.execution?.auto_execute) {
+      return res.status(400).json({ error: 'auto_execute is enabled — disable it before simulating' });
+    }
+    if (!opts.onSimulatedTick) {
+      return res.status(503).json({ error: 'simulation not wired up' });
+    }
+    const { price } = req.body as { price?: unknown };
+    if (typeof price !== 'number' || !isFinite(price)) {
+      return res.status(400).json({ error: 'body must be { price: number }' });
+    }
+    opts.onSimulatedTick(price);
+    res.json({ ok: true, price });
   });
 
   app.post('/signals',(req, res) => {

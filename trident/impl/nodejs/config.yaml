@@ -48,7 +48,7 @@ signal:
 # When auto_execute is false (the default) the system is purely advisory.
 #
 execution:
-  auto_execute: true
+  auto_execute: false
 #   # EUR value per index point per lot for the execution instrument.
 #   # US500.cash (Pepperstone CFD): confirm exact value with FB before enabling.
 #   # Example: if 1 lot = €1/pt then point_value_eur: 1

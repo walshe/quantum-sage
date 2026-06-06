@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "auth:ctrader": "tsx scripts/ctrader-auth.ts",
     "smoke:order": "tsx scripts/smoke-order.ts",
+    "simulate": "tsx scripts/simulate-trade.ts",
     "list:symbols": "tsx scripts/list-symbols.ts",
     "test:coverage": "vitest run --coverage",
     "eval": "promptfoo eval --config evals/promptfooconfig.yaml"

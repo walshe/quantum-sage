@@ -232,10 +232,9 @@ function appendLogRow(data) {
     li.append(act);
   }
 
-  // Action-required events (ORDER_FAILED, etc.) go to the TOP of the log, not the bottom.
-  // This ensures critical errors are immediately visible and not scrolled off.
-  if (data.actionRequired) {
-    // Add a visual badge to make it unmissable
+  // ORDER_FAILED pins to the top so critical errors are never scrolled off.
+  // All other events append chronologically at the bottom.
+  if (data.type === 'ORDER_FAILED') {
     const badge = document.createElement('span');
     badge.className = 'action-badge';
     badge.textContent = '⚠️ ACTION REQUIRED';

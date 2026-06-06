@@ -141,6 +141,8 @@ const webServer = await startWebServer({
   getBootstrap: buildBootstrap,
   metricsHandler,
   getPriceFeed: () => liveFeed,
+  getEngineState: () => ({ state: engine.getState(), dailyLocked: engine.isLockedForDay() }),
+  onSimulatedTick: (price) => { engine.onPriceUpdate(price).catch(() => {}); },
 });
 notifierChildren.push(webServer.notifier);
 log.info('UI ready', { url: `http://localhost:${webServer.port}` });
