@@ -1033,7 +1033,11 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
   form.prepend(banner);
 }
 
+const FUN_MODE_KEY = 'trident-fun-mode';
+function isFunMode() { return localStorage.getItem(FUN_MODE_KEY) === 'true'; }
+
 function showCertaintyOverlay() {
+  if (!isFunMode()) return;
   const el = $('#certainty-overlay');
   if (!el) return;
   el.hidden = false;
