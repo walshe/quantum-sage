@@ -231,6 +231,9 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
       equity:        typeof balance === 'number' ? balance + unrealizedPnl : 50000 + unrealizedPnl,
       unrealizedPnl,
       currency:      typeof currency === 'string' ? currency : 'USD',
+      login:         null,
+      brokerName:    null,
+      isLive:        false,
     }).catch(() => {});
     res.json({ ok: true });
   });
