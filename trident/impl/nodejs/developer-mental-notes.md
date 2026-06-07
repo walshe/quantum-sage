@@ -871,3 +871,17 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   `src/ai/` go in `tests/ai/`). Imports use `../../src/` (one extra `../`
   relative to the old flat layout). Vitest discovers them automatically via
   its default `**/*.test.ts` glob — no config file needed.
+
+## UI dev features
+
+- **Simulation mode** (`npm run simulate`): drives the engine through a full
+  trade scenario (watching → 3 entries → breakeven → VWAP close) without a
+  live broker. Requires the engine to be running on `localhost:3000`. Step
+  delay configurable via `SIMULATE_STEP_MS` (default 2000ms).
+  Uses dev-only endpoints `/simulate/tick` (price injection) and
+  `/simulate/account` (fake P&L updates) — both return 404 in production.
+
+- **Fun mode** (hidden): enables the Bobby Axelrod certainty GIF animation
+  after form submission. Off by default. Enable in the browser console:
+  `localStorage.setItem('trident-fun-mode', 'true')`
+  Disable: `localStorage.removeItem('trident-fun-mode')`
