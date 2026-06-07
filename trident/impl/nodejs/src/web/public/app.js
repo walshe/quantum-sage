@@ -1035,6 +1035,18 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
 
 const FUN_MODE_KEY = 'trident-fun-mode';
 function isFunMode() { return localStorage.getItem(FUN_MODE_KEY) === 'true'; }
+function showFunModeToast(on) {
+  let toast = $('#fun-mode-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'fun-mode-toast';
+    document.body.append(toast);
+  }
+  toast.textContent = on ? '🎉 Fun mode on' : 'Fun mode off';
+  toast.className = 'fun-toast fun-toast--show';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.className = 'fun-toast'; }, 2000);
+}
 
 function showCertaintyOverlay() {
   if (!isFunMode()) return;
@@ -1665,6 +1677,37 @@ document.addEventListener('DOMContentLoaded', () => {
   _helpBody.addEventListener('scroll', updateHelpScroll);
   $('#btn-help-close').addEventListener('click', () => $('#help-dialog').close());
   $('#btn-help-ok').addEventListener('click', () => $('#help-dialog').close());
+
+  // Fun mode checkbox — sync with localStorage on open and on change.
+  $('#btn-help').addEventListener('click', () => {
+    const cb = $('#fun-mode-checkbox');
+    if (cb) cb.checked = isFunMode();
+  }, true); // capture phase so it fires before the dialog opens
+  const _funCb = $('#fun-mode-checkbox');
+  if (_funCb) {
+    _funCb.addEventListener('change', () => {
+      if (_funCb.checked) localStorage.setItem(FUN_MODE_KEY, 'true');
+      else localStorage.removeItem(FUN_MODE_KEY);
+      showFunModeToast(_funCb.checked);
+    });
+  }
+
+  // Logo easter egg: click 5 times quickly to toggle fun mode.
+  let _logoClicks = 0, _logoTimer = null;
+  $('.brand-logo')?.addEventListener('click', () => {
+    _logoClicks++;
+    clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => { _logoClicks = 0; }, 1500);
+    if (_logoClicks >= 5) {
+      _logoClicks = 0;
+      const next = !isFunMode();
+      if (next) localStorage.setItem(FUN_MODE_KEY, 'true');
+      else localStorage.removeItem(FUN_MODE_KEY);
+      const cb = $('#fun-mode-checkbox');
+      if (cb) cb.checked = next;
+      showFunModeToast(next);
+    }
+  });
 
   // VWAP Calculate button: fetch live VWAP from the server and populate the field.
   $('#vwap-calc-btn').addEventListener('click', async () => {
