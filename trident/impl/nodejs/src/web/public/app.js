@@ -1478,13 +1478,23 @@ function buildTradePlanNote(signal) {
   const note = el('div', { class: 'trade-plan-note' });
   note.append(el('span', { class: 'trade-plan-label', text: 'Trade plan — ' }));
   note.append(document.createTextNode(parts.join('  ')));
-  if (state.stopPoints) {
-    note.append(document.createElement('br'));
-    const fn = document.createElement('span');
-    fn.className = 'trade-plan-footnote';
-    fn.textContent = tx('ℹ️ Once in a trade the status panel shows the live stop.');
-    note.append(fn);
+
+  // Add risk amount in footnote (assumes 0.5% daily risk from config)
+  const acct = state.account;
+  const dailyRiskAmount = acct ? (acct.balance * 0.005).toFixed(2) : null;
+
+  note.append(document.createElement('br'));
+  const fn = document.createElement('span');
+  fn.className = 'trade-plan-footnote';
+  let footnoteText = tx('ℹ️ Once in a trade the status panel shows the live stop.');
+  if (dailyRiskAmount) {
+    const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+    const sym = CURRENCY_SYMBOLS[acct?.currency] ?? acct?.currency ?? 'EUR';
+    footnoteText += ` This trade risks ${sym}${dailyRiskAmount} (0.5% of account).`;
   }
+  fn.textContent = footnoteText;
+  note.append(fn);
+
   return note;
 }
 
