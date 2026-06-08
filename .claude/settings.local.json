@@ -86,7 +86,13 @@
       "Bash(npx promptfoo *)",
       "WebSearch",
       "Bash(grep -r \"POSITION_CLOSED\\\\|watching.*expiry\\\\|expiry.*watching\\\\|closePosition\\\\|discardStale\" src/tests/ --include=\"*.ts\" -l)",
-      "Bash(grep -r \"POSITION_CLOSED\\\\|watching.*expiry\\\\|expiry.*watching\\\\|closePosition\\\\|discardStale\" tests/ --include=\"*.ts\" -l)"
+      "Bash(grep -r \"POSITION_CLOSED\\\\|watching.*expiry\\\\|expiry.*watching\\\\|closePosition\\\\|discardStale\" tests/ --include=\"*.ts\" -l)",
+      "WebFetch(domain:tenor.com)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp curl -sL \"https://media1.tenor.com/m/oAr4ugQBpX4AAAAd/damian-lewis-bobby-axelrod.gif\" -o /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/assets/certainty.gif)",
+      "Bash(xxd /Users/Emmett/dev/quantum-sage/trident/impl/nodejs/src/web/public/assets/certainty.gif)",
+      "Bash(gh run *)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('outputPath'\\)\\); print\\(d.get\\('instruction',''\\)[:500]\\)\")"
     ]
   }
 }

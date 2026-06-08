@@ -141,6 +141,10 @@ export class CTraderPriceFeed implements PriceFeed {
     return this.latestPrice;
   }
 
+  getResolvedSymbolId(): number | null {
+    return this.symbolId;
+  }
+
   /**
    * Fetches today's M1 bars (midnight UTC → now) via the authenticated session.
    * Throws if the feed is not connected or no response arrives within 10 seconds.

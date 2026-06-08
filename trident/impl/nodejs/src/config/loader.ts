@@ -103,6 +103,13 @@ function validateConfig(c: unknown): string[] {
       e('signal.vwap_staleness_warn_minutes must be a positive number');
   }
 
+  // ── execution (optional section) ─────────────────────────────────────────
+  const exec = cfg['execution'] as Record<string, unknown> | undefined;
+  if (exec) {
+    if (exec['auto_execute'] === true && !isPositive(exec['point_value_eur']))
+      e('execution.point_value_eur must be a positive number when auto_execute is true');
+  }
+
   return errors;
 }
 

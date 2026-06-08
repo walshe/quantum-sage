@@ -101,7 +101,8 @@ function applyLang(lang) {
   });
 
   // All lang toggle buttons (top bar + dialog headers) show the OTHER language as label.
-  const label = lang === 'en' ? 'IT' : 'EN';
+  // Show the flag of the OTHER language (clicking switches to it)
+  const label = lang === 'en' ? '🇮🇹' : '🇬🇧';
   document.querySelectorAll('#btn-lang, [data-lang-toggle]').forEach(btn => {
     btn.textContent = label;
   });
@@ -128,6 +129,7 @@ const state = {
   stopPoints: null,   // from SETUP_READY — used to show worst-case stop in trade plan
   history: [],
   pendingSubmitName: null, // filename we're waiting to hear back about as SIGNAL_LOADED
+  account: null,      // latest AccountInfo from bootstrap or account_update
 };
 // Last history envelope received — kept so handleBootstrap can fall back to it
 // when the bootstrap's currentSignal is null (engine clears signal on close).
@@ -162,8 +164,9 @@ function setStateChip(s, locked) {
   document.title = s === 'in_trade' ? '🔴 IN TRADE — Trident' : 'Trident';
 }
 function renderSignalCard() {
-  const s = state.currentSignal;
   const el = $('#signal-card-body');
+  if (!el) return;
+  const s = state.currentSignal;
   if (!s) { el.textContent = tx('None loaded'); return; }
   const filename = baseName(s.filePath) || '(unknown)';
   const bias = s.biasDirection ?? '—';
@@ -230,7 +233,19 @@ function appendLogRow(data) {
     act.className = 'act'; act.textContent = `>>> ACTION: ${data.action}`;
     li.append(act);
   }
-  log.append(li);
+
+  // ORDER_FAILED pins to the top so critical errors are never scrolled off.
+  // All other events append chronologically at the bottom.
+  if (data.type === 'ORDER_FAILED') {
+    const badge = document.createElement('span');
+    badge.className = 'action-badge';
+    badge.textContent = '⚠️ ACTION REQUIRED';
+    li.prepend(badge);
+    log.insertAdjacentElement('afterbegin', li);
+  } else {
+    log.append(li);
+  }
+
   // Auto-scroll the pane (not the whole page).
   const pane = document.querySelector('.log-pane');
   pane.scrollTop = pane.scrollHeight;
@@ -306,6 +321,11 @@ function latestSignalFromHistory(events) {
 }
 
 function handleBootstrap(b) {
+  // If server has funMode enabled and user hasn't set it locally yet, enable it.
+  if (b.funMode && !localStorage.getItem(FUN_MODE_KEY)) {
+    localStorage.setItem(FUN_MODE_KEY, 'true');
+  }
+
   setStateChip(b.state, b.dailyLocked);
   if (b.symbol) {
     const symEl = $('#symbol-chip-value');
@@ -413,9 +433,10 @@ function renderStatusPanel() {
     state.engine === 'reconnecting' ? 'is-locked' : 'is-blocked';
   engSec.append(spRow('Connection', connTxt, connClass));
 
-  const stateLabel = state.dailyLocked ? tx('locked') : tx(state.position ?? 'idle');
+  const STATE_LABELS = { idle: 'idle', watching: 'watching', in_trade: 'in trade', closed: 'closed', blocked: 'blocked', locked: 'locked' };
+  const stateLabel = state.dailyLocked ? tx('locked') : tx(STATE_LABELS[state.position] ?? state.position ?? 'idle');
   const stateClass =
-    state.position === 'in_trade'  ? 'is-in-trade' :
+    state.position === 'in_trade'  ? 'is-in-trade sp-val--flash' :
     state.position === 'watching'  ? 'is-watching'  :
     state.position === 'closed'    ? 'is-closed'    :
     state.position === 'blocked'   ? 'is-blocked'   :
@@ -529,6 +550,20 @@ function renderStatusPanel() {
       posSec.append(spRow(tx('Fills'), String(p.fills), ''));
     }
     posSec.append(spRow('Breakeven', p.breakEvenActive ? tx('Active') : tx('Not yet'), p.breakEvenActive ? 'is-closed' : ''));
+
+    // Broker P&L from CTraderTrader's unrealizedPnl (updates every 30s).
+    const acct = state.account;
+    const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
+    if (acct && acct.unrealizedPnl != null) {
+      const sym = CURRENCY_SYMBOLS[acct.currency] ?? acct.currency;
+      const pnl = acct.unrealizedPnl;
+      const prefix = pnl > 0 ? '+' : '';
+      const pnlText = `${prefix}${sym} ${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      posSec.append(spRow('Broker P&L', pnlText, pnl > 0 ? 'pnl--positive' : pnl < 0 ? 'pnl--negative' : ''));
+    } else {
+      posSec.append(spRow('Broker P&L', '—', ''));
+    }
+
     body.append(posSec);
   }
 }
@@ -647,6 +682,7 @@ function handleEvent(data) {
       // submit today's setup.
       setStateChip('idle', state.dailyLocked);
       state.currentSignal = null;
+      state.openPosition = null;
       renderSignalCard();
       renderStatusPanel();
       break;
@@ -655,25 +691,41 @@ function handleEvent(data) {
 
 function renderHistory() {
   const list = $('#history-list');
+  if (!list) return;
   list.innerHTML = '';
   for (const h of state.history.slice(0, 20)) {
     const li = document.createElement('li');
     li.textContent = `${h.ts}  ${h.tag.padEnd(7)}  ${baseName(h.text)}`;
     list.append(li);
   }
-  $('#history-count').textContent = `(${state.history.length})`;
+  const countEl = $('#history-count');
+  if (countEl) countEl.textContent = `(${state.history.length})`;
 }
 
+let _lastPrice = null;
 function updatePriceChip(data) {
   const el = $('#price-chip-value');
   if (!el) return;
-  el.textContent = data.headline; // eventFormatter PRICE_UPDATE headline is fmt(price)
-  _i18nTextSnap.delete(el); // price is numeric — never translatable
+  const newPrice = data.raw?.price ?? null;
   const chip = $('#price-chip');
-  if (chip) chip.dataset.state = 'live';
+  if (chip) {
+    chip.dataset.state = 'live';
+    if (newPrice !== null && _lastPrice !== null) {
+      const dir = newPrice > _lastPrice ? 'up' : newPrice < _lastPrice ? 'down' : null;
+      if (dir) {
+        chip.dataset.tick = dir;
+        clearTimeout(chip._tickTimer);
+        chip._tickTimer = setTimeout(() => { delete chip.dataset.tick; }, 600);
+      }
+    }
+    _lastPrice = newPrice;
+  }
+  el.textContent = data.headline;
+  _i18nTextSnap.delete(el);
 }
 
 function updateAccountChip(account) {
+  state.account = account;
   const balEl = $('#account-chip-value');
   const pnlEl = $('#unrealized-pnl');
   const tipEl = $('#account-chip-tip');
@@ -704,11 +756,15 @@ function updateAccountChip(account) {
     pnlEl.hidden = true;
   } else {
     const prefix = unrealizedPnl > 0 ? '+' : '';
-    pnlEl.textContent = `${prefix}${sym} ${unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const val = unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    pnlEl.textContent = `(${prefix}${sym} ${val})`;
     pnlEl.className = 'chip-pnl ' + (unrealizedPnl > 0 ? 'pnl--positive' : 'pnl--negative');
     pnlEl.hidden = false;
     _i18nTextSnap.delete(pnlEl);
   }
+
+  // Refresh the Open Position panel so the Broker P&L row updates live.
+  if (state.position === 'in_trade') renderStatusPanel();
 }
 
 // ---------------------------------------------------------------------------
@@ -897,7 +953,11 @@ async function uploadScreenshots(evt) {
   }
 
   hideAiBusy();
-  if (extracted?.signal) fillForm(extracted.signal, { resetDateTime: false });
+  if (extracted?.signal) {
+    // Force bias to neutral regardless of what the AI extracted — analyst sets this manually.
+    if (extracted.signal.bias) extracted.signal.bias.direction = 'neutral';
+    fillForm(extracted.signal, { resetDateTime: false });
+  }
   renderAiBanner({
     kind: 'ok',
     title: tx('AI pre-fill complete — please review every field before submitting.'),
@@ -978,7 +1038,23 @@ function renderAiBanner({ kind, title, body, notes = [], warnings = [] }) {
   form.prepend(banner);
 }
 
+const FUN_MODE_KEY = 'trident-fun-mode';
+function isFunMode() { return localStorage.getItem(FUN_MODE_KEY) === 'true'; }
+function showFunModeToast(on) {
+  let toast = $('#fun-mode-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'fun-mode-toast';
+    document.body.append(toast);
+  }
+  toast.textContent = on ? '🎉 Fun mode on' : 'Fun mode off';
+  toast.className = 'fun-toast fun-toast--show';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.className = 'fun-toast'; }, 2000);
+}
+
 function showCertaintyOverlay() {
+  if (!isFunMode()) return;
   const el = $('#certainty-overlay');
   if (!el) return;
   el.hidden = false;
@@ -1606,6 +1682,37 @@ document.addEventListener('DOMContentLoaded', () => {
   _helpBody.addEventListener('scroll', updateHelpScroll);
   $('#btn-help-close').addEventListener('click', () => $('#help-dialog').close());
   $('#btn-help-ok').addEventListener('click', () => $('#help-dialog').close());
+
+  // Fun mode checkbox — sync with localStorage on open and on change.
+  $('#btn-help').addEventListener('click', () => {
+    const cb = $('#fun-mode-checkbox');
+    if (cb) cb.checked = isFunMode();
+  }, true); // capture phase so it fires before the dialog opens
+  const _funCb = $('#fun-mode-checkbox');
+  if (_funCb) {
+    _funCb.addEventListener('change', () => {
+      if (_funCb.checked) localStorage.setItem(FUN_MODE_KEY, 'true');
+      else localStorage.removeItem(FUN_MODE_KEY);
+      showFunModeToast(_funCb.checked);
+    });
+  }
+
+  // Logo easter egg: click 5 times quickly to toggle fun mode.
+  let _logoClicks = 0, _logoTimer = null;
+  $('.brand-logo')?.addEventListener('click', () => {
+    _logoClicks++;
+    clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => { _logoClicks = 0; }, 1500);
+    if (_logoClicks >= 5) {
+      _logoClicks = 0;
+      const next = !isFunMode();
+      if (next) localStorage.setItem(FUN_MODE_KEY, 'true');
+      else localStorage.removeItem(FUN_MODE_KEY);
+      const cb = $('#fun-mode-checkbox');
+      if (cb) cb.checked = next;
+      showFunModeToast(next);
+    }
+  });
 
   // VWAP Calculate button: fetch live VWAP from the server and populate the field.
   $('#vwap-calc-btn').addEventListener('click', async () => {

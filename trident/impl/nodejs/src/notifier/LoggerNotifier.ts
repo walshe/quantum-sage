@@ -127,6 +127,14 @@ export class LoggerNotifier implements Notifier {
           message: event.message,
         });
         break;
+
+      case 'ORDER_FAILED':
+        log.error('Order failed', {
+          event: event.type,
+          reason: event.reason,
+          orderId: event.orderId,
+        });
+        break;
     }
   }
 }

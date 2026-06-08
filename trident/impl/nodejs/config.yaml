@@ -42,3 +42,14 @@ signal:
   stale_threshold_hours: 6
   # Warn if VWAP has not been updated within this many minutes
   vwap_staleness_warn_minutes: 90
+
+# ── Execution (Phase 2 — auto-order placement at broker) ─────────────────────
+# Uncomment and configure to enable live trade execution via cTrader.
+# When auto_execute is false (the default) the system is purely advisory.
+#
+execution:
+  auto_execute: false
+#   # EUR value per index point per lot for the execution instrument.
+#   # US500.cash (Pepperstone CFD): confirm exact value with FB before enabling.
+#   # Example: if 1 lot = €1/pt then point_value_eur: 1
+  point_value_eur: 1

@@ -62,6 +62,8 @@ export interface Bootstrap {
   stopPoints: number;
   /** Live demo account balance and unrealized PnL. Null when no trader is configured. */
   account: AccountInfo | null;
+  /** Fun mode enabled on the server (TRIDENT_FUN_MODE env var). Browser can override locally. */
+  funMode: boolean;
 }
 
 type Envelope =

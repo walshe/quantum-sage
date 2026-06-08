@@ -126,6 +126,29 @@ docker compose up -d
 
 ---
 
+## Auto-execution / Phase 2 (optional)
+
+By default, Trident is purely **advisory** — it signals when to trade but does not place orders at the broker. To enable automated order placement:
+
+1. Edit `config.yaml` and add the `execution` section:
+   ```yaml
+   execution:
+     auto_execute: true
+     point_value_eur: 1    # EUR per index point per lot — confirm with Emmett for your instrument
+   ```
+
+2. Ensure `CTRADER_SYMBOL_ID` is set in your `.env` file. This is the numeric symbol ID for the instrument (e.g. `2549` for US500-F). The app logs this on startup when the price feed connects — check `docker compose logs | grep symbolId` after connecting once without auto-execution.
+
+3. Restart the container:
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+When auto-execution is active the live log will show `ORDER FAILED` in red if any order is rejected by the broker — check your broker position manually if you see this.
+
+> **Disable at any time** by setting `auto_execute: false` (or removing the `execution` section) in `config.yaml` and restarting. No code change needed.
+
 ---
 
 ## Observability (optional)

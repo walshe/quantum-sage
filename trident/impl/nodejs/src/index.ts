@@ -19,6 +19,7 @@ import { watchSignalDir, loadSignalFile, scanSignalDirOnce } from './signal/load
 import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { CTraderTrader } from './trader/CTraderTrader.js';
+import { CTraderOrderExecutor } from './trader/CTraderOrderExecutor.js';
 import type { AccountInfo } from './notifier/Notifier.js';
 import type { AccountMeta } from './trader/CTraderTrader.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
@@ -140,6 +141,8 @@ const webServer = await startWebServer({
   getBootstrap: buildBootstrap,
   metricsHandler,
   getPriceFeed: () => liveFeed,
+  getEngineState: () => ({ state: engine.getState(), dailyLocked: engine.isLockedForDay() }),
+  onSimulatedTick: (price) => { engine.onPriceUpdate(price).catch(() => {}); },
 });
 notifierChildren.push(webServer.notifier);
 log.info('UI ready', { url: `http://localhost:${webServer.port}` });
@@ -147,6 +150,7 @@ log.info('UI ready', { url: `http://localhost:${webServer.port}` });
 // Wire up the real price feed if cTrader credentials are present in the environment
 const env = process.env;
 let liveFeed: CTraderPriceFeed | null = null;
+let executor: CTraderOrderExecutor | null = null;
 
 // Tick-rate tracking: count ticks in the current 60s window, report every 60s
 let tickWindowCount = 0;
@@ -278,6 +282,65 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
   connectTraderWithRetry().catch(err => {
     log.error('CTraderTrader retry loop exited', { error: (err as Error).message });
   });
+
+  // CTraderOrderExecutor: separate session (C3) for order placement.
+  // Only active when config.execution.auto_execute is true.
+  // Symbol ID is resolved from the price feed after it connects — no need to set CTRADER_SYMBOL_ID.
+  if (config.execution?.auto_execute) {
+    {
+      const executorConfig = {
+        clientId:       env.CTRADER_CLIENT_ID,
+        clientSecret:   env.CTRADER_CLIENT_SECRET,
+        accessToken:    env.CTRADER_ACCESS_TOKEN,
+        accountId:      env.CTRADER_ACCOUNT_ID ? Number(env.CTRADER_ACCOUNT_ID) : undefined,
+        wsUrl:          env.CTRADER_WS_URL,
+        noHeartbeat:    env.CTRADER_NO_HEARTBEAT === 'true',
+        refreshToken:   env.CTRADER_REFRESH_TOKEN,
+        tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
+      };
+      executor = new CTraderOrderExecutor(executorConfig, config);
+      executor.setOrderFailedCallback((reason, orderId) => {
+        notifier.notify({ type: 'ORDER_FAILED', reason, orderId }).catch(() => {});
+        // If the broker never confirmed any fill (positionId still null), no real
+        // position exists regardless of how many fills the engine recorded — reset
+        // to idle so the analyst can resubmit. Once a real broker position is
+        // confirmed (positionId known), leave the engine alone.
+        if (engine.getState() === 'in_trade' && executor && !executor.hasBrokerPosition()) {
+          log.error('Order failed with no confirmed broker position — resetting engine to idle');
+          engine.reset();
+          notifier.notify({
+            type: 'NO_TRADE_SETUP',
+            reason: 'Order was not filled at broker — engine reset. Please resubmit setup.',
+          }).catch(() => {});
+        }
+      });
+      // Pass the symbol ID resolved by the price feed — no separate env var needed.
+      const resolvedSymbolId = liveFeed?.getResolvedSymbolId();
+      if (resolvedSymbolId !== null && resolvedSymbolId !== undefined) {
+        executor.setSymbolId(resolvedSymbolId);
+      }
+      notifierChildren.push(executor);
+
+      const connectExecutorWithRetry = async () => {
+        while (true) {
+          try {
+            log.info('Connecting CTraderOrderExecutor');
+            await executor!.connect();
+            log.info('CTraderOrderExecutor connected');
+            return;
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            log.error('CTraderOrderExecutor connection failed, retrying', { error: msg, retryMs: 5000 });
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+      };
+
+      connectExecutorWithRetry().catch(err => {
+        log.error('CTraderOrderExecutor retry loop exited', { error: (err as Error).message });
+      });
+    }
+  }
 }
 
 // Load a specific signal file immediately if provided
@@ -317,6 +380,7 @@ async function shutdown(signal: string) {
   try { webServer.flushAiMetrics(); } catch { /* ignore */ }
   try { await webServer.close(); } catch { /* ignore */ }
   try { await liveFeed?.disconnect(); } catch { /* ignore */ }
+  try { await executor?.disconnect(); } catch { /* ignore */ }
   if (metricsBackend instanceof OtelBackend) {
     try { await metricsBackend.shutdown(); } catch { /* ignore */ }
   }
@@ -376,6 +440,7 @@ function buildBootstrap(): Bootstrap {
     } : null,
     stopPoints: config.trident.stop_loss_points,
     account: latestAccount,
+    funMode: process.env.TRIDENT_FUN_MODE === 'true',
   };
 }
 

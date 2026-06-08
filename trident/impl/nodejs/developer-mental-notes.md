@@ -140,6 +140,30 @@ Three functions:
 
 ## Trader — `src/trader/`
 
+### `CTraderOrderExecutor.ts`
+Phase 2 auto-execution. Implements `Notifier` and sits on the `MultiNotifier` chain.
+Only instantiated when `config.execution.auto_execute: true`.
+
+**C3 design** — owns its own `CTraderSession`, independent from the price feed (C1)
+and balance session (C2). A drop on the executor doesn't affect price or balance.
+
+**Volume formula**: `floor((starting_capital_eur × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`. `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print the computed lot count per tier so the operator can verify before trading.
+
+**Volume encoding**: lots × `VOLUME_MULTIPLIER` (currently 100) before sending to the API. Confirm the correct multiplier for US500.cash on the first real run — log `apiVolume` makes it easy to check.
+
+**Event routing**:
+- `ENTRY_TRIGGERED` → `ProtoOANewOrderReq` (payloadType **2104**), MARKET order
+- Execution event (payloadType **2126**) with `ORDER_FILLED` → stores `positionId`, flushes queued SL amend
+- `BREAKEVEN_TRIGGERED` or subsequent fills → `ProtoOAAmendPositionSLTPReq` (**2112**) with new stop price
+- `POSITION_CLOSED` → `ProtoOAClosePositionReq` (**2140**) with stored `positionId`
+- `ERROR_RES` (**2142**) or `ORDER_REJECTED` execution event → fires `ORDER_FAILED` callback
+
+**ORDER_FAILED path**: the executor cannot call `notifier.notify()` (it IS a notifier — circular). Instead it calls an `orderFailedCallback` registered by `index.ts`, which calls `notifier.notify({ type: 'ORDER_FAILED', ... })` from outside the chain.
+
+**No state rollback on failure** — if an order is rejected, the engine's internal state is NOT reverted. The analyst must intervene manually. The `ORDER_FAILED` event is displayed prominently in the live log.
+
+**Requires `CTRADER_SYMBOL_ID` env var** — the executor needs the numeric symbol ID to place orders. The price feed resolves this dynamically, but the executor needs it at startup. If `CTRADER_SYMBOL_ID` is missing and `auto_execute: true`, the executor logs an error and disables itself.
+
 ### `CTraderTrader.ts`
 Fetches live demo account balance and equity from the cTrader Open API. Owns its
 own `CTraderSession` (C2 design — independent from the price feed).
@@ -847,3 +871,20 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   `src/ai/` go in `tests/ai/`). Imports use `../../src/` (one extra `../`
   relative to the old flat layout). Vitest discovers them automatically via
   its default `**/*.test.ts` glob — no config file needed.
+
+## UI dev features
+
+- **Simulation mode** (`npm run simulate`): drives the engine through a full
+  trade scenario (watching → 3 entries → breakeven → VWAP close) without a
+  live broker. Requires the engine to be running on `localhost:3000`. Step
+  delay configurable via `SIMULATE_STEP_MS` (default 2000ms).
+  Uses dev-only endpoints `/simulate/tick` (price injection) and
+  `/simulate/account` (fake P&L updates) — both return 404 in production.
+
+- **Fun mode**: enables the Bobby Axelrod certainty GIF animation after form
+  submission. Can be enabled two ways:
+  1. Server-side: `TRIDENT_FUN_MODE=true` env var enables it for all connecting
+     browsers (unless they have disabled it locally)
+  2. Browser-side: Help dialog checkbox, or 5x-click the Trident logo for an
+     easter egg. Each user's setting is stored in localStorage and overrides
+     the server setting.

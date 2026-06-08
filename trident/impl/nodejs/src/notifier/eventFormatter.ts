@@ -189,6 +189,15 @@ function formatEventCore(
         headline: `Balance: ${event.currency} ${event.balance.toFixed(2)}`,
         detail: [], action: null, severity: 'info', actionRequired,
       };
+
+    case 'ORDER_FAILED':
+      return {
+        timestamp, type: event.type, tag: 'ORDER ERR',
+        headline: `⚠️ Order failed — ${event.reason}`,
+        detail: event.orderId ? [`Order ID: ${event.orderId}`] : [],
+        action: '⚠️ Check broker position manually — automated order was not placed.',
+        severity: 'error', actionRequired: true,
+      };
   }
 }
 
