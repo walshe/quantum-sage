@@ -917,6 +917,7 @@ label.sell > input:focus { border-color: var(--accent); }
 .sp-section .trade-plan-note { font-size: 11px; line-height: 1.4; padding: 0.35rem 0.5rem; }
 .trade-plan-label { font-weight: 600; color: var(--accent); }
 .trade-plan-footnote { color: var(--fg-dim); font-style: italic; font-size: 10.5px; }
+.trade-plan-risk-amount { font-weight: 700; color: #ff9500; font-style: normal; }
 .check {
   display: flex; gap: 0.5rem; padding: 4px 0; font-size: 12.5px;
   align-items: flex-start; line-height: 1.4;

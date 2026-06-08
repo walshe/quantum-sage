@@ -342,8 +342,8 @@ window.TRIDENT_I18N = {
     'worst case if all 3 fill': 'caso peggiore (tutte e 3 le entrate)',
     'single entry': 'singola entrata',
     'pts from avg entry': 'pt dalla media entrate',
-    'ℹ️ Once in a trade the status panel shows the live stop.':
-      'ℹ️ Durante il trade il pannello stato mostra lo stop live.',
+    'ℹ️ Once in a trade the status panel shows the live stop. Full position (all 3 tranches) risks {amount} (0.5% of account).':
+      'ℹ️ Durante il trade il pannello di stato mostra lo stop live. La posizione completa (tutte e 3 le tranche) rischia {amount} (0.5% del conto).',
     'Profit target: VWAP at {vwap} — entire position closes when price reaches VWAP.':
       'Target profitto: VWAP a {vwap} — la posizione si chiude interamente al raggiungimento del VWAP.',
     'below {price}': 'sotto {price}',
