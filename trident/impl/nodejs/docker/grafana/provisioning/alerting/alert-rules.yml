@@ -44,7 +44,7 @@ groups:
               refId: A
         noDataState: NoData
         execErrState: Alerting
-        for: 1m
+        for: 5m
         annotations:
           description: "Engine is blocked. Either DVS gate is active (volatility too high) or daily lock is triggered (winning trade completed)."
           summary: "Trading blocked for the day"
