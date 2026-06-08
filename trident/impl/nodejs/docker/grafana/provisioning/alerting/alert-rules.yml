@@ -18,7 +18,7 @@ groups:
               instant: true
               interval: ''
               refId: A
-        noDataState: NoData
+        noDataState: Alerting
         execErrState: Alerting
         for: 30s
         annotations:
