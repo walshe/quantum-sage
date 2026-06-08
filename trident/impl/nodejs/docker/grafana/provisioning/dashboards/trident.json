@@ -10,7 +10,7 @@
       "fieldConfig": {"defaults": {}, "overrides": []},
       "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
       "id": 0,
-      "options": {"alertName": "", "dashboardAlerts": false, "dashboardTitle": "", "maxItems": 10, "sortOrder": 1, "stateFilter": []},
+      "options": {"alertName": "", "dashboardAlerts": false, "dashboardTitle": "", "maxItems": 20, "sortOrder": 1, "stateFilter": ["firing", "pending", "nodata"]},
       "pluginVersion": "10.0.0",
       "targets": [{"refId": "A"}],
       "title": "Alert Status",
