@@ -243,3 +243,112 @@ docker compose up -d
 
 **Windows: container starts but behaves oddly?**
 Check your `.env` file has LF line endings (see step 2 above).
+
+---
+
+## VPS / Hetzner Deployment (Fresh Setup)
+
+For deploying Trident to a remote server (e.g. Hetzner), use this process from your local machine.
+
+### Prerequisites
+
+- SSH access to the VPS (e.g. `root@100.83.1.83`)
+- Docker and Docker Compose installed on the VPS
+- GitHub token with `read:packages` scope (same as local setup)
+
+### Fresh Deployment from Local Machine
+
+**1. Prepare local config files**
+
+On your local machine, ensure you have all necessary files in `trident/impl/nodejs/`:
+```bash
+cd /path/to/quantum-sage/trident/impl/nodejs
+ls -la docker-compose.yml config.yaml .env docker/grafana/ docker/loki/ docker/prometheus/ docker/promtail/
+```
+
+**2. Create remote directory and copy files**
+
+```bash
+ssh root@YOUR_VPS_IP "mkdir -p /root/trident/impl/nodejs/docker/{grafana,loki,prometheus,promtail}"
+```
+
+**3. Copy docker-compose files and config**
+
+From your local machine:
+```bash
+cd /path/to/quantum-sage/trident/impl/nodejs
+
+# Copy compose and config files
+scp docker-compose.yml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp docker-compose.override.hetzner.yml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp config.yaml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp .env root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+
+# Copy all provisioning configs (Grafana, Prometheus, Loki, Promtail)
+scp -r docker/grafana/provisioning root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/grafana/
+scp -r docker/loki root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
+scp -r docker/prometheus root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
+scp -r docker/promtail root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
+```
+
+**4. Start on VPS**
+
+SSH into the VPS:
+```bash
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+
+# Authenticate with GitHub registry (one-time)
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u walshe --password-stdin
+
+# Start with observability stack (Prometheus + Grafana)
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
+
+# Wait a few seconds for services to start
+sleep 3
+
+# Check all containers are running
+docker ps
+```
+
+**5. Access the dashboard**
+
+- **Trident UI**: `http://YOUR_VPS_IP:3000` or via Tailscale VPN
+- **Grafana**: `http://YOUR_VPS_IP:3001` (admin / trident)
+- **Prometheus**: `http://YOUR_VPS_IP:9090`
+
+### What the Hetzner Override Does
+
+The `docker-compose.override.hetzner.yml` file disables Loki and Promtail (optional log aggregation that requires extra config) while keeping the essential stack:
+
+- ✓ **Trident** (trading engine)
+- ✓ **Prometheus** (metrics collection)
+- ✓ **Grafana** (dashboard, pre-provisioned with Trident datasource and dashboard)
+
+All provisioning is automatic — Grafana loads the Prometheus datasource and Trident dashboard on first start. No manual configuration needed.
+
+### Restoring Data from a Previous Deployment
+
+If migrating from an old Hetzner setup and want to preserve logs/setups/screenshots:
+
+```bash
+# On VPS, after initial docker compose up:
+cp -r /root/trident.backup/impl/nodejs/logs . 2>/dev/null || true
+cp -r /root/trident.backup/impl/nodejs/setups . 2>/dev/null || true
+cp -r /root/trident.backup/impl/nodejs/screenshots . 2>/dev/null || true
+```
+
+### Updating VPS to Latest Version
+
+```bash
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+
+# Pull latest image
+docker compose pull
+
+# Restart with latest
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
+```
+
+Your data (`.env`, `config.yaml`, `setups/`, `logs/`) is untouched.
