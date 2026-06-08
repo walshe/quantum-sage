@@ -1,0 +1,8 @@
+services:
+  loki:
+    profiles: [disabled]
+  promtail:
+    profiles: [disabled]
+  trident:
+    environment:
+      - TRIDENT_OBSERVABILITY=prometheus

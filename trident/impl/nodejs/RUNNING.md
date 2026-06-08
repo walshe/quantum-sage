@@ -243,3 +243,9 @@ docker compose up -d
 
 **Windows: container starts but behaves oddly?**
 Check your `.env` file has LF line endings (see step 2 above).
+
+---
+
+## VPS / Hetzner Deployment
+
+For remote server deployment (e.g. Hetzner VPS), see **[HETZNER.md](./HETZNER.md)** for step-by-step instructions including all scp commands, authentication, and troubleshooting.
