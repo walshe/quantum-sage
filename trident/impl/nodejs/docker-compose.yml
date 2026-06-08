@@ -33,6 +33,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=trident
       - GF_USERS_ALLOW_SIGN_UP=false
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:--placeholder-set-in-env}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:--placeholder-set-in-env}
     restart: unless-stopped
 
   loki:

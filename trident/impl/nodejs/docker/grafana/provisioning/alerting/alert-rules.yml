@@ -1,0 +1,99 @@
+groups:
+  - name: trident-alerts
+    interval: 30s
+    rules:
+      - uid: trident-feed-disconnected
+        title: "Feed Disconnected"
+        condition: A
+        data:
+          - refId: A
+            queryType: ''
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: trident-prometheus
+            model:
+              expr: 'trident_feed_connected == 0'
+              interval: ''
+              legendFormat: ''
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 30s
+        annotations:
+          description: "Broker price feed is disconnected. Trading is halted."
+          summary: "Price feed connection lost"
+        labels:
+          severity: critical
+
+      - uid: trident-engine-blocked
+        title: "Engine Blocked"
+        condition: A
+        data:
+          - refId: A
+            queryType: ''
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: trident-prometheus
+            model:
+              expr: 'trident_engine_state == 1'
+              interval: ''
+              legendFormat: ''
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          description: "Engine is blocked. Either DVS gate is active (volatility too high) or daily lock is triggered (winning trade completed)."
+          summary: "Trading blocked for the day"
+        labels:
+          severity: warning
+
+      - uid: trident-no-ticks
+        title: "No Price Ticks (5+ min)"
+        condition: A
+        data:
+          - refId: A
+            queryType: ''
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: trident-prometheus
+            model:
+              expr: 'rate(trident_ticks_total[5m]) == 0'
+              interval: ''
+              legendFormat: ''
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          description: "No price ticks received in the last 5 minutes. Price feed may be stalled or disconnected."
+          summary: "Price feed stalled"
+        labels:
+          severity: warning
+
+      - uid: trident-tick-rate-spike
+        title: "Unusual Tick Rate"
+        condition: A
+        data:
+          - refId: A
+            queryType: ''
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: trident-prometheus
+            model:
+              expr: 'trident_tick_rate > 150'
+              interval: ''
+              legendFormat: ''
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          description: "Tick rate exceeded 150 ticks/min. Possible data corruption or market volatility spike."
+          summary: "High tick rate detected"
+        labels:
+          severity: info
