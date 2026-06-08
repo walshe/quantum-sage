@@ -1486,11 +1486,14 @@ function buildTradePlanNote(signal) {
   note.append(document.createElement('br'));
   const fn = document.createElement('span');
   fn.className = 'trade-plan-footnote';
-  let footnoteText = tx('ℹ️ Once in a trade the status panel shows the live stop.');
+  let footnoteText;
   if (dailyRiskAmount) {
     const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
     const sym = CURRENCY_SYMBOLS[acct?.currency] ?? acct?.currency ?? 'EUR';
-    footnoteText += ` This trade risks ${sym}${dailyRiskAmount} (0.5% of account).`;
+    const amount = `${sym}${dailyRiskAmount}`;
+    footnoteText = tx('ℹ️ Once in a trade the status panel shows the live stop. Full position (all 3 tranches) risks {amount} (0.5% of account).').replace('{amount}', amount);
+  } else {
+    footnoteText = tx('ℹ️ Once in a trade the status panel shows the live stop.');
   }
   fn.textContent = footnoteText;
   note.append(fn);
