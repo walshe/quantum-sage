@@ -1,124 +1,243 @@
-# Hetzner Server Setup — QS-TRIDENT-DEMO
+# Deploying Trident to Hetzner / VPS
 
-Notes on how the Hetzner VPS is configured to run Trident, specifically the
-Tailscale networking and Docker port isolation that differs from a standard deployment.
-
----
-
-## Server details
-
-- **Provider:** Hetzner
-- **Hostname:** QS-TRIDENT-DEMO
-- **Public IP:** 37.27.92.200
-- **Tailscale IP:** 100.83.1.83
-- **Working directory:** `~/trident/impl/nodejs/`
+Instructions for deploying Trident to a remote Linux server (e.g. Hetzner VPS) with full observability (Prometheus + Grafana).
 
 ---
 
-## Files on the server
+## Prerequisites
 
-```
-~/trident/impl/nodejs/
-  docker-compose.yml            ← base file (pulled from repo, don't edit)
-  docker-compose.override.yml   ← server-specific overrides (NOT in repo)
-  .env                          ← credentials (NOT in repo)
-  config.yaml                   ← engine config (NOT in repo)
-  setups/
-  logs/
-  screenshots/
-```
+- SSH access to the VPS (e.g. `root@100.83.1.83`)
+- Docker and Docker Compose installed on the VPS
+- GitHub token with `read:packages` scope for pulling the private image
+- Local copy of the `quantum-sage` repository with all config files
 
 ---
 
-## docker-compose.override.yml
+## Fresh Deployment (From Local Machine)
 
-Docker Compose automatically merges this file with `docker-compose.yml` on every
-`docker compose up`. It is NOT checked into the repo — it lives only on this server.
+### 1. Prepare local files
 
-Current contents:
-
-```yaml
-services:
-  trident:
-    ports:
-      - "3000:3000"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-```
-
-The `dns` entries fix Docker's inability to resolve external hostnames (needed for
-the cTrader WebSocket connection to `demo.ctraderapi.com`).
-
----
-
-## Firewall — blocking public access to port 3000
-
-The app binds on `0.0.0.0:3000` so Docker can route properly, but the public
-Hetzner IP must not be accessible from the internet. This is enforced via iptables
-in the `DOCKER-USER` chain (the correct chain for Docker port-mapping rules —
-the INPUT chain is bypassed by Docker).
-
-The rule that blocks public access:
+On your **local machine**, ensure these files exist:
 
 ```bash
-iptables -I DOCKER-USER -i eth0 -p tcp --dport 3000 -j DROP
+cd /path/to/quantum-sage/trident/impl/nodejs
+ls -la docker-compose.yml config.yaml .env
+ls -la docker/grafana/provisioning/
+ls -la docker/loki/
+ls -la docker/prometheus/
+ls -la docker/promtail/
 ```
 
-This drops traffic arriving on `eth0` (the public Hetzner interface) to port 3000,
-while leaving Tailscale (`tailscale0`) and localhost unaffected.
+If any are missing, check out the `feature/grafana-provisioning` branch first.
 
-### Making it persistent across reboots
+### 2. Create remote directories
 
 ```bash
-apt install iptables-persistent
-netfilter-persistent save
+ssh root@YOUR_VPS_IP "mkdir -p /root/trident/impl/nodejs/docker/{grafana,loki,prometheus,promtail}"
 ```
 
-Rules are saved to `/etc/iptables/rules.v4` and restored automatically on boot.
+### 3. Copy all files to VPS
 
-### Verifying the rule is active
+From your local machine:
 
 ```bash
-iptables -L DOCKER-USER -n --line-numbers
+cd /path/to/quantum-sage/trident/impl/nodejs
+
+# Docker compose and config files
+scp docker-compose.yml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp docker-compose.override.hetzner.yml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp config.yaml root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+scp .env root@YOUR_VPS_IP:/root/trident/impl/nodejs/
+
+# Provisioning configs
+scp -r docker/grafana/provisioning root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/grafana/
+scp -r docker/loki root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
+scp -r docker/prometheus root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
+scp -r docker/promtail root@YOUR_VPS_IP:/root/trident/impl/nodejs/docker/
 ```
 
-Should show the DROP rule for `eth0` on dpt:3000.
+### 4. Authenticate and start on VPS
+
+SSH into the VPS:
+
+```bash
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+
+# One-time: authenticate with GitHub container registry
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u walshe --password-stdin
+```
+
+Verify you see: `Login Succeeded`
+
+Then start the stack:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
+sleep 3
+docker ps
+```
+
+You should see 4 containers running:
+- `nodejs-trident-1` (the trading engine)
+- `nodejs-prometheus-1` (metrics collection)
+- `nodejs-grafana-1` (dashboard)
+- `nodejs-loki-1` (log aggregation)
+
+### 5. Access the dashboards
+
+- **Trident UI**: `http://YOUR_VPS_IP:3000`
+- **Grafana**: `http://YOUR_VPS_IP:3001` (username: `admin`, password: `trident`)
+  - The **Trident Trading Engine** dashboard is pre-loaded
+- **Prometheus**: `http://YOUR_VPS_IP:9090`
 
 ---
 
-## Tailscale access
+## What the Hetzner Override Does
 
-The app is accessible within the Tailnet at:
+`docker-compose.override.hetzner.yml` disables optional services that require complex setup, keeping only essentials:
 
-```
-http://100.83.1.83:3000
-```
+**Disabled:**
+- ❌ Loki (log aggregation) — optional for this use case
+- ❌ Promtail (log shipper) — optional for this use case
 
-No Tailscale serve or funnel is needed — binding Docker to port 3000 and blocking
-eth0 via iptables is sufficient. Any device on the Tailnet can reach the dashboard
-directly via the Tailscale IP.
+**Enabled:**
+- ✓ Trident (trading engine with TRIDENT_OBSERVABILITY=prometheus)
+- ✓ Prometheus (metrics scraper)
+- ✓ Grafana (dashboard with auto-provisioned Prometheus datasource and Trident dashboard)
 
-> **Do not run `tailscale serve` pointing at port 3000** — it will conflict with
-> Docker's port binding and cause startup failures.
+All Grafana configuration is automatic — the datasource and dashboard load on first access. No manual setup needed.
 
 ---
 
-## Daily operations
+## Restoring Data from Old Deployment
+
+If migrating from a previous Hetzner instance and want to preserve logs, setups, and screenshots:
 
 ```bash
-cd ~/trident/impl/nodejs
-docker compose pull        # fetch latest image
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+
+# Restore from backup (if it exists)
+cp -r /root/trident.backup/impl/nodejs/logs . 2>/dev/null || true
+cp -r /root/trident.backup/impl/nodejs/setups . 2>/dev/null || true
+cp -r /root/trident.backup/impl/nodejs/screenshots . 2>/dev/null || true
+```
+
+---
+
+## Daily Operations
+
+### Check Status
+
+```bash
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+docker ps
+docker compose logs -f trident
+```
+
+Press `Ctrl+C` to stop following logs.
+
+### Stop Everything
+
+```bash
 docker compose down
-docker compose up -d
-docker compose logs -f     # watch logs
+```
+
+Your data (`.env`, `config.yaml`, `setups/`, `logs/`, `screenshots/`) is safely stored on disk and persists across restarts.
+
+### Restart
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
 ```
 
 ---
 
-## After a reboot
+## Updating to Latest Version
 
-1. Verify iptables rule survived: `iptables -L DOCKER-USER -n | grep 3000`
-2. If missing, re-add: `iptables -I DOCKER-USER -i eth0 -p tcp --dport 3000 -j DROP`
-3. Verify Tailscale is up: `tailscale status`
-4. Start the app: `docker compose up -d`
+When a new version is published:
+
+```bash
+ssh root@YOUR_VPS_IP
+cd /root/trident/impl/nodejs
+
+# Pull the latest image
+docker compose pull
+
+# Restart with latest
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
+```
+
+Your data is never affected — `.env`, `config.yaml`, `setups/`, `logs/` all persist.
+
+---
+
+## Troubleshooting
+
+**Container won't start / fails immediately:**
+```bash
+docker compose logs nodejs-trident-1
+```
+
+Check for missing config files or credential issues.
+
+**Grafana not loading:**
+```bash
+docker compose logs nodejs-grafana-1
+```
+
+Verify the Prometheus datasource is configured correctly in Grafana → Connections → Data sources.
+
+**Prometheus not scraping metrics:**
+1. Check target status: `http://YOUR_VPS_IP:9090/targets`
+2. Verify Trident is running: `docker ps | grep trident`
+3. Check if metrics endpoint is responding: `curl http://YOUR_VPS_IP:3000/metrics | head -20`
+
+**Clean restart (nuclear option):**
+```bash
+docker compose down
+docker system prune -f
+docker compose -f docker-compose.yml -f docker-compose.override.hetzner.yml --profile observability up -d
+```
+
+---
+
+## File Structure on VPS
+
+After deployment, your `/root/trident/impl/nodejs` should look like:
+
+```
+.env                                    (secrets - never commit)
+config.yaml                             (app configuration)
+docker-compose.yml                      (main orchestration)
+docker-compose.override.hetzner.yml     (VPS production tweaks)
+docker/
+  ├── grafana/
+  │   └── provisioning/
+  │       ├── datasources/prometheus.yml
+  │       └── dashboards/
+  │           ├── dashboards.yml
+  │           └── trident.json
+  ├── loki/
+  │   └── loki-config.yml
+  ├── prometheus/
+  │   └── prometheus.yml
+  └── promtail/
+      └── promtail-config.yml
+logs/                                   (engine logs and state snapshots)
+setups/                                 (trading setup YAML files)
+screenshots/                            (uploaded chart images)
+```
+
+---
+
+## Support
+
+For issues or questions:
+- Check logs: `docker compose logs <service-name>`
+- Review Trident UI error messages: `http://YOUR_VPS_IP:3000`
+- Check Grafana dashboard for metric gaps: `http://YOUR_VPS_IP:3001`
+
+Contact Emmett if something fails during deployment.
