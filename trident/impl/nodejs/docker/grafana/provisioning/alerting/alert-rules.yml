@@ -27,29 +27,6 @@ groups:
         labels:
           severity: critical
 
-      - uid: trident-engine-blocked
-        title: "Engine Blocked"
-        condition: A
-        data:
-          - refId: A
-            queryType: ''
-            relativeTimeRange:
-              from: 600
-              to: 0
-            datasourceUid: trident-prometheus
-            model:
-              expr: 'trident_engine_state == 1'
-              instant: true
-              interval: ''
-              refId: A
-        noDataState: NoData
-        execErrState: Alerting
-        for: 5m
-        annotations:
-          description: "Engine is blocked. Either DVS gate is active (volatility too high) or daily lock is triggered (winning trade completed)."
-          summary: "Trading blocked for the day"
-        labels:
-          severity: warning
 
       - uid: trident-no-ticks
         title: "No Price Ticks (5+ min)"
