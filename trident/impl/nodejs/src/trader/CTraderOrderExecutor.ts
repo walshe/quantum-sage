@@ -227,12 +227,18 @@ export class CTraderOrderExecutor implements Notifier {
       return;
     }
 
-    const isFilled = execType === 3 || execType === 'ORDER_FILLED' || execType === 'POSITION_OPENED' || execType === 'POSITION_CHANGED';
+    // POSITION_OPENED and ORDER_FILLED confirm a fill. POSITION_CHANGED can also confirm a fill
+    // if it includes a position object, but it can also fire for non-fill events (e.g., SL amendment).
+    // Only treat it as a fill if it has a position object.
+    const isFilled = (execType === 3 || execType === 'ORDER_FILLED' || execType === 'POSITION_OPENED') ||
+                     (execType === 'POSITION_CHANGED' && position != null);
     if (isFilled) {
       const pid = position?.['positionId'] as number | undefined;
       if (pid != null) {
         log.info('Position fill confirmed', { positionId: pid, executionType: execType });
         this.positionId = pid;
+        // Flush any pending stop-loss amendments. If breakeven fired before this fill,
+        // its stop price was queued in pendingStopPrice and will now be sent.
         this.flushPendingStop();
       }
       return;

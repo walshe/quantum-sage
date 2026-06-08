@@ -221,16 +221,28 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
   app.post('/simulate/account', (req, res) => {
     if (process.env.NODE_ENV === 'production') return res.status(404).end();
     const { unrealizedPnl, balance, currency } = req.body as Record<string, unknown>;
-    if (typeof unrealizedPnl !== 'number') {
-      return res.status(400).json({ error: 'body must include unrealizedPnl: number' });
+    const VALID_CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF'];
+
+    // Validate unrealizedPnl (required)
+    if (typeof unrealizedPnl !== 'number' || !isFinite(unrealizedPnl)) {
+      return res.status(400).json({ error: 'unrealizedPnl must be a finite number' });
     }
+    // Validate balance (optional, but if provided must be valid)
+    if (balance != null && (typeof balance !== 'number' || !isFinite(balance as number))) {
+      return res.status(400).json({ error: 'balance must be a finite number' });
+    }
+    // Validate currency (optional, but if provided must be a known code)
+    if (currency != null && (typeof currency !== 'string' || !VALID_CURRENCIES.includes(currency as string))) {
+      return res.status(400).json({ error: `currency must be one of: ${VALID_CURRENCIES.join(', ')}` });
+    }
+
     // notifier is defined below — this closure captures it at call time, not definition time.
     notifier.notify({
       type: 'ACCOUNT_UPDATE',
-      balance:       typeof balance === 'number' ? balance : 50000,
-      equity:        typeof balance === 'number' ? balance + unrealizedPnl : 50000 + unrealizedPnl,
+      balance:       typeof balance === 'number' && isFinite(balance as number) ? (balance as number) : 50000,
+      equity:        (typeof balance === 'number' && isFinite(balance as number) ? (balance as number) : 50000) + unrealizedPnl,
       unrealizedPnl,
-      currency:      typeof currency === 'string' ? currency : 'USD',
+      currency:      typeof currency === 'string' && VALID_CURRENCIES.includes(currency as string) ? (currency as string) : 'USD',
       login:         0,
       brokerName:    'simulation',
       isLive:        false,
