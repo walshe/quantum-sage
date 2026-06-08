@@ -25,7 +25,7 @@ const bootstrap: Bootstrap = {
   serverTime: '2026-06-06T10:00:00.000Z',
   state: 'idle', dailyLocked: false, symbol: 'US500', lastIdleReason: null,
   serverTz: { ianaName: 'Europe/Dublin', offsetStr: 'UTC+1' },
-  currentSignal: null, position: null, stopPoints: 40,
+  currentSignal: null, position: null, stopPoints: 40, funMode: false,
 };
 
 let server: WebServerHandle;

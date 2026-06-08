@@ -440,6 +440,7 @@ function buildBootstrap(): Bootstrap {
     } : null,
     stopPoints: config.trident.stop_loss_points,
     account: latestAccount,
+    funMode: process.env.TRIDENT_FUN_MODE === 'true',
   };
 }
 

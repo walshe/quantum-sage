@@ -321,6 +321,11 @@ function latestSignalFromHistory(events) {
 }
 
 function handleBootstrap(b) {
+  // If server has funMode enabled and user hasn't set it locally yet, enable it.
+  if (b.funMode && !localStorage.getItem(FUN_MODE_KEY)) {
+    localStorage.setItem(FUN_MODE_KEY, 'true');
+  }
+
   setStateChip(b.state, b.dailyLocked);
   if (b.symbol) {
     const symEl = $('#symbol-chip-value');

@@ -881,7 +881,10 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   Uses dev-only endpoints `/simulate/tick` (price injection) and
   `/simulate/account` (fake P&L updates) — both return 404 in production.
 
-- **Fun mode** (hidden): enables the Bobby Axelrod certainty GIF animation
-  after form submission. Off by default. Enable in the browser console:
-  `localStorage.setItem('trident-fun-mode', 'true')`
-  Disable: `localStorage.removeItem('trident-fun-mode')`
+- **Fun mode**: enables the Bobby Axelrod certainty GIF animation after form
+  submission. Can be enabled two ways:
+  1. Server-side: `TRIDENT_FUN_MODE=true` env var enables it for all connecting
+     browsers (unless they have disabled it locally)
+  2. Browser-side: Help dialog checkbox, or 5x-click the Trident logo for an
+     easter egg. Each user's setting is stored in localStorage and overrides
+     the server setting.
