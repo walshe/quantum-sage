@@ -1486,9 +1486,11 @@ function buildTradePlanNote(signal) {
   note.append(document.createElement('br'));
   const fn = document.createElement('span');
   fn.className = 'trade-plan-footnote';
-  if (dailyRiskAmount) {
+  if (dailyRiskAmount && acct) {
+    // Risk amount is the configured daily risk (0.5% of account balance per config).
+    // Actual realized risk depends on fill prices; this is the planned risk.
     const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'Fr' };
-    const sym = CURRENCY_SYMBOLS[acct?.currency] ?? acct?.currency ?? 'EUR';
+    const sym = CURRENCY_SYMBOLS[acct.currency] ?? acct.currency ?? 'EUR';
     const amount = `${sym}${dailyRiskAmount}`;
     const baseText = tx('ℹ️ Once in a trade the status panel shows the live stop. Full position (all 3 tranches) risks ');
     const riskText = tx('(0.5% of account).');
