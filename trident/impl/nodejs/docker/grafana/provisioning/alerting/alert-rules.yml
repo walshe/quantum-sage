@@ -14,11 +14,11 @@ groups:
               to: 0
             datasourceUid: trident-prometheus
             model:
-              expr: 'trident_feed_connected == 0'
+              expr: 'absent(trident_feed_connected) or trident_feed_connected == 0'
               instant: true
               interval: ''
               refId: A
-        noDataState: Alerting
+        noDataState: NoData
         execErrState: Alerting
         for: 30s
         annotations:
@@ -39,11 +39,11 @@ groups:
               to: 0
             datasourceUid: trident-prometheus
             model:
-              expr: 'increase(trident_ticks_total[5m]) == 0'
+              expr: 'absent(trident_ticks_total) or increase(trident_ticks_total[5m]) == 0'
               instant: true
               interval: ''
               refId: A
-        noDataState: Alerting
+        noDataState: NoData
         execErrState: Alerting
         for: 5m
         annotations:
