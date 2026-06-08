@@ -1,5 +1,6 @@
 groups:
   - name: trident-alerts
+    folder: Trident
     interval: 30s
     rules:
       - uid: trident-feed-disconnected
@@ -14,8 +15,8 @@ groups:
             datasourceUid: trident-prometheus
             model:
               expr: 'trident_feed_connected == 0'
+              instant: true
               interval: ''
-              legendFormat: ''
               refId: A
         noDataState: NoData
         execErrState: Alerting
@@ -38,8 +39,8 @@ groups:
             datasourceUid: trident-prometheus
             model:
               expr: 'trident_engine_state == 1'
+              instant: true
               interval: ''
-              legendFormat: ''
               refId: A
         noDataState: NoData
         execErrState: Alerting
@@ -61,9 +62,9 @@ groups:
               to: 0
             datasourceUid: trident-prometheus
             model:
-              expr: 'rate(trident_ticks_total[5m]) == 0'
+              expr: 'increase(trident_ticks_total[5m]) == 0'
+              instant: true
               interval: ''
-              legendFormat: ''
               refId: A
         noDataState: NoData
         execErrState: Alerting
@@ -86,8 +87,8 @@ groups:
             datasourceUid: trident-prometheus
             model:
               expr: 'trident_tick_rate > 150'
+              instant: true
               interval: ''
-              legendFormat: ''
               refId: A
         noDataState: NoData
         execErrState: Alerting
