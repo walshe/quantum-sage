@@ -1682,6 +1682,29 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-import-screenshots').addEventListener('click', openScreenshotPicker);
   $('#screenshot-input').addEventListener('change', uploadScreenshots);
 
+  // Reset engine button.
+  $('#btn-reset-engine').addEventListener('click', async () => {
+    const confirmed = confirm(i18n.t('Reset engine?'));
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/engine/reset', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json() as { state: string };
+        alert(i18n.t('Engine reset to {state}', { state: data.state }));
+        // Refresh status pane
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          // WebSocket will send a bootstrap update
+        }
+      } else {
+        const data = await res.json() as { error: string };
+        alert(i18n.t('Reset failed: {error}', { error: data.error }));
+      }
+    } catch (err) {
+      alert(i18n.t('Reset error: {msg}', { msg: String(err) }));
+    }
+  });
+
   // Form modal close (X button).
   $('#btn-form-close').addEventListener('click', closeFormModal);
 

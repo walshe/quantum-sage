@@ -486,9 +486,12 @@ from `logs/engine-state.json`, not from `setups/`. To reset to idle, use the
 `logs/engine-state.json` manually before restarting.
 
 **`loadSignal(signal, filePath)`** — called whenever a new setup file arrives.
-Runs the validator. If valid: checks the DVS gate, resolves active levels, calls
-`setupTrade()`. If a trade is already active, ignores the new levels (doesn't
-disrupt the open trade). If daily lock is on, also ignores.
+Runs the validator. If valid: re-evaluates the DVS gate on every load (even if
+previously blocked). If DVS ≤ gate, clears any block and proceeds to
+`setupTrade()`. The DVS gate is per-setup, not per-day — a subsequent setup
+with valid DVS will unblock the engine. If a trade is already active, ignores
+the new levels (doesn't disrupt the open trade). If daily lock is on, also
+ignores.
 
 **`setupTrade()`** — looks at available levels and bias to decide direction.
 

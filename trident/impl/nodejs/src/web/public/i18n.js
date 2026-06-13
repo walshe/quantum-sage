@@ -371,5 +371,13 @@ window.TRIDENT_I18N = {
     'AI is reading the screenshot…': "L'AI sta leggendo lo screenshot…",
     'Extracting BUY/SELL levels, ranges, DVS, and VWAP. This usually takes 5–20 seconds.':
       'Estrazione livelli BUY/SELL, range, DVS e VWAP. In genere richiede 5–20 secondi.',
+
+    // ---------- Engine reset ----------
+    'Reset engine': 'Resetta motore',
+    'Reset engine?': 'Resettare il motore?',
+    'Engine reset to {state}': 'Motore resettato a {state}',
+    'Reset failed: {error}': 'Reset fallito: {error}',
+    'Reset error: {msg}': 'Errore reset: {msg}',
+    'Cannot reset while a trade is open': 'Non puoi resettare mentre un trade è aperto',
   },
 };
