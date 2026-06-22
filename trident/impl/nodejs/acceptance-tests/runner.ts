@@ -306,7 +306,11 @@ function generateReport(
     const setup = sc?.setup;
     const chips: string[] = [];
     if (setup) {
-      chips.push(`DVS ${setup.dvs} <span style="color:#9ca3af">(gate 75)</span>`);
+      const DVS_GATE = 75;
+      const dvsClear = (setup.dvs ?? 0) > DVS_GATE;
+      const dvsColor = dvsClear ? '#16a34a' : '#dc2626';
+      const dvsLabel = dvsClear ? `gate clear (limit: ${DVS_GATE})` : `gate blocked (limit: ${DVS_GATE})`;
+      chips.push(`DVS: ${setup.dvs} <span style="color:${dvsColor}">${dvsClear ? '✓' : '✗'} ${dvsLabel}</span>`);
       chips.push(`Bias: ${setup.bias ?? 'neutral'}`);
       if (setup.max_buy_2  != null) chips.push(`Buy outer: ${setup.max_buy_2}`);
       if (setup.max_buy_1  != null) chips.push(`Buy inner: ${setup.max_buy_1}`);
