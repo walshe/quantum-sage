@@ -297,7 +297,8 @@ export class CTraderOrderExecutor implements Notifier {
 
   private effectiveCapital(): number {
     if (this.liveBalanceEur !== null) return this.liveBalanceEur;
-    log.warn('Live broker balance not yet available — using env-var seed for position sizing');
+    // liveBalanceEur is null means neither the constructor seed nor setLiveBalance has fired yet.
+    // The zero-capital guard in callers will skip the order and warn.
     return 0;
   }
 
