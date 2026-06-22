@@ -28,8 +28,6 @@ function validateConfig(c: unknown): string[] {
   if (!cap) {
     e('capital section is missing');
   } else {
-    if (!isPositive(cap['starting_capital_eur']))
-      e('capital.starting_capital_eur must be a positive number');
     if (!isPositive(cap['daily_risk_pct']) || (cap['daily_risk_pct'] as number) >= 100)
       e('capital.daily_risk_pct must be a positive number less than 100');
   }

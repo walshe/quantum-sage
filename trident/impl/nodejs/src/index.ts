@@ -262,6 +262,7 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
     },
     onAccountUpdate: (info: AccountInfo) => {
       latestAccount = info;
+      executor?.setLiveBalance(info.balance);
       notifier.notify({ type: 'ACCOUNT_UPDATE', ...info }).catch(() => {});
     },
   };
@@ -303,7 +304,8 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
         refreshToken:   env.CTRADER_REFRESH_TOKEN,
         tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
       };
-      executor = new CTraderOrderExecutor(executorConfig, config);
+      const seedBalance = env.CTRADER_ACCOUNT_BALANCE ? Number(env.CTRADER_ACCOUNT_BALANCE) : 0;
+      executor = new CTraderOrderExecutor(executorConfig, config, seedBalance);
       executor.setOrderFailedCallback((reason, orderId) => {
         notifier.notify({ type: 'ORDER_FAILED', reason, orderId }).catch(() => {});
         // If the broker never confirmed any fill (positionId still null), no real

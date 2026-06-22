@@ -43,14 +43,18 @@ export class CTraderOrderExecutor implements Notifier {
   private readonly qsConfig: QSConfig;
   private symbolId: number | null;
 
+  private liveBalanceEur: number | null = null;
   private positionId: number | null = null;
   private totalVolume = 0;                   // accumulated across all fills
   private pendingStopPrice: number | null = null; // queued SL amend before positionId known
   private orderTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(cfg: CTraderOrderExecutorConfig, qsConfig: QSConfig) {
+  constructor(cfg: CTraderOrderExecutorConfig, qsConfig: QSConfig, seedBalanceEur?: number) {
     this.qsConfig = qsConfig;
     this.symbolId = cfg.symbolId ?? null;
+    if (seedBalanceEur != null && seedBalanceEur > 0) {
+      this.liveBalanceEur = seedBalanceEur;
+    }
     this.session  = new CTraderSession(cfg);
 
     this.session.onMessage(PT.EXECUTION_EVENT, msg => {
@@ -79,6 +83,10 @@ export class CTraderOrderExecutor implements Notifier {
   setSymbolId(id: number): void {
     this.symbolId = id;
     log.info('Symbol ID set', { symbolId: id });
+  }
+
+  setLiveBalance(eur: number): void {
+    this.liveBalanceEur = eur;
   }
 
   async connect(): Promise<void> {
@@ -116,8 +124,15 @@ export class CTraderOrderExecutor implements Notifier {
       return;
     }
 
+    const capital = this.effectiveCapital();
+    if (capital === 0) {
+      log.warn('No capital available for sizing — skipping order (set CTRADER_ACCOUNT_BALANCE or wait for balance poll)');
+      await this.emitOrderFailed('no capital available for position sizing');
+      return;
+    }
+
     const vol = computeVolume({
-      capital:    this.qsConfig.capital.starting_capital_eur,
+      capital,
       riskPct:    this.qsConfig.capital.daily_risk_pct,
       allocPct:   event.allocationPct,
       stopPoints: this.qsConfig.trident.stop_loss_points,
@@ -280,6 +295,12 @@ export class CTraderOrderExecutor implements Notifier {
     this.orderTimeouts.clear();
   }
 
+  private effectiveCapital(): number {
+    if (this.liveBalanceEur !== null) return this.liveBalanceEur;
+    log.warn('Live broker balance not yet available — using env-var seed for position sizing');
+    return 0;
+  }
+
   private logStartupVolumes(): void {
     const exec = this.qsConfig.execution;
     if (!exec) return;
@@ -290,9 +311,10 @@ export class CTraderOrderExecutor implements Notifier {
       { label: 'Entry 3', alloc: this.qsConfig.trident.entry_3_allocation_pct },
     ];
 
+    const capital = this.effectiveCapital();
     for (const tier of tiers) {
       const vol = computeVolume({
-        capital:    this.qsConfig.capital.starting_capital_eur,
+        capital,
         riskPct:    this.qsConfig.capital.daily_risk_pct,
         allocPct:   tier.alloc,
         stopPoints: this.qsConfig.trident.stop_loss_points,

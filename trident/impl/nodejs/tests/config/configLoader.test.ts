@@ -6,7 +6,6 @@ const TMP = '/tmp/qs-config-test.yaml';
 
 const VALID_YAML = `
 capital:
-  starting_capital_eur: 80000
   daily_risk_pct: 0.5
 
 trident:
