@@ -153,12 +153,17 @@ async function runScenario(
   try {
     // Reset engine to idle before each scenario.
     // reset() clears dailyLocked internally but emits no WS event, so we reload
-    // the page afterwards to flush stale UI state (locked pill, log entries, etc).
+    // the page right after reset (before writing the new YAML) to flush stale UI
+    // state (locked pill, log entries). Reloading before the YAML is written
+    // avoids a race where a stale fs.watch event fires during the reload and
+    // clears the engine state we're about to set.
     const currentState = await getState();
     const needsReset = currentState?.state !== 'idle' || currentState?.dailyLocked;
     if (needsReset) {
       await post('/engine/reset', {});
       await waitForState('idle', 5_000);
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(1_000);
     }
 
     // Write the initial setup YAML
@@ -170,14 +175,6 @@ async function runScenario(
     const dvsGate = 75;
     const initialExpectedState: EngineState = dvs > dvsGate ? 'blocked' : 'watching';
     await waitForState(initialExpectedState, 10_000);
-
-    // Reload the page so the browser bootstraps fresh with the current engine state.
-    // Without this, the UI retains stale WS state from the previous scenario.
-    if (needsReset) {
-      await page.reload({ waitUntil: 'networkidle' });
-      await sleep(2_000);
-    }
-
     await waitForUiState(page, initialExpectedState);
 
     console.log(`    ✓ Engine reached: ${initialExpectedState}`);

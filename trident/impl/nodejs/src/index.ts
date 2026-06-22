@@ -146,6 +146,7 @@ const webServer = await startWebServer({
   onEngineReset: () => {
     if (engine.getState() === 'in_trade') return false;
     engine.reset();
+    webServer.notifier.clearHistory();
     return true;
   },
   onSimulatedTick: (price) => { engine.onPriceUpdate(price).catch(() => {}); },
