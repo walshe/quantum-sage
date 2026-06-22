@@ -1690,14 +1690,14 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/engine/reset', { method: 'POST' });
       if (res.ok) {
-        const data = await res.json() as { state: string };
+        const data = await res.json();
         alert(i18n.t('Engine reset to {state}', { state: data.state }));
         // Refresh status pane
         if (ws && ws.readyState === WebSocket.OPEN) {
           // WebSocket will send a bootstrap update
         }
       } else {
-        const data = await res.json() as { error: string };
+        const data = await res.json();
         alert(i18n.t('Reset failed: {error}', { error: data.error }));
       }
     } catch (err) {

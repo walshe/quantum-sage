@@ -884,6 +884,23 @@ The app is distributed as a pre-built image on GitHub Container Registry:
   Uses dev-only endpoints `/simulate/tick` (price injection) and
   `/simulate/account` (fake P&L updates) — both return 404 in production.
 
+- **Acceptance tests** (`npm run acceptance`): full-stack suite that starts
+  the engine itself (no manual `npm run dev` needed), drives 7 named scenarios,
+  captures before/after Playwright screenshots, and asserts final engine state.
+  Key env vars and design decisions:
+  - `MOCK_BROKER=true` → `index.ts` injects `MockBrokerSession` into
+    `CTraderOrderExecutor` instead of a real `CTraderSession`. No TCP
+    connection to cTrader is opened. `IBrokerSession` is the interface that
+    makes this swap possible (`src/trader/IBrokerSession.ts`).
+  - The acceptance config always sets `auto_execute: true` — this exercises
+    the full order routing path, unlike `npm run simulate` which bypasses
+    execution. The `MOCK_BROKER` flag is what prevents real orders.
+  - `time_exit_minutes: 0.5` in the acceptance config — short enough for the
+    time-exit scenario to complete in ~32s, long enough that other scenarios
+    (< 10s) aren't accidentally time-exited.
+  - Results land in `acceptance-results/<timestamp>/` (gitignored).
+  - One-time setup: `npx playwright install chromium`.
+
 - **Fun mode**: enables the Bobby Axelrod certainty GIF animation after form
   submission. Can be enabled two ways:
   1. Server-side: `TRIDENT_FUN_MODE=true` env var enables it for all connecting

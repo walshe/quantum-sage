@@ -318,3 +318,65 @@ Same pattern:
 1. Create `src/notifier/TelegramNotifier.ts` implementing the `Notifier` interface.
 2. In `src/index.ts`, swap `new ConsoleNotifier()` for `new TelegramNotifier(token, chatId)`.
 3. Both can run at once by wrapping them: `new MultiNotifier([console, telegram])`.
+
+---
+
+## Acceptance Tests
+
+Full-stack acceptance tests that drive the engine through named scenarios using a mock cTrader broker, then capture before/after UI screenshots.
+
+### One-time setup
+
+```bash
+npx playwright install chromium
+```
+
+### Running
+
+```bash
+npm run acceptance
+```
+
+To run a single scenario:
+
+```bash
+ACCEPTANCE_SCENARIO=01-long-full npm run acceptance
+```
+
+### What it does
+
+- Starts the engine subprocess with `MOCK_BROKER=true` and `auto_execute: true` (no real broker needed)
+- Writes a temp config with `time_exit_minutes: 0.5` so the time-exit scenario completes in ~32s
+- Drives each scenario by injecting prices via `/simulate/tick`
+- The mock broker auto-confirms all market orders with fake execution events
+- Takes before/after Playwright screenshots of the UI at `http://localhost:3000`
+- Asserts the final engine state matches expectations
+- Exits 0 if all pass, 1 if any fail
+
+### Results
+
+Saved to `acceptance-results/<timestamp>/` (gitignored):
+
+```
+acceptance-results/
+  2026-06-22T09-30-00/
+    01-long-full/
+      before.png
+      after.png
+      steps/
+        04-entry-3-buy-outer-.png
+      result.json
+    summary.json
+```
+
+### Scenarios
+
+| Scenario | Description |
+|---|---|
+| `01-long-full` | Long: all 3 entries → breakeven → VWAP close |
+| `02-short-full` | Short: all 3 entries → breakeven → VWAP close |
+| `03-long-stopped-out` | Long: entry 1 fires, price reverses through stop |
+| `04-long-time-exit` | Long: entry 1 fires, time exit elapses (~32s) |
+| `05-dvs-blocked` | DVS above gate → engine blocked |
+| `06-dvs-unblock` | DVS blocked → re-submit with valid DVS → watching |
+| `07-neutral-bias-long` | Neutral bias, price drops to long levels → full long trade |

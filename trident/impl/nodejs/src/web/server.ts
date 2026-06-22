@@ -213,7 +213,8 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).end();
     }
-    if (opts.config.execution?.auto_execute) {
+    // Allow simulation with MOCK_BROKER — the guard is only needed to protect real broker connections
+    if (opts.config.execution?.auto_execute && process.env.MOCK_BROKER !== 'true') {
       return res.status(400).json({ error: 'auto_execute is enabled — disable it before simulating' });
     }
     if (!opts.onSimulatedTick) {

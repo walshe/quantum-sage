@@ -20,6 +20,7 @@ import { MockPriceFeed } from './price-feed/MockPriceFeed.js';
 import { CTraderPriceFeed } from './price-feed/CTraderPriceFeed.js';
 import { CTraderTrader } from './trader/CTraderTrader.js';
 import { CTraderOrderExecutor } from './trader/CTraderOrderExecutor.js';
+import { MockBrokerSession } from './trader/MockBrokerSession.js';
 import type { AccountInfo } from './notifier/Notifier.js';
 import type { AccountMeta } from './trader/CTraderTrader.js';
 import { ConsoleNotifier } from './notifier/ConsoleNotifier.js';
@@ -58,9 +59,9 @@ if (observabilityMode) {
 }
 const notifier = new MultiNotifier(notifierChildren);
 // Mock runs are ephemeral demos — don't pollute (or restore from) the live snapshot.
-const engine = new TridentEngine(config, notifier, {
-  snapshotPath: useMock ? null : 'logs/engine-state.json',
-});
+// TRIDENT_SNAPSHOT_PATH overrides the default path (acceptance tests use a temp path).
+const snapshotPath = useMock ? null : (process.env.TRIDENT_SNAPSHOT_PATH ?? 'logs/engine-state.json');
+const engine = new TridentEngine(config, notifier, { snapshotPath });
 
 log.info('Starting');
 log.info('Config', { path: resolve(configPath) });
@@ -180,12 +181,48 @@ let latestAccount: AccountInfo | null =
       }
     : null;
 
-if (!env.CTRADER_CLIENT_ID || !env.CTRADER_CLIENT_SECRET || !env.CTRADER_ACCESS_TOKEN) {
+// Signal watcher — always active, regardless of broker connectivity.
+// Started here so signals are never missed while the broker is connecting.
+if (signalPath) {
+  const signal = loadSignalFile(resolve(signalPath));
+  await engine.loadSignal(signal, resolve(signalPath));
+}
+
+const stopWatching = watchSignalDir(signalDir, async (signal, filePath) => {
+  await engine.loadSignal(signal, filePath);
+});
+
+// fs.watch only sees events after it starts. Scan once for today's existing
+// files so a signal written during an engine-down window isn't orphaned.
+scanSignalDirOnce(signalDir, async (signal, filePath) => {
+  await engine.loadSignal(signal, filePath);
+});
+
+// Mock broker path — no real cTrader connection needed.
+// Used by acceptance tests (MOCK_BROKER=true + auto_execute: true in config).
+if (env.MOCK_BROKER === 'true' && config.execution?.auto_execute) {
+  log.warn('⚠ MOCK_BROKER=true — using MockBrokerSession, NO real orders will be placed');
+  const seedBalance = env.CTRADER_ACCOUNT_BALANCE ? Number(env.CTRADER_ACCOUNT_BALANCE) : 0;
+  executor = new CTraderOrderExecutor(
+    { clientId: 'mock', clientSecret: 'mock', accessToken: 'mock', symbolId: 1 },
+    config,
+    seedBalance,
+    new MockBrokerSession(),
+  );
+  executor.setOrderFailedCallback((reason, orderId) => {
+    notifier.notify({ type: 'ORDER_FAILED', reason, orderId }).catch(() => {});
+  });
+  executor.setSymbolId(1);
+  notifierChildren.push(executor);
+  await executor.connect();
+}
+
+if (!env.MOCK_BROKER && (!env.CTRADER_CLIENT_ID || !env.CTRADER_CLIENT_SECRET || !env.CTRADER_ACCESS_TOKEN)) {
   log.warn('No cTrader credentials — price feed inactive');
   log.info('Run auth:ctrader to configure credentials, or use --mock for a demo');
 }
 
-if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOKEN) {
+if (!env.MOCK_BROKER && env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOKEN) {
   const symbolName = env.CTRADER_SYMBOL ?? 'US500';
   const feedConfig = {
     clientId:     env.CTRADER_CLIENT_ID,
@@ -305,7 +342,16 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
         tokenExpiresAt: env.CTRADER_TOKEN_EXPIRES_AT ? Number(env.CTRADER_TOKEN_EXPIRES_AT) : undefined,
       };
       const seedBalance = env.CTRADER_ACCOUNT_BALANCE ? Number(env.CTRADER_ACCOUNT_BALANCE) : 0;
-      executor = new CTraderOrderExecutor(executorConfig, config, seedBalance);
+      const useMockBroker = env.MOCK_BROKER === 'true';
+      if (useMockBroker) {
+        log.warn('⚠ MOCK_BROKER=true — using MockBrokerSession, NO real orders will be placed');
+      }
+      executor = new CTraderOrderExecutor(
+        executorConfig,
+        config,
+        seedBalance,
+        useMockBroker ? new MockBrokerSession() : undefined,
+      );
       executor.setOrderFailedCallback((reason, orderId) => {
         notifier.notify({ type: 'ORDER_FAILED', reason, orderId }).catch(() => {});
         // If the broker never confirmed any fill (positionId still null), no real
@@ -349,22 +395,6 @@ if (env.CTRADER_CLIENT_ID && env.CTRADER_CLIENT_SECRET && env.CTRADER_ACCESS_TOK
     }
   }
 }
-
-// Load a specific signal file immediately if provided
-if (signalPath) {
-  const signal = loadSignalFile(resolve(signalPath));
-  await engine.loadSignal(signal, resolve(signalPath));
-}
-
-const stopWatching = watchSignalDir(signalDir, async (signal, filePath) => {
-  await engine.loadSignal(signal, filePath);
-});
-
-// fs.watch only sees events after it starts. Scan once for today's existing
-// files so a signal written during an engine-down window isn't orphaned.
-scanSignalDirOnce(signalDir, async (signal, filePath) => {
-  await engine.loadSignal(signal, filePath);
-});
 
 // Graceful shutdown
 let shuttingDown = false;
