@@ -151,9 +151,12 @@ async function runScenario(
   console.log(`\n  ▶ ${scenario.name}: ${scenario.description}`);
 
   try {
-    // Reset engine to idle before each scenario
+    // Reset engine to idle before each scenario.
+    // reset() clears dailyLocked internally but emits no WS event, so we reload
+    // the page afterwards to flush stale UI state (locked pill, log entries, etc).
     const currentState = await getState();
-    if (currentState?.state !== 'idle') {
+    const needsReset = currentState?.state !== 'idle' || currentState?.dailyLocked;
+    if (needsReset) {
       await post('/engine/reset', {});
       await waitForState('idle', 5_000);
     }
@@ -167,6 +170,14 @@ async function runScenario(
     const dvsGate = 75;
     const initialExpectedState: EngineState = dvs > dvsGate ? 'blocked' : 'watching';
     await waitForState(initialExpectedState, 10_000);
+
+    // Reload the page so the browser bootstraps fresh with the current engine state.
+    // Without this, the UI retains stale WS state from the previous scenario.
+    if (needsReset) {
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(2_000);
+    }
+
     await waitForUiState(page, initialExpectedState);
 
     console.log(`    ✓ Engine reached: ${initialExpectedState}`);
