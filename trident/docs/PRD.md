@@ -762,7 +762,7 @@ QS should evaluate in this order:
 
 | Parameter              | Value             |
 |------------------------|-------------------|
-| Starting capital       | EUR 80,000        |
+| Starting capital       | Live broker equity (from C2 balance poll; `CTRADER_ACCOUNT_BALANCE` env var seeds the startup window) |
 | Daily risk %           | 0.5%              |
 | Soft daily stop        | EUR 400           |
 | Hard daily stop        | EUR 800           |

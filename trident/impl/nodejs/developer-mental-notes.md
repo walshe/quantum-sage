@@ -69,19 +69,19 @@ position sizes later.
 > means you can tune parameters — midpoint offset, time exit, stop distance —
 > without touching code.
 
-### Position sizing model (current + future)
+### Position sizing model
 
-**Current model:** The engine is purely advisory — it outputs percentage instructions and the trader places orders manually at the broker.
+**Capital source — live broker equity:** `starting_capital_eur` has been removed from `config.yaml`. Position sizing now uses the live account equity reported by the broker via the C2 balance poll (`CTraderTrader`).
 
-- `starting_capital_eur` × `daily_risk_pct` = total daily risk budget (e.g. €80k × 0.5% = €400 soft stop).
-- Entry allocation splits (32.5/35/32.5%) are *weights* dividing that budget across the three scale-in entries — not independently-sized positions.
-- `size_adaptation` multipliers (0.5× after one losing day, 0.25× after two) are wired into config but **not yet implemented** in the engine — they belong in the daily P&L tracking pass, which doesn't exist yet.
-- Notifications say "32.5% size"; the trader manually converts that to lots at the broker.
+- `CTraderOrderExecutor` holds a `liveBalanceEur` field updated via `setLiveBalance(equity)` on every C2 `onAccountUpdate` callback.
+- On startup, before the first balance poll returns, the executor is seeded with `CTRADER_ACCOUNT_BALANCE` env var value. If that's also absent and `auto_execute` fires, the order is skipped with a `warn` (no capital available).
+- **Breaking config change:** remove `starting_capital_eur` from any existing `config.yaml`. The loader will ignore the field if present but it is no longer used.
 
-**Future — contract count advice:** When the engine starts computing suggested lot counts it will need:
-- A `point_value_eur` config field: the notional EUR value per index point per lot for the execution instrument (e.g. ~€1/pt for the US500.cash Pepperstone CFD — confirm with FB).
-- Formula: `contracts = floor((capital × risk_pct × entry_alloc_pct) / (stop_loss_points × point_value_eur))`.
-- At that point `starting_capital_eur` will drift as P&L accumulates and produce stale sizing advice. The correct fix is to pull **live account equity from cTrader** via an account-info API call (separate from the price-feed subscription, which is read-only ticks). Implement static config first, add live balance once the API surface is understood.
+**Formula:** `contracts = floor((equity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`.
+
+- Entry allocation splits (32.5/35/32.5%) divide the risk budget across three scale-in entries.
+- `size_adaptation` multipliers (0.5× after one losing day, 0.25× after two) are in config but **not yet implemented** in the engine.
+- `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print computed lot counts per tier for operator verification.
 
 ---
 
@@ -147,7 +147,7 @@ Only instantiated when `config.execution.auto_execute: true`.
 **C3 design** — owns its own `CTraderSession`, independent from the price feed (C1)
 and balance session (C2). A drop on the executor doesn't affect price or balance.
 
-**Volume formula**: `floor((starting_capital_eur × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`. `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print the computed lot count per tier so the operator can verify before trading.
+**Volume formula**: `floor((liveEquity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`. Capital comes from the live broker equity (`setLiveBalance`), seeded by `CTRADER_ACCOUNT_BALANCE` env var at startup. `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print computed lot counts per tier for operator verification.
 
 **Volume encoding**: lots × `VOLUME_MULTIPLIER` (currently 100) before sending to the API. Confirm the correct multiplier for US500.cash on the first real run — log `apiVolume` makes it easy to check.
 

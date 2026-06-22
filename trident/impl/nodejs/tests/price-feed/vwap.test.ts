@@ -28,7 +28,7 @@ const BARS_ZERO_VOL: OhlcvBar[] = [
 const EXPECTED_VWAP_ZERO_VOL = 5013.33;
 
 const config: QSConfig = {
-  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5 },
+  capital: { daily_risk_pct: 0.5 },
   trident: {
     entry_1_allocation_pct: 32.5, entry_2_allocation_pct: 35.0, entry_3_allocation_pct: 32.5,
     midpoint_offset_buy: 2, midpoint_offset_sell: -2, stop_loss_points: 40,

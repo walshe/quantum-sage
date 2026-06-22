@@ -1,6 +1,5 @@
 export interface QSConfig {
   capital: {
-    starting_capital_eur: number;
     daily_risk_pct: number;
   };
   trident: {

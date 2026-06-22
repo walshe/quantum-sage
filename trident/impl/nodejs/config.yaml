@@ -6,8 +6,9 @@
 # ============================================================
 
 capital:
-  starting_capital_eur: 80000
   daily_risk_pct: 0.5          # 0.5% = soft stop; 1% = hard stop (computed on demand)
+  # starting_capital_eur removed — position sizing uses live broker equity (CTRADER_ACCOUNT_BALANCE
+  # env var seeds the startup window; live balance from the C2 balance poll takes over from there)
 
 trident:
   # Entry allocation splits (must sum to 100)

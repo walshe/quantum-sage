@@ -11,7 +11,7 @@ import {
 import type { QSConfig } from '../../src/config/types.js';
 
 const config: QSConfig = {
-  capital: { starting_capital_eur: 80000, daily_risk_pct: 0.5 },
+  capital: { daily_risk_pct: 0.5 },
   trident: {
     entry_1_allocation_pct: 32.5,
     entry_2_allocation_pct: 35.0,

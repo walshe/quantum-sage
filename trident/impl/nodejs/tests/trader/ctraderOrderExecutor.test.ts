@@ -48,7 +48,7 @@ const BASE_CONFIG = {
 };
 
 const QS_CONFIG: QSConfig = {
-  capital: { starting_capital_eur: 80_000, daily_risk_pct: 0.5 },
+  capital: { daily_risk_pct: 0.5 },
   trident: {
     entry_1_allocation_pct: 32.5,
     entry_2_allocation_pct: 35,
@@ -82,7 +82,8 @@ describe('CTraderOrderExecutor', () => {
   });
 
   describe('ENTRY_TRIGGERED', () => {
-    it('places a MARKET BUY order for a long entry', async () => {
+    it('places a MARKET BUY order using live balance set via setLiveBalance', async () => {
+      executor.setLiveBalance(80_000);
       const connectPromise = executor.connect();
       driveHandshake();
       await connectPromise;
@@ -108,7 +109,30 @@ describe('CTraderOrderExecutor', () => {
       expect(order.payload.volume).toBe(300);
     });
 
+    it('uses seed balance from constructor when setLiveBalance not yet called', async () => {
+      executor = new CTraderOrderExecutor(BASE_CONFIG, QS_CONFIG, 80_000);
+      const connectPromise = executor.connect();
+      driveHandshake();
+      await connectPromise;
+
+      await executor.notify({
+        type: 'ENTRY_TRIGGERED',
+        entryNumber: 1,
+        price: 7590.5,
+        direction: 'long',
+        allocationPct: 32.5,
+        avgEntry: 7590.5,
+        currentStop: 7550.5,
+        vwapTarget: 7617.6,
+        fillsRemaining: 2,
+      });
+
+      const order = parseSent(mockWs);
+      expect(order.payload.volume).toBe(300);
+    });
+
     it('places a MARKET SELL order for a short entry', async () => {
+      executor.setLiveBalance(80_000);
       const connectPromise = executor.connect();
       driveHandshake();
       await connectPromise;
@@ -129,13 +153,32 @@ describe('CTraderOrderExecutor', () => {
       expect(order.payload.tradeSide).toBe('SELL');
     });
 
-    it('emits ORDER_FAILED when computed volume is 0', async () => {
-      const smallCapConfig: QSConfig = {
-        ...QS_CONFIG,
-        capital: { starting_capital_eur: 100, daily_risk_pct: 0.5 },
-        execution: { auto_execute: true, point_value_eur: 1 },
-      };
-      executor = new CTraderOrderExecutor(BASE_CONFIG, smallCapConfig);
+    it('emits ORDER_FAILED with no capital when no balance set', async () => {
+      // executor constructed with no seed, setLiveBalance never called
+      const connectPromise = executor.connect();
+      driveHandshake();
+      await connectPromise;
+
+      const failedReasons: string[] = [];
+      executor.setOrderFailedCallback(reason => failedReasons.push(reason));
+
+      await executor.notify({
+        type: 'ENTRY_TRIGGERED',
+        entryNumber: 1,
+        price: 7590.5,
+        direction: 'long',
+        allocationPct: 32.5,
+        avgEntry: 7590.5,
+        currentStop: 7550.5,
+        vwapTarget: null,
+        fillsRemaining: 2,
+      });
+
+      expect(failedReasons).toContain('no capital available for position sizing');
+    });
+
+    it('emits ORDER_FAILED when computed volume is 0 (capital too small)', async () => {
+      executor.setLiveBalance(100); // tiny capital → 0 lots
 
       const connectPromise = executor.connect();
       driveHandshake();
@@ -162,6 +205,7 @@ describe('CTraderOrderExecutor', () => {
 
   describe('BREAKEVEN_TRIGGERED', () => {
     it('sends AMEND_POSITION_SLTP_REQ with new stop after positionId is known', async () => {
+      executor.setLiveBalance(80_000);
       const connectPromise = executor.connect();
       driveHandshake();
       await connectPromise;
@@ -197,6 +241,7 @@ describe('CTraderOrderExecutor', () => {
 
   describe('POSITION_CLOSED', () => {
     it('sends CLOSE_POSITION_REQ with positionId and accumulated volume', async () => {
+      executor.setLiveBalance(80_000);
       const connectPromise = executor.connect();
       driveHandshake();
       await connectPromise;
