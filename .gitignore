@@ -28,3 +28,6 @@ trident/impl/nodejs/screenshots/
 # Logs
 trident/impl/nodejs/logs/
 coverage/
+
+# Local Claude Code settings (never commit — contains user permissions, secrets)
+.claude/settings.local.json

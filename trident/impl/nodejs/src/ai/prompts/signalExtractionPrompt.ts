@@ -52,7 +52,8 @@ Intraday". Read from this:
 ### Right panel — DVS box
 - Green/yellow box value → \`volatility.dvs\` (today's current DVS).
   **When two DVS values are shown (Morning column and Opening Bell Range
-  column), always use the Morning (left column) DVS value.**
+  column), prefer the Opening Bell Range (white-background column) DVS when
+  non-zero; fall back to Morning DVS only when Opening Bell is absent or 0.00.**
 - Purple box value → \`volatility.dvs_prior\` — this is **yesterday's closing
   DVS**, not a same-day recalibration value. **Set \`dvs_prior\` to \`null\`
   unless a value is explicitly labeled as "yesterday", "previous session", or
@@ -100,9 +101,9 @@ from the same column. There is a DVS box between Range 2 up and Range 2 down
 — do not let this interrupt your column selection. Continue reading from the
 same chosen column for Range 2 down and Range 1 down after the DVS box.
 
-**DVS with two columns:** Always read DVS from the LEFT/GREEN-background
-(Morning) column DVS box. Ignore the white-background (Opening Bell Range)
-DVS value entirely — do not assign it to any field.
+**DVS with two columns:** Prefer the white-background (Opening Bell Range)
+column DVS box when the value is non-zero. When Opening Bell Range DVS is 0.00
+or absent, fall back to the LEFT/GREEN-background (Morning) column DVS.
 
 **Important — multiple IV Smile screenshots:**
 FB may occasionally upload two IV Smile charts (morning and afternoon). Both

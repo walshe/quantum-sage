@@ -1007,7 +1007,7 @@ needed in Trident at all.
 | Field(s) | Upstream source | What FB currently sends | How confirmed |
 |----------|-----------------|-------------------------|---------------|
 | `ranges.range_1_*`, `ranges.range_2_*` | IV Smile chart (ES futures) | ES futures | FB confirmed 2026-05-04: "expressed in futures prices" |
-| `volatility.dvs` | IV Smile chart — LEFT column only | As shown | FB confirmed 2026-05-04: use left column values |
+| `volatility.dvs` | IV Smile chart — RIGHT column (Opening Bell) if available, else LEFT (Morning) | As shown | DVS recalibrated at opening bell like levels; fall back to morning if Opening Bell unavailable |
 | `levels.max_buy_1/2`, `levels.max_sell_1/2`, `levels.supporto`, `levels.resistenza` (and same fields in `levels_recal`) | IV Smile chart — range panel (Range 1/2 down/up) | ES futures | Changed 2026-05-12: analyst now uploads single IV Smile chart; levels are populated from the same range panel as `ranges.*` |
 | `meta.cash_last` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: SPX feed unreliable, shows 0.00 |
 | `meta.basis` | **Not from IV Smile** | **null (enter manually)** | FB confirmed 2026-05-04: derived from unreliable SPX feed |

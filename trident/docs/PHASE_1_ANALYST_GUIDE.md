@@ -47,8 +47,15 @@ reacts, without any money or positions being affected.
    is not checked by the engine — bump it for your own audit trail, but
    the file reloads either way. One caveat: if a trade is already open,
    mid-session level changes are ignored so the engine doesn't move the
-   goalposts on an in-flight trade.
-6. **End of day:** stop the engine (`Ctrl+C` in the terminal).
+   goalposts on an in-flight trade. **Special case: if the morning setup's
+   DVS was above the gate (> 75) and blocked trading, you can unblock by
+   submitting a new setup with DVS ≤ 75. The engine clears the block and
+   resumes watching.**
+6. **Manual reset:** if you need to clear the engine state (blocked, watching,
+   or closed), click the **Reset engine** button on the dashboard. This resets
+   the engine back to idle. Cannot reset while a trade is open. Requires
+   confirmation.
+7. **End of day:** stop the engine (`Ctrl+C` in the terminal).
 
 ---
 
@@ -254,10 +261,12 @@ in a modal by clicking one of the top buttons:
 - **Import from screenshot** *(AI)* — upload one IV Smile chart screenshot.
   If `OPENAI_API_KEY` is set, Trident reads the chart's range panel
   (Range 1/2 up/down) to extract BUY INNER/OUTER, SELL INNER/OUTER levels,
-  ranges, DVS, and skew, then pre-fills the form. **Always review every
-  value** before submitting — extraction is best-effort, not authoritative.
-  VWAP, cash last, basis, and invalidation fields are never extracted and
-  must be filled in manually.
+  ranges, DVS, and skew, then pre-fills the form. **When the chart shows two
+  DVS columns (Morning and Opening Bell Range), the extraction prefers Opening
+  Bell DVS when non-zero, falling back to Morning DVS only if Opening Bell is
+  absent or 0.00.** **Always review every value** before submitting —
+  extraction is best-effort, not authoritative. VWAP, cash last, basis, and
+  invalidation fields are never extracted and must be filled in manually.
 - **Status** — opens a read-only view of the engine right now (state,
   connection, daily lock, currently loaded setup, any open position).
 

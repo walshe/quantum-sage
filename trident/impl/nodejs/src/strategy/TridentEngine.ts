@@ -152,7 +152,7 @@ export class TridentEngine {
 
     await this.notifier.notify({ type: 'SIGNAL_LOADED', signal, filePath });
 
-    // DVS gate
+    // DVS gate — re-evaluated on every load so a later setup with valid DVS can unblock
     const { dvs } = signal.volatility;
     const gate = this.config.trident.dvs_gate;
     if (dvs > gate) {
@@ -163,6 +163,12 @@ export class TridentEngine {
       return;
     }
     log.info('DVS gate passed', { dvs, gate, margin: (gate - dvs).toFixed(2) });
+
+    // If previously blocked by DVS gate, clear it now that DVS is valid
+    if (this.state === 'blocked') {
+      log.info('DVS gate cleared — new setup has valid DVS, resuming', { dvs, gate });
+      this.state = 'idle';
+    }
 
     if (this.dailyLocked) {
       log.info('Daily lock active — ignoring new setup', { filePath });

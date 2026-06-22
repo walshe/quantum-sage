@@ -14,7 +14,7 @@ prompts:
 # To add a new fixture: append a test entry below and fill in expected values.
 # ──────────────────────────────────────────────────────────────────────────────
 tests:
-  - description: "iv_smile_01 — single column, elevated DVS 71.57"
+  - description: "iv_smile_01 — two-column, Opening Bell DVS 64.00 (Morning was 71.57)"
     vars:
       fixture: iv_smile_01.jpg
     assert:
@@ -80,25 +80,25 @@ tests:
 
       # DVS — tight ±1 tolerance (read from labeled box, not inferred)
       - type: javascript
-        description: "dvs within ±1 of 71.57"
+        description: "dvs within ±1 of 64.00"
         value: |
           const r = JSON.parse(output);
           if (r.error) return { pass: false, score: 0, reason: r.error };
           const v = r.signal?.volatility?.dvs;
           if (v == null) return { pass: false, score: 0, reason: 'dvs is null' };
-          const expected = 71.57;
+          const expected = 64.00;
           return Math.abs(v - expected) <= 1
             ? true
             : { pass: false, score: 0, reason: `dvs: got ${v}, expected ${expected} ±1` };
 
       # Regime — exact string match
       - type: javascript
-        description: "regime exact match: elevated"
+        description: "regime exact match: normal"
         value: |
           const r = JSON.parse(output);
           if (r.error) return { pass: false, score: 0, reason: r.error };
           const v = r.signal?.volatility?.regime;
-          const expected = 'elevated';
+          const expected = 'normal';
           return v === expected
             ? true
             : { pass: false, score: 0, reason: `regime: got "${v}", expected "${expected}"` };
@@ -106,7 +106,7 @@ tests:
       # cash_last and basis are intentionally null — assert they are NOT asserted
       # (No assertion here; these fields are deliberately excluded from the eval.)
 
-  - description: "iv_smile_02 — single column, normal DVS 53.91"
+  - description: "iv_smile_02 — two-column, Opening Bell DVS 46.20 (Morning was 53.91)"
     vars:
       fixture: iv_smile_02.jpg
     assert:
@@ -166,24 +166,24 @@ tests:
             : { pass: false, score: 0, reason: `sell_outer: got ${v}, expected ${expected} ±5` };
 
       - type: javascript
-        description: "dvs within ±1 of 53.91"
+        description: "dvs within ±1 of 46.20"
         value: |
           const r = JSON.parse(output);
           if (r.error) return { pass: false, score: 0, reason: r.error };
           const v = r.signal?.volatility?.dvs;
           if (v == null) return { pass: false, score: 0, reason: 'dvs is null' };
-          const expected = 53.91;
+          const expected = 46.20;
           return Math.abs(v - expected) <= 1
             ? true
             : { pass: false, score: 0, reason: `dvs: got ${v}, expected ${expected} ±1` };
 
       - type: javascript
-        description: "regime exact match: normal"
+        description: "regime exact match: compressed"
         value: |
           const r = JSON.parse(output);
           if (r.error) return { pass: false, score: 0, reason: r.error };
           const v = r.signal?.volatility?.regime;
-          const expected = 'normal';
+          const expected = 'compressed';
           return v === expected
             ? true
             : { pass: false, score: 0, reason: `regime: got "${v}", expected "${expected}"` };

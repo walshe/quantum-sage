@@ -29,6 +29,8 @@ export interface StartWebServerOpts {
   getPriceFeed?: () => CTraderPriceFeed | null;
   /** Dev-only: returns current engine state for /api/state polling. */
   getEngineState?: () => { state: string; dailyLocked: boolean };
+  /** Resets the engine to idle state. Returns false if a trade is currently open. */
+  onEngineReset?: () => boolean;
   /** Dev-only: receives a synthetic price tick injected via /simulate/tick. */
   onSimulatedTick?: (price: number) => void;
 }
@@ -198,6 +200,13 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
   app.get('/api/state', (_req, res) => {
     if (!opts.getEngineState) return res.status(503).json({ error: 'state not available' });
     res.json(opts.getEngineState());
+  });
+
+  app.post('/engine/reset', (_req, res) => {
+    if (!opts.onEngineReset) return res.status(503).json({ error: 'reset not available' });
+    const allowed = opts.onEngineReset();
+    if (!allowed) return res.status(409).json({ error: 'Cannot reset while a trade is open' });
+    res.json({ state: 'idle' });
   });
 
   app.post('/simulate/tick', (req, res) => {

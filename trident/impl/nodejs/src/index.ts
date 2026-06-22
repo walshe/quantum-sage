@@ -142,6 +142,11 @@ const webServer = await startWebServer({
   metricsHandler,
   getPriceFeed: () => liveFeed,
   getEngineState: () => ({ state: engine.getState(), dailyLocked: engine.isLockedForDay() }),
+  onEngineReset: () => {
+    if (engine.getState() === 'in_trade') return false;
+    engine.reset();
+    return true;
+  },
   onSimulatedTick: (price) => { engine.onPriceUpdate(price).catch(() => {}); },
 });
 notifierChildren.push(webServer.notifier);

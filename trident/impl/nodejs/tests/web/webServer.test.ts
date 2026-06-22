@@ -145,3 +145,62 @@ describe('web server — GET /signals/latest', () => {
     expect(body.signal.meta.date).toBe(TODAY);
   });
 });
+
+describe('web server — POST /engine/reset', () => {
+  it('resets from blocked state', async () => {
+    const handle2 = await startWebServer({
+      port: 0,
+      config,
+      signalsDir: join(tmp, 'signals'),
+      publicDir,
+      getBootstrap: () => bootstrap,
+      getEngineState: () => ({ state: 'blocked', dailyLocked: false }),
+      onEngineReset: () => true,
+    });
+    const res = await fetch(`http://localhost:${handle2.port}/engine/reset`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { state: string };
+    expect(body.state).toBe('idle');
+    await handle2.close();
+  });
+
+  it('resets from watching state', async () => {
+    const handle2 = await startWebServer({
+      port: 0,
+      config,
+      signalsDir: join(tmp, 'signals'),
+      publicDir,
+      getBootstrap: () => bootstrap,
+      getEngineState: () => ({ state: 'watching', dailyLocked: false }),
+      onEngineReset: () => true,
+    });
+    const res = await fetch(`http://localhost:${handle2.port}/engine/reset`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { state: string };
+    expect(body.state).toBe('idle');
+    await handle2.close();
+  });
+
+  it('rejects reset while in_trade with 409', async () => {
+    const handle2 = await startWebServer({
+      port: 0,
+      config,
+      signalsDir: join(tmp, 'signals'),
+      publicDir,
+      getBootstrap: () => bootstrap,
+      getEngineState: () => ({ state: 'in_trade', dailyLocked: false }),
+      onEngineReset: () => false,
+    });
+    const res = await fetch(`http://localhost:${handle2.port}/engine/reset`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('Cannot reset while a trade is open');
+    await handle2.close();
+  });
+});

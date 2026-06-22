@@ -6,8 +6,8 @@ fixtures:
       buy_inner: 7384.75    # BUY INNER  — Long Entry 1 (Range 2 down), ES futures price
       sell_inner: 7473.00   # SELL INNER — Short Entry 1 (Range 2 up),  ES futures price
       sell_outer: 7497.75   # SELL OUTER — Short Entry 3 (Range 1 up),  ES futures price
-      dvs: 71.57          # DVS value (e.g. 61.34)
-      regime: elevated       # compressed / normal / elevated / extreme
+      dvs: 64.00          # Opening Bell DVS (two-column chart; Morning was 71.57)
+      regime: normal         # 50 ≤ 64 < 65 → normal (was elevated with Morning DVS 71.57)
 
   - filename: iv_smile_02.jpg
     captured_on: "2026-05-25"
@@ -16,8 +16,8 @@ fixtures:
       buy_inner: 7356.00
       sell_inner: 7416.50
       sell_outer: 7451.75
-      dvs: 53.91
-      regime: normal
+      dvs: 46.20          # Opening Bell DVS (two-column chart; Morning was 53.91)
+      regime: compressed    # dvs < 50 → compressed (was normal with Morning DVS 53.91)
 
   - filename: iv_smile_03.jpg
     skip: true
@@ -42,9 +42,10 @@ fixtures:
       regime: null
 
   # Two-column panel: Opening Bell Range all 0.00 — extractor must fall back to Morning column.
-  # Captured 2026-05-26 10:26 (before opening bell fires).
-  # Morning column: Range 1 down 7475.25, Range 2 down 7505.75, Range 2 up 7574.25, Range 1 up 7604.75
-  # Opening Bell Range column: all 0.00
+  # Captured 2026-05-26 10:26 (before opening bell recalibration fires).
+  # Morning column (LEFT): Range 1 down 7475.25, Range 2 down 7505.75, Range 2 up 7574.25, Range 1 up 7604.75; DVS 52.95
+  # Opening Bell column (RIGHT): all 0.00 (not yet recalibrated)
+  # Expected behavior: use Morning values when Opening Bell unavailable, use Opening Bell when available (same as levels).
   - filename: iv_smile_05_ob_fallback.jpg
     captured_on: "2026-05-26"
     expected:
