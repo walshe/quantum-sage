@@ -341,12 +341,17 @@ function generateReport(
       if (setup.max_buy_1  != null) chips.push(`Buy inner: ${setup.max_buy_1}`);
       if (setup.max_sell_1 != null) chips.push(`Sell inner: ${setup.max_sell_1}`);
       if (setup.max_sell_2 != null) chips.push(`Sell outer: ${setup.max_sell_2}`);
-      chips.push(`Futures last: ${setup.futures_last}`);
+      chips.push(`${bilingual('Market price at setup','Prezzo di mercato al setup')}: ${setup.futures_last}`);
       chips.push(`VWAP: ${setup.vwap}`);
     }
     const setupHtml = chips.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-           ${chips.map(c => `<span style="background:#f3f4f6;border-radius:20px;padding:3px 10px;font-size:12px;color:#374151">${c}</span>`).join('')}
+      ? `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+           <p style="margin:0 0 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af">
+             ${bilingual('Engine setup', 'Setup del motore')}
+           </p>
+           <div style="display:flex;flex-wrap:wrap;gap:8px">
+             ${chips.map(c => `<span style="background:#f3f4f6;border-radius:20px;padding:3px 10px;font-size:12px;color:#374151">${c}</span>`).join('')}
+           </div>
          </div>`
       : '';
 
