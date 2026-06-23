@@ -150,25 +150,25 @@ const webServer = await startWebServer({
     webServer.notifier.clearHistory();
     return true;
   },
-  onSimulatedTick: (price) => {
-    engine.onPriceUpdate(price).then(() => {
-      // In mock-broker mode, synthesise unrealized P&L so the UI account panel
-      // shows realistic values during acceptance tests.
-      if (process.env.MOCK_BROKER !== 'true' || !latestAccount || !config.execution) return;
-      const pos = engine.getPosition();
-      if (!pos) return;
-      const dirFactor = pos.direction === 'long' ? 1 : -1;
-      const totalLots = pos.fills.reduce((sum, fill) => sum + computeVolume({
-        capital:    latestAccount!.balance,
-        riskPct:    config.capital.daily_risk_pct,
-        allocPct:   fill.allocationPct,
-        stopPoints: config.trident.stop_loss_points,
-        pointValue: config.execution!.point_value_eur,
-      }), 0);
-      const unrealizedPnl = Number((dirFactor * (price - pos.avgEntry) * totalLots * config.execution.point_value_eur).toFixed(2));
-      const equity = Number((latestAccount.balance + unrealizedPnl).toFixed(2));
-      notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount, equity, unrealizedPnl }).catch(() => {});
-    }).catch(() => {});
+  onSimulatedTick: async (price) => {
+    await engine.onPriceUpdate(price);
+    // In mock-broker mode, synthesise unrealized P&L so the UI account panel
+    // shows realistic values during acceptance tests. Awaited before the HTTP
+    // response so screenshots always reflect the current tick's P&L.
+    if (process.env.MOCK_BROKER !== 'true' || !latestAccount || !config.execution) return;
+    const pos = engine.getPosition();
+    if (!pos) return;
+    const dirFactor = pos.direction === 'long' ? 1 : -1;
+    const totalLots = pos.fills.reduce((sum, fill) => sum + computeVolume({
+      capital:    latestAccount!.balance,
+      riskPct:    config.capital.daily_risk_pct,
+      allocPct:   fill.allocationPct,
+      stopPoints: config.trident.stop_loss_points,
+      pointValue: config.execution!.point_value_eur,
+    }), 0);
+    const unrealizedPnl = Number((dirFactor * (price - pos.avgEntry) * totalLots * config.execution.point_value_eur).toFixed(2));
+    const equity = Number((latestAccount.balance + unrealizedPnl).toFixed(2));
+    await notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount, equity, unrealizedPnl });
   },
 });
 notifierChildren.push(webServer.notifier);
