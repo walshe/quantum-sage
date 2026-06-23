@@ -283,7 +283,17 @@ function imgTag(filePath: string, alt: string): string {
   } catch { return ''; }
 }
 
-function stateLabel(s: string | null): string {
+function stateLabel(s: string | null, lang: 'en' | 'it' = 'en'): string {
+  if (lang === 'it') {
+    switch (s) {
+      case 'watching': return 'In attesa di ingresso';
+      case 'in_trade': return 'In posizione';
+      case 'closed':   return 'Posizione chiusa';
+      case 'blocked':  return 'Bloccato — gate DVS';
+      case 'idle':     return 'Inattivo';
+      default:         return s ?? 'sconosciuto';
+    }
+  }
   switch (s) {
     case 'watching': return 'Watching for entry';
     case 'in_trade': return 'In trade';
@@ -292,6 +302,13 @@ function stateLabel(s: string | null): string {
     case 'idle':     return 'Idle';
     default:         return s ?? 'unknown';
   }
+}
+
+function bilingual(en: string | undefined, it: string | undefined): string {
+  if (!en && !it) return '';
+  const enHtml = en ? `<span class="qs-en">${en}</span>` : '';
+  const itHtml = it ? `<span class="qs-it" style="display:none">${it}</span>` : '';
+  return enHtml + itHtml;
 }
 
 function generateReport(
@@ -333,16 +350,27 @@ function generateReport(
          </div>`
       : '';
 
+    // Narrative
+    const narrativeHtml = (sc?.narrative || sc?.narrativeIt)
+      ? `<div style="background:#f8fafc;border-left:3px solid #6366f1;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#374151;line-height:1.6">
+           ${bilingual(sc.narrative, sc.narrativeIt)}
+         </div>`
+      : '';
+
     // Steps list
     const stepsHtml = sc?.steps.length
       ? `<ol style="margin:0 0 14px;padding-left:18px;font-size:13px;color:#374151;line-height:2">
            ${sc.steps.map(step => {
+             const noteHtml = (step.note || step.noteIt)
+               ? ` <span style="color:#6b7280;font-style:italic;font-size:12px">— ${bilingual(step.note, step.noteIt)}</span>`
+               : '';
              if (step.type === 'submit-setup') {
-               return `<li><strong>Re-submit setup</strong> — ${step.label}${step.expectState ? ` → <em>${stateLabel(step.expectState)}</em>` : ''}</li>`;
+               return `<li><strong>${bilingual('Re-submit setup', 'Nuovo setup inviato')}</strong> — ${step.label}${step.expectState ? ` → <em>${bilingual(stateLabel(step.expectState,'en'), stateLabel(step.expectState,'it'))}</em>` : ''}${noteHtml}</li>`;
              }
              const ps = step as Extract<typeof step, { type?: 'price' }>;
              const delayNote = ps.delayMs ? ` <span style="color:#9ca3af">(wait ${(ps.delayMs / 1000).toFixed(0)}s)</span>` : '';
-             return `<li>${ps.label}${ps.price != null ? ` — <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-family:monospace">${ps.price}</code>` : ''}${delayNote}${ps.expectState ? ` → <em style="color:#6b7280">${stateLabel(ps.expectState)}</em>` : ''}</li>`;
+             const stateHtml = ps.expectState ? ` → <em style="color:#6b7280">${bilingual(stateLabel(ps.expectState,'en'), stateLabel(ps.expectState,'it'))}</em>` : '';
+             return `<li>${ps.label}${ps.price != null ? ` — <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-family:monospace">${ps.price}</code>` : ''}${delayNote}${stateHtml}${noteHtml}</li>`;
            }).join('')}
          </ol>`
       : '';
@@ -378,12 +406,13 @@ function generateReport(
         <span style="margin-left:auto;font-size:12px;color:#9ca3af">${(r.durationMs / 1000).toFixed(1)}s</span>
       </div>
       <p style="margin:0 0 12px;color:#374151;font-size:14px;line-height:1.5">${r.description}</p>
+      ${narrativeHtml}
       ${setupHtml}
       ${stepsHtml}
       <div style="font-size:13px;color:#374151;border-top:1px solid #f3f4f6;padding-top:10px">
-        Expected outcome: <strong>${stateLabel(r.expectedState)}</strong>
+        ${bilingual('Expected outcome','Risultato atteso')}: <strong>${bilingual(stateLabel(r.expectedState,'en'), stateLabel(r.expectedState,'it'))}</strong>
         &ensp;→&ensp;
-        Actual: <strong style="color:${r.passed ? '#16a34a' : '#dc2626'}">${stateLabel(r.actualState)}</strong>
+        ${bilingual('Actual','Effettivo')}: <strong style="color:${r.passed ? '#16a34a' : '#dc2626'}">${bilingual(stateLabel(r.actualState,'en'), stateLabel(r.actualState,'it'))}</strong>
         ${r.error ? `<br><span style="color:#dc2626;font-size:12px;margin-top:4px;display:block">⚠ ${r.error}</span>` : ''}
       </div>
       ${shotsHtml}
@@ -407,6 +436,8 @@ function generateReport(
     #qs-lb.open{display:flex}
     #qs-lb img{max-width:95vw;max-height:95vh;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
     #qs-lb-label{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;opacity:.7;pointer-events:none}
+    .qs-lang-btn{border:1px solid #d1d5db;background:#fff;padding:5px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:600;color:#374151;transition:all .15s}
+    .qs-lang-btn.active{background:#6366f1;color:#fff;border-color:#6366f1}
   </style>
 </head>
 <body>
@@ -421,13 +452,26 @@ function generateReport(
     document.getElementById('qs-lb-label').textContent = label;
     document.getElementById('qs-lb').classList.add('open');
   }
+  function qsLang(lang) {
+    document.querySelectorAll('.qs-en').forEach(el => el.style.display = lang==='en' ? '' : 'none');
+    document.querySelectorAll('.qs-it').forEach(el => el.style.display = lang==='it' ? '' : 'none');
+    document.querySelectorAll('.qs-lang-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.lang===lang));
+    localStorage.setItem('qs-lang', lang);
+  }
+  document.addEventListener('DOMContentLoaded', () => qsLang(localStorage.getItem('qs-lang') || 'en'));
 </script>
 <div style="max-width:1100px;margin:0 auto">
-  <div style="margin-bottom:28px">
-    <h1 style="font-size:24px;margin-bottom:4px">Trident Acceptance Report</h1>
-    <p style="color:#6b7280;font-size:13px">Run: ${runId}</p>
-    <div style="margin-top:14px;display:inline-block;background:${allPass ? '#22c55e' : '#ef4444'};color:#fff;font-weight:700;padding:8px 22px;border-radius:24px;font-size:15px">
-      ${passed}/${results.length} scenarios passed
+  <div style="margin-bottom:28px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div style="flex:1">
+      <h1 style="font-size:24px;margin-bottom:4px">Trident Acceptance Report</h1>
+      <p style="color:#6b7280;font-size:13px">Run: ${runId}</p>
+      <div style="margin-top:14px;display:inline-block;background:${allPass ? '#22c55e' : '#ef4444'};color:#fff;font-weight:700;padding:8px 22px;border-radius:24px;font-size:15px">
+        ${passed}/${results.length} scenarios passed
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;padding-top:4px">
+      <button class="qs-lang-btn active" data-lang="en" onclick="qsLang('en')">🇬🇧 EN</button>
+      <button class="qs-lang-btn" data-lang="it" onclick="qsLang('it')">🇮🇹 IT</button>
     </div>
   </div>
   ${cards.join('\n')}

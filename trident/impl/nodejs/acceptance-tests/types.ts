@@ -21,6 +21,8 @@ export interface AccountUpdate {
 export interface PriceStep {
   type?: 'price';
   label: string;
+  note?: string;    // English explanation shown in report
+  noteIt?: string;  // Italian translation
   price: number;
   accountUpdate?: AccountUpdate;
   screenshot?: true;
@@ -31,6 +33,8 @@ export interface PriceStep {
 export interface SubmitSetupStep {
   type: 'submit-setup';
   label: string;
+  note?: string;
+  noteIt?: string;
   setup: SetupFields;
   expectState?: EngineState;
   screenshot?: true;
@@ -41,6 +45,10 @@ export type ScenarioStep = PriceStep | SubmitSetupStep;
 export interface Scenario {
   name: string;
   description: string;
+  /** Plain-English paragraph for the report — what this scenario proves. */
+  narrative?: string;
+  /** Italian translation of narrative. */
+  narrativeIt?: string;
   setup: SetupFields;
   steps: ScenarioStep[];
   expectedFinalState: EngineState;
