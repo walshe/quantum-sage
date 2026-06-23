@@ -384,8 +384,8 @@ function generateReport(
     const shotCells: string[] = [];
     const addShot = (filePath: string, label: string) => {
       const tag = imgTag(filePath, label);
-      if (tag) shotCells.push(`<div style="flex:1;min-width:260px;max-width:420px">
-        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin:0 0 5px;text-align:center">${label}</p>
+      if (tag) shotCells.push(`<div>
+        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin:0 0 5px">${label}</p>
         ${tag}
       </div>`);
     };
@@ -402,7 +402,7 @@ function generateReport(
 
     const shotsHtml = shotCells.length
       ? `<p style="font-size:11px;color:#9ca3af;margin:16px 0 6px;text-align:right">${bilingual('🔍 Click any screenshot to enlarge', '🔍 Clicca su uno screenshot per ingrandirlo')}</p>
-         <div style="display:flex;flex-wrap:wrap;gap:12px">${shotCells.join('')}</div>`
+         <div style="display:flex;flex-direction:column;gap:16px">${shotCells.join('')}</div>`
       : '';
 
     return `<div style="background:#fff;border:1px solid ${cardBorder};border-radius:10px;padding:20px 22px;margin-bottom:24px">
