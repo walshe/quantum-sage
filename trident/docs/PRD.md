@@ -359,7 +359,7 @@ in front of a human or into a trading platform.
 - On `POSITION_CLOSED`: sends `ProtoOAClosePositionReq` for the full position volume
 - On broker rejection: emits `ORDER_FAILED` event (visible in live log); no state rollback
 - Uses a dedicated `CTraderSession` (C3 — fault-isolated from price feed and balance poller)
-- Volume formula: `floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue))`
+- Volume formula: `floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue) × 100) / 100` — rounded down to 0.01 lot precision (minimum cTrader API unit). API units sent = `round(lots × 100)`.
 
 ### 4.4 Engineer/Developer (EW)
 

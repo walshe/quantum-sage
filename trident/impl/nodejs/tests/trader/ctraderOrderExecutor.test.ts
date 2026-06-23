@@ -104,9 +104,9 @@ describe('CTraderOrderExecutor', () => {
       expect(order.payloadType).toBe(PT.NEW_ORDER_REQ);
       expect(order.payload.orderType).toBe('MARKET');
       expect(order.payload.tradeSide).toBe('BUY');
-      // computeVolume: floor(80000 × 0.005 × 0.325 / (40 × 1)) = floor(3.25) = 3
-      // apiVolume = 3 × 100 = 300
-      expect(order.payload.volume).toBe(300);
+      // computeVolume: floor(80000 × 0.005 × 0.325 / (40 × 1) × 100) / 100 = 3.25 lots
+      // apiVolume = round(3.25 × 100) = 325
+      expect(order.payload.volume).toBe(325);
     });
 
     it('uses seed balance from constructor when setLiveBalance not yet called', async () => {
@@ -128,7 +128,7 @@ describe('CTraderOrderExecutor', () => {
       });
 
       const order = parseSent(mockWs);
-      expect(order.payload.volume).toBe(300);
+      expect(order.payload.volume).toBe(325);
     });
 
     it('places a MARKET SELL order for a short entry', async () => {

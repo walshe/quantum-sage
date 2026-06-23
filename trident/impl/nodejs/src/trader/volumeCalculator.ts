@@ -12,16 +12,21 @@ export interface VolumeParams {
 }
 
 /**
- * Compute integer lot count for a single entry tier.
+ * Compute lot size for a single entry tier, rounded down to 0.01 lot precision.
  *
- * Formula: floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue))
+ * Formula: floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue) × 100) / 100
  *
- * Returns 0 when the formula produces a value below 1 lot — callers must
- * guard against this and refuse to place the order.
+ * Works in integer hundredths-of-a-lot internally to avoid floating-point
+ * drift (0.01 lot = 1 cTrader API unit when VOLUME_MULTIPLIER = 100).
+ *
+ * Returns 0 when the result is below 0.01 lots — callers must guard against
+ * this and refuse to place the order. This allows accounts as small as ~€250
+ * to trade with 0.01-lot granularity rather than requiring ~€25k for 1 lot.
  */
 export function computeVolume(p: VolumeParams): number {
   const riskEur = p.capital * (p.riskPct / 100) * (p.allocPct / 100);
   const riskPerLot = p.stopPoints * p.pointValue;
   if (riskPerLot <= 0) return 0;
-  return Math.floor(riskEur / riskPerLot);
+  const apiUnits = Math.floor((riskEur / riskPerLot) * 100); // integer hundredths-of-a-lot
+  return apiUnits / 100;
 }

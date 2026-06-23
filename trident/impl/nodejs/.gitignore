@@ -4,3 +4,4 @@ logs/
 .env
 coverage/
 acceptance-results/
+!acceptance-results/latest/

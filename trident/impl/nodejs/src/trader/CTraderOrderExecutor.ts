@@ -146,7 +146,7 @@ export class CTraderOrderExecutor implements Notifier {
       return;
     }
 
-    const apiVol = vol * VOLUME_MULTIPLIER;
+    const apiVol = Math.round(vol * VOLUME_MULTIPLIER); // round avoids float drift (e.g. 2.03*100=202.999…)
     const side   = event.direction === 'long' ? 'BUY' : 'SELL';
 
     log.info('Placing market order', {
@@ -326,7 +326,7 @@ export class CTraderOrderExecutor implements Notifier {
         tier: tier.label,
         allocPct: tier.alloc,
         lots: vol,
-        apiVolume: vol * VOLUME_MULTIPLIER,
+        apiVolume: Math.round(vol * VOLUME_MULTIPLIER),
       });
     }
   }
