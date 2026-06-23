@@ -479,6 +479,17 @@ function generateReport(
       <button class="qs-lang-btn" data-lang="it" onclick="qsLang('it')">🇮🇹 IT</button>
     </div>
   </div>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin-bottom:28px;font-size:13px;line-height:1.6;color:#374151">
+    <p style="margin:0 0 4px;font-weight:600;color:#92400e">
+      ${bilingual('ℹ️ About these tests', 'ℹ️ Informazioni su questi test')}
+    </p>
+    <p style="margin:0">
+      ${bilingual(
+        'The cTrader demo server cuts off its live price feed after a few minutes, making extended real-world testing impractical. These acceptance tests simulate the full engine lifecycle using a <strong>mock broker</strong> (auto-confirms orders without touching a real account) and a <strong>controlled price feed</strong> (prices are injected step by step by the test runner). The goal is to verify that the engine responds correctly to each trading scenario — entries, stop loss, breakeven, VWAP close, DVS gate — before relying on it with real money.',
+        'Il server demo di cTrader interrompe il flusso di prezzi in tempo reale dopo alcuni minuti, rendendo i test estesi nel mondo reale impraticabili. Questi test di accettazione simulano l\'intero ciclo di vita del motore utilizzando un <strong>broker simulato</strong> (conferma automaticamente gli ordini senza toccare un conto reale) e un <strong>flusso di prezzi controllato</strong> (i prezzi vengono iniettati passo dopo passo dal test runner). L\'obiettivo è verificare che il motore risponda correttamente a ogni scenario di trading — ingressi, stop loss, pareggio, chiusura VWAP, gate DVS — prima di affidarsi ad esso con denaro reale.'
+      )}
+    </p>
+  </div>
   ${cards.join('\n')}
 </div>
 </body>
