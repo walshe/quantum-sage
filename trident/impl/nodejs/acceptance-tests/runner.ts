@@ -401,7 +401,8 @@ function generateReport(
     addShot(join(dir, 'after.png'), 'After');
 
     const shotsHtml = shotCells.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:16px">${shotCells.join('')}</div>`
+      ? `<p style="font-size:11px;color:#9ca3af;margin:16px 0 6px;text-align:right">${bilingual('🔍 Click any screenshot to enlarge', '🔍 Clicca su uno screenshot per ingrandirlo')}</p>
+         <div style="display:flex;flex-wrap:wrap;gap:12px">${shotCells.join('')}</div>`
       : '';
 
     return `<div style="background:#fff;border:1px solid ${cardBorder};border-radius:10px;padding:20px 22px;margin-bottom:24px">
