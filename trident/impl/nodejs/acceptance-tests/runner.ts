@@ -463,7 +463,7 @@ function generateReport(
     document.querySelectorAll('.qs-lang-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.lang===lang));
     localStorage.setItem('qs-lang', lang);
   }
-  document.addEventListener('DOMContentLoaded', () => qsLang(localStorage.getItem('qs-lang') || 'en'));
+  document.addEventListener('DOMContentLoaded', () => qsLang(localStorage.getItem('qs-lang') || 'it'));
 </script>
 <div style="max-width:1100px;margin:0 auto">
   <div style="margin-bottom:28px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
