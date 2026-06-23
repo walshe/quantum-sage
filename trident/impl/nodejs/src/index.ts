@@ -151,24 +151,39 @@ const webServer = await startWebServer({
     return true;
   },
   onSimulatedTick: async (price) => {
+    // In mock-broker mode, synthesise P&L so the UI account panel shows
+    // realistic values. Capture position before the update so we can detect
+    // a close (posBefore non-null, posAfter null) and settle the balance.
+    const isMock = process.env.MOCK_BROKER === 'true' && !!latestAccount && !!config.execution;
+    const posBefore = isMock ? engine.getPosition() : null;
     await engine.onPriceUpdate(price);
-    // In mock-broker mode, synthesise unrealized P&L so the UI account panel
-    // shows realistic values during acceptance tests. Awaited before the HTTP
-    // response so screenshots always reflect the current tick's P&L.
-    if (process.env.MOCK_BROKER !== 'true' || !latestAccount || !config.execution) return;
-    const pos = engine.getPosition();
-    if (!pos) return;
-    const dirFactor = pos.direction === 'long' ? 1 : -1;
-    const totalLots = pos.fills.reduce((sum, fill) => sum + computeVolume({
-      capital:    latestAccount!.balance,
-      riskPct:    config.capital.daily_risk_pct,
-      allocPct:   fill.allocationPct,
-      stopPoints: config.trident.stop_loss_points,
-      pointValue: config.execution!.point_value_eur,
-    }), 0);
-    const unrealizedPnl = Number((dirFactor * (price - pos.avgEntry) * totalLots * config.execution.point_value_eur).toFixed(2));
-    const equity = Number((latestAccount.balance + unrealizedPnl).toFixed(2));
-    await notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount, equity, unrealizedPnl });
+    if (!isMock) return;
+    const posAfter = engine.getPosition();
+
+    const computeLots = (pos: NonNullable<ReturnType<typeof engine.getPosition>>) =>
+      pos.fills.reduce((sum, fill) => sum + computeVolume({
+        capital:    latestAccount!.balance,
+        riskPct:    config.capital.daily_risk_pct,
+        allocPct:   fill.allocationPct,
+        stopPoints: config.trident.stop_loss_points,
+        pointValue: config.execution!.point_value_eur,
+      }), 0);
+
+    if (posAfter) {
+      // Position still open — emit unrealized P&L.
+      const dirFactor = posAfter.direction === 'long' ? 1 : -1;
+      const totalLots = computeLots(posAfter);
+      const unrealizedPnl = Number((dirFactor * (price - posAfter.avgEntry) * totalLots * config.execution!.point_value_eur).toFixed(2));
+      const equity = Number((latestAccount!.balance + unrealizedPnl).toFixed(2));
+      await notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount!, equity, unrealizedPnl });
+    } else if (posBefore) {
+      // Position just closed — settle realized P&L into balance.
+      const dirFactor = posBefore.direction === 'long' ? 1 : -1;
+      const totalLots = computeLots(posBefore);
+      const realizedPnl = Number((dirFactor * (price - posBefore.avgEntry) * totalLots * config.execution!.point_value_eur).toFixed(2));
+      latestAccount = { ...latestAccount!, balance: Number((latestAccount!.balance + realizedPnl).toFixed(2)) };
+      await notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount, equity: latestAccount.balance, unrealizedPnl: 0 });
+    }
   },
 });
 notifierChildren.push(webServer.notifier);

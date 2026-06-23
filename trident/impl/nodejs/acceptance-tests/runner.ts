@@ -24,10 +24,11 @@ import type { Scenario, ScenarioStep, EngineState } from './types.js';
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-const PORT         = Number(process.env.TRIDENT_WEB_PORT ?? 3000);
-const BASE_URL     = `http://localhost:${PORT}`;
+const PORT          = Number(process.env.TRIDENT_WEB_PORT ?? 3000);
+const BASE_URL      = `http://localhost:${PORT}`;
 const ONLY_SCENARIO = process.env.ACCEPTANCE_SCENARIO;
-const SEED_BALANCE = Number(process.env.CTRADER_ACCOUNT_BALANCE ?? 50_000);
+const SEED_BALANCE  = Number(process.env.CTRADER_ACCOUNT_BALANCE ?? 50_000);
+const REPORT_LANG   = (process.env.ACCEPTANCE_LANG === 'en' ? 'en' : 'it') as 'en' | 'it';
 
 const RUN_ID    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const RESULTS_DIR  = resolve('acceptance-results', RUN_ID);
@@ -113,9 +114,15 @@ function startEngine(): ChildProcess {
 
 // ── Playwright UI tracking ─────────────────────────────────────────────────────
 
-async function openBrowser(): Promise<{ browser: Browser; page: Page }> {
+async function openBrowser(lang: 'en' | 'it'): Promise<{ browser: Browser; page: Page }> {
   const browser = await chromium.launch({ headless: true });
   const page    = await browser.newPage();
+
+  // Set the UI language before page scripts run so app.js reads the right lang
+  // from localStorage on startup and applyLang() translates the DOM on load.
+  await page.addInitScript((l: string) => {
+    localStorage.setItem('trident-lang', l);
+  }, lang);
 
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
   await sleep(3_000);
@@ -306,8 +313,12 @@ function stateLabel(s: string | null, lang: 'en' | 'it' = 'en'): string {
 
 function bilingual(en: string | undefined, it: string | undefined): string {
   if (!en && !it) return '';
-  const enHtml = en ? `<span class="qs-en">${en}</span>` : '';
-  const itHtml = it ? `<span class="qs-it" style="display:none">${it}</span>` : '';
+  // Hide the non-default language upfront so the report renders in the right
+  // language immediately, without a flash of English before the JS toggles it.
+  const enStyle = REPORT_LANG === 'it' ? ' style="display:none"' : '';
+  const itStyle = REPORT_LANG === 'en' ? ' style="display:none"' : '';
+  const enHtml = en ? `<span class="qs-en"${enStyle}>${en}</span>` : '';
+  const itHtml = it ? `<span class="qs-it"${itStyle}>${it}</span>` : '';
   return enHtml + itHtml;
 }
 
@@ -364,20 +375,25 @@ function generateReport(
 
     // Steps list
     const stepsHtml = sc?.steps.length
-      ? `<ol style="margin:0 0 14px;padding-left:18px;font-size:13px;color:#374151;line-height:2">
-           ${sc.steps.map(step => {
-             const noteHtml = (step.note || step.noteIt)
-               ? ` <span style="color:#6b7280;font-style:italic;font-size:12px">— ${bilingual(step.note, step.noteIt)}</span>`
-               : '';
-             if (step.type === 'submit-setup') {
-               return `<li><strong>${bilingual('Re-submit setup', 'Nuovo setup inviato')}</strong> — ${step.label}${step.expectState ? ` → <em>${bilingual(stateLabel(step.expectState,'en'), stateLabel(step.expectState,'it'))}</em>` : ''}${noteHtml}</li>`;
-             }
-             const ps = step as Extract<typeof step, { type?: 'price' }>;
-             const delayNote = ps.delayMs ? ` <span style="color:#9ca3af">(wait ${(ps.delayMs / 1000).toFixed(0)}s)</span>` : '';
-             const stateHtml = ps.expectState ? ` → <em style="color:#6b7280">${bilingual(stateLabel(ps.expectState,'en'), stateLabel(ps.expectState,'it'))}</em>` : '';
-             return `<li>${ps.label}${ps.price != null ? ` — <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-family:monospace">${ps.price}</code>` : ''}${delayNote}${stateHtml}${noteHtml}</li>`;
-           }).join('')}
-         </ol>`
+      ? `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+           <p style="margin:0 0 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af">
+             ${bilingual('Simulated price sequence', 'Sequenza prezzi simulata')}
+           </p>
+           <ol style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:2">
+             ${sc.steps.map(step => {
+               const noteHtml = (step.note || step.noteIt)
+                 ? ` <span style="color:#6b7280;font-style:italic;font-size:12px">— ${bilingual(step.note, step.noteIt)}</span>`
+                 : '';
+               if (step.type === 'submit-setup') {
+                 return `<li><strong>${bilingual('Re-submit setup', 'Nuovo setup inviato')}</strong> — ${step.label}${step.expectState ? ` → <em>${bilingual(stateLabel(step.expectState,'en'), stateLabel(step.expectState,'it'))}</em>` : ''}${noteHtml}</li>`;
+               }
+               const ps = step as Extract<typeof step, { type?: 'price' }>;
+               const delayNote = ps.delayMs ? ` <span style="color:#9ca3af">(wait ${(ps.delayMs / 1000).toFixed(0)}s)</span>` : '';
+               const stateHtml = ps.expectState ? ` → <em style="color:#6b7280">${bilingual(stateLabel(ps.expectState,'en'), stateLabel(ps.expectState,'it'))}</em>` : '';
+               return `<li>${ps.label}${ps.price != null ? ` — <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-family:monospace">${ps.price}</code>` : ''}${delayNote}${stateHtml}${noteHtml}</li>`;
+             }).join('')}
+           </ol>
+         </div>`
       : '';
 
     // Screenshots: before → step shots (in order) → after
@@ -464,7 +480,7 @@ function generateReport(
     document.querySelectorAll('.qs-lang-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.lang===lang));
     localStorage.setItem('qs-lang', lang);
   }
-  document.addEventListener('DOMContentLoaded', () => qsLang(localStorage.getItem('qs-lang') || 'it'));
+  document.addEventListener('DOMContentLoaded', () => qsLang(localStorage.getItem('qs-lang') || '${REPORT_LANG}'));
 </script>
 <div style="max-width:1100px;margin:0 auto">
   <div style="margin-bottom:28px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -476,18 +492,24 @@ function generateReport(
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;padding-top:4px">
-      <button class="qs-lang-btn active" data-lang="en" onclick="qsLang('en')">🇬🇧 EN</button>
-      <button class="qs-lang-btn" data-lang="it" onclick="qsLang('it')">🇮🇹 IT</button>
+      <button class="qs-lang-btn${REPORT_LANG === 'en' ? ' active' : ''}" data-lang="en" onclick="qsLang('en')">🇬🇧 EN</button>
+      <button class="qs-lang-btn${REPORT_LANG === 'it' ? ' active' : ''}" data-lang="it" onclick="qsLang('it')">🇮🇹 IT</button>
     </div>
   </div>
   <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin-bottom:28px;font-size:13px;line-height:1.6;color:#374151">
     <p style="margin:0 0 4px;font-weight:600;color:#92400e">
       ${bilingual('ℹ️ About these tests', 'ℹ️ Informazioni su questi test')}
     </p>
-    <p style="margin:0">
+    <p style="margin:0 0 6px">
       ${bilingual(
         'The cTrader demo server cuts off its live price feed after a few minutes, making extended real-world testing impractical. These acceptance tests simulate the full engine lifecycle using a <strong>mock broker</strong> (auto-confirms orders without touching a real account) and a <strong>controlled price feed</strong> (prices are injected step by step by the test runner). The goal is to verify that the engine responds correctly to each trading scenario — entries, stop loss, breakeven, VWAP close, DVS gate — before relying on it with real money.',
         'Il server demo di cTrader interrompe il flusso di prezzi in tempo reale dopo alcuni minuti, rendendo i test estesi nel mondo reale impraticabili. Questi test di accettazione simulano l\'intero ciclo di vita del motore utilizzando un <strong>broker simulato</strong> (conferma automaticamente gli ordini senza toccare un conto reale) e un <strong>flusso di prezzi controllato</strong> (i prezzi vengono iniettati passo dopo passo dal test runner). L\'obiettivo è verificare che il motore risponda correttamente a ogni scenario di trading — ingressi, stop loss, pareggio, chiusura VWAP, gate DVS — prima di affidarsi ad esso con denaro reale.'
+      )}
+    </p>
+    <p style="margin:0;color:#92400e">
+      ${bilingual(
+        '<strong>P&amp;L figures are approximate.</strong> The mock uses a simplified point value and does not model the bid/ask spread or broker commissions (US500.cash at Pepperstone is spread-based with no per-trade fee). These numbers exist to show realistic account movement, not to predict exact real-money outcomes.',
+        '<strong>I valori P&amp;L sono approssimativi.</strong> Il mock utilizza un valore per punto semplificato e non modella lo spread bid/ask né le commissioni del broker (US500.cash su Pepperstone è basato sullo spread, senza commissioni per trade). Questi valori esistono per mostrare un movimento realistico del conto, non per predire risultati esatti con denaro reale.'
       )}
     </p>
   </div>
@@ -508,6 +530,7 @@ async function main(): Promise<void> {
   console.log(`   Run ID:    ${RUN_ID}`);
   console.log(`   Results:   ${RESULTS_DIR}`);
   console.log(`   Engine:    ${BASE_URL}`);
+  console.log(`   Language:  ${REPORT_LANG.toUpperCase()} (override with ACCEPTANCE_LANG=en)`);
 
   mkdirSync(RESULTS_DIR, { recursive: true });
   writeAcceptanceConfig();
@@ -534,8 +557,8 @@ async function main(): Promise<void> {
     await waitForEngineReady(15_000);
     console.log(' ready\n');
 
-    // Open Playwright browser
-    const { browser: b, page } = await openBrowser();
+    // Open Playwright browser (lang sets the UI language for screenshots)
+    const { browser: b, page } = await openBrowser(REPORT_LANG);
     browser = b;
 
     for (const scenario of scenariosToRun) {
