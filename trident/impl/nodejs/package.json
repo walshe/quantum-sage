@@ -16,7 +16,8 @@
     "simulate": "tsx scripts/simulate-trade.ts",
     "list:symbols": "tsx scripts/list-symbols.ts",
     "test:coverage": "vitest run --coverage",
-    "eval": "promptfoo eval --config evals/promptfooconfig.yaml"
+    "eval": "promptfoo eval --config evals/promptfooconfig.yaml",
+    "acceptance": "tsx acceptance-tests/runner.ts"
   },
   "_comment_langchain": "LangChain/LangGraph POC — MIT, no per-call cost; same underlying OpenAI API",
   "dependencies": {
@@ -37,11 +38,15 @@
     "winston": "^3.19.0",
     "ws": "^8.20.0"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.60.1"
+  },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^1.6.1",
+    "playwright": "^1.61.0",
     "promptfoo": "^0.121.12",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",

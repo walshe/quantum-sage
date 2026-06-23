@@ -17,7 +17,8 @@
  */
 
 import { CTraderSession, PT } from '../price-feed/CTraderSession.js';
-import type { CTraderSessionConfig, CTraderMessage } from '../price-feed/CTraderSession.js';
+import type { CTraderSessionConfig } from '../price-feed/CTraderSession.js';
+import type { IBrokerSession } from './IBrokerSession.js';
 import type { Notifier, NotificationEvent } from '../notifier/Notifier.js';
 import type { QSConfig } from '../config/types.js';
 import { computeVolume } from './volumeCalculator.js';
@@ -39,7 +40,7 @@ export interface CTraderOrderExecutorConfig extends CTraderSessionConfig {
 // ── CTraderOrderExecutor ─────────────────────────────────────────────────────
 
 export class CTraderOrderExecutor implements Notifier {
-  private readonly session: CTraderSession;
+  private readonly session: IBrokerSession;
   private readonly qsConfig: QSConfig;
   private symbolId: number | null;
 
@@ -49,13 +50,13 @@ export class CTraderOrderExecutor implements Notifier {
   private pendingStopPrice: number | null = null; // queued SL amend before positionId known
   private orderTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(cfg: CTraderOrderExecutorConfig, qsConfig: QSConfig, seedBalanceEur?: number) {
+  constructor(cfg: CTraderOrderExecutorConfig, qsConfig: QSConfig, seedBalanceEur?: number, session?: IBrokerSession) {
     this.qsConfig = qsConfig;
     this.symbolId = cfg.symbolId ?? null;
     if (seedBalanceEur != null && seedBalanceEur > 0) {
       this.liveBalanceEur = seedBalanceEur;
     }
-    this.session  = new CTraderSession(cfg);
+    this.session = session ?? new CTraderSession(cfg);
 
     this.session.onMessage(PT.EXECUTION_EVENT, msg => {
       this.handleExecutionEvent(msg.payload ?? {});

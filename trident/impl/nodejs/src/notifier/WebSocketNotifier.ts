@@ -175,6 +175,10 @@ export class WebSocketNotifier implements Notifier {
     }
   }
 
+  clearHistory(): void {
+    this.eventBuffer.length = 0;
+  }
+
   clientCount(): number {
     return this.clients.size;
   }

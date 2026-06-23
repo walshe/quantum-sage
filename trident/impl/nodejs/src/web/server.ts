@@ -32,7 +32,7 @@ export interface StartWebServerOpts {
   /** Resets the engine to idle state. Returns false if a trade is currently open. */
   onEngineReset?: () => boolean;
   /** Dev-only: receives a synthetic price tick injected via /simulate/tick. */
-  onSimulatedTick?: (price: number) => void;
+  onSimulatedTick?: (price: number) => Promise<void>;
 }
 
 export interface WebServerHandle {
@@ -209,11 +209,12 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     res.json({ state: 'idle' });
   });
 
-  app.post('/simulate/tick', (req, res) => {
+  app.post('/simulate/tick', async (req, res) => {
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).end();
     }
-    if (opts.config.execution?.auto_execute) {
+    // Allow simulation with MOCK_BROKER — the guard is only needed to protect real broker connections
+    if (opts.config.execution?.auto_execute && process.env.MOCK_BROKER !== 'true') {
       return res.status(400).json({ error: 'auto_execute is enabled — disable it before simulating' });
     }
     if (!opts.onSimulatedTick) {
@@ -223,7 +224,7 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
     if (typeof price !== 'number' || !isFinite(price)) {
       return res.status(400).json({ error: 'body must be { price: number }' });
     }
-    opts.onSimulatedTick(price);
+    await opts.onSimulatedTick(price);
     res.json({ ok: true, price });
   });
 
