@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeVolume } from '../../src/trader/volumeCalculator.js';
+import { computeVolume, computeVolumeUnits } from '../../src/trader/volumeCalculator.js';
 
 describe('computeVolume', () => {
   const base = {
@@ -41,6 +41,14 @@ describe('computeVolume', () => {
   it('handles small accounts with fractional lots', () => {
     // 1000 × 0.005 × 0.325 / 40 = 1.625 / 40 = 0.040625 → 0.04 lots
     expect(computeVolume({ ...base, capital: 1_000, allocPct: 32.5 })).toBe(0.04);
+  });
+
+  it('computeVolumeUnits returns integer API units with no float round-trip', () => {
+    // 80000 × 0.005 × 0.325 / 40 = 3.25 → 325 API units (exact integer, no Math.round needed)
+    expect(computeVolumeUnits({ ...base, allocPct: 32.5 })).toBe(325);
+    expect(Number.isInteger(computeVolumeUnits({ ...base, allocPct: 32.5 }))).toBe(true);
+    // computeVolume = computeVolumeUnits / 100
+    expect(computeVolume({ ...base, allocPct: 32.5 })).toBe(computeVolumeUnits({ ...base, allocPct: 32.5 }) / 100);
   });
 
   it('minimum viable account returns 0.01 lots (~€246)', () => {
