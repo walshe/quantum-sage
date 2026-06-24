@@ -52,4 +52,6 @@ export interface Scenario {
   setup: SetupFields;
   steps: ScenarioStep[];
   expectedFinalState: EngineState;
+  /** Override account balance for this scenario (EUR). Defaults to SEED_BALANCE. */
+  accountBalance?: number;
 }

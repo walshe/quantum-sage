@@ -173,6 +173,11 @@ async function runScenario(
       await sleep(1_000);
     }
 
+    // Seed account balance for this scenario (restores to default after).
+    if (scenario.accountBalance !== undefined) {
+      await post('/simulate/account', { balance: scenario.accountBalance, unrealizedPnl: 0 });
+    }
+
     // Write the initial setup YAML
     writeSetupYaml(scenario.setup, SETUPS_DIR, scenario.name);
     console.log(`    ✓ Setup YAML written`);
@@ -255,6 +260,12 @@ async function runScenario(
       durationMs:    Date.now() - start,
     };
     writeFileSync(join(scenarioDir, 'result.json'), JSON.stringify(result, null, 2));
+
+    // Restore default balance so subsequent scenarios aren't affected.
+    if (scenario.accountBalance !== undefined) {
+      await post('/simulate/account', { balance: SEED_BALANCE, unrealizedPnl: 0 });
+    }
+
     return result;
 
   } catch (err: unknown) {
@@ -272,6 +283,9 @@ async function runScenario(
       error,
     };
     writeFileSync(join(scenarioDir, 'result.json'), JSON.stringify(result, null, 2));
+    if (scenario.accountBalance !== undefined) {
+      await post('/simulate/account', { balance: SEED_BALANCE, unrealizedPnl: 0 }).catch(() => {});
+    }
     return result;
   }
 }
@@ -354,6 +368,9 @@ function generateReport(
       if (setup.max_sell_2 != null) chips.push(`Sell outer: ${setup.max_sell_2}`);
       chips.push(`${bilingual('Market price at setup','Prezzo di mercato al setup')}: ${setup.futures_last}`);
       chips.push(`VWAP: ${setup.vwap}`);
+      if (sc?.accountBalance !== undefined) {
+        chips.push(`${bilingual('Account balance','Saldo conto')}: €${sc.accountBalance.toLocaleString()}`);
+      }
     }
     const setupHtml = chips.length
       ? `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:14px">

@@ -185,6 +185,11 @@ const webServer = await startWebServer({
       await notifier.notify({ type: 'ACCOUNT_UPDATE', ...latestAccount, equity: latestAccount.balance, unrealizedPnl: 0 });
     }
   },
+  onSimulatedBalance: (balance) => {
+    if (!latestAccount) return;
+    latestAccount = { ...latestAccount, balance };
+    executor?.setLiveBalance(balance);
+  },
 });
 notifierChildren.push(webServer.notifier);
 log.info('UI ready', { url: `http://localhost:${webServer.port}` });
