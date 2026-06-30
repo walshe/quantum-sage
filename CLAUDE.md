@@ -4,7 +4,7 @@
 
 | Document | Path |
 |---|---|
-| Architecture | `ARCHITECTURE.md` |
+| Architecture | `trident/docs/ARCHITECTURE.md` |
 | PRD | `trident/docs/PRD.md` |
 | Developer README | `trident/impl/nodejs/README.md` |
 | Developer mental notes | `trident/impl/nodejs/developer-mental-notes.md` |
@@ -44,7 +44,7 @@ Read `trident/impl/nodejs/developer-mental-notes.md` before writing code. It con
 
 2. **Update the developer README** (`trident/impl/nodejs/README.md`) if the change adds or removes a dependency, introduces a new npm script, changes environment variables, or adds a significant new capability to the tech stack (e.g. a new AI provider, a new eval approach).
 
-3. **Update the architecture doc** (`ARCHITECTURE.md`) if the change adds or removes a major component, introduces a new integration point, changes the data flow, or advances the phase (e.g. Phase 2 auto-execution lands). Do not update it for implementation details — that belongs in the mental notes.
+3. **Update the architecture doc** (`trident/docs/ARCHITECTURE.md`) if the change adds or removes a major component, introduces a new integration point, changes the data flow, or advances the phase (e.g. Phase 2 auto-execution lands). Do not update it for implementation details — that belongs in the mental notes.
 
 4. **Update the PRD** (`trident/docs/PRD.md`) if the change affects system behaviour, data contracts, level mappings, engine state transitions, or any other detail a future reader would need to understand how the system works.
 
