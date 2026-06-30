@@ -221,7 +221,7 @@ The latest acceptance test report shows each scenario the engine was validated a
 
 **[Download the latest report](https://github.com/walshe/quantum-sage/raw/main/trident/impl/nodejs/acceptance-results/latest/report.html)**
 
-> **To view it:** right-click the link above → **Save Link As...** → save the `.html` file to your desktop → double-click to open in your browser. It won't display correctly if you try to open it directly in the browser tab without downloading first.
+> **To view it:** right-click the link above and choose **Save Link As...** (Chrome/Firefox) or **Save Linked Content As...** (Opera/Safari) → save the `.html` file to your desktop → double-click to open in your browser. It won't display correctly if you try to open it directly in the browser tab without downloading first.
 
 ---
 
