@@ -219,7 +219,7 @@ Grafana Cloud's free tier includes hosted Prometheus storage, dashboards, alerti
 
 The latest acceptance test report shows each scenario the engine was validated against (entries, breakeven, close, small accounts, DVS blocking, etc.) — with screenshots of the UI at each step.
 
-**[Download the latest report](https://raw.githubusercontent.com/walshe/quantum-sage/main/trident/impl/nodejs/acceptance-results/latest/report.html)**
+**[Download the latest report](https://github.com/walshe/quantum-sage/raw/main/trident/impl/nodejs/acceptance-results/latest/report.html)**
 
 > **To view it:** right-click the link above → **Save Link As...** → save the `.html` file to your desktop → double-click to open in your browser. It won't display correctly if you try to open it directly in the browser tab without downloading first.
 

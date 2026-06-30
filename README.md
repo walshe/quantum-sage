@@ -12,4 +12,4 @@ Trident is the first strategy under the Quantum Sage umbrella. It implements an 
 
 For more information, see the [Trident Product Requirements Document (PRD)](trident/docs/PRD.md) and the [Architecture](trident/docs/ARCHITECTURE.md).
 
-**[See it in action →](https://raw.githubusercontent.com/walshe/quantum-sage/main/trident/impl/nodejs/acceptance-results/latest/report.html)** *(right-click → Save Link As, then open locally)*
+**[See it in action →](https://github.com/walshe/quantum-sage/raw/main/trident/impl/nodejs/acceptance-results/latest/report.html)** *(right-click → Save Link As, then open locally)*
