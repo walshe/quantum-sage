@@ -12,16 +12,27 @@ export interface VolumeParams {
 }
 
 /**
- * Compute integer lot count for a single entry tier.
+ * Compute the cTrader API volume units for a single entry tier.
  *
- * Formula: floor((capital × riskPct/100 × allocPct/100) / (stopPoints × pointValue))
+ * Returns an integer (hundredths-of-a-lot, i.e. lots × 100) that can be
+ * sent directly to the API without any further multiplication or rounding.
+ * This is the canonical form — no float round-trip, no inconsistency.
  *
- * Returns 0 when the formula produces a value below 1 lot — callers must
- * guard against this and refuse to place the order.
+ * Returns 0 when below 1 API unit (< 0.01 lots). Callers must guard and
+ * refuse to place the order. Minimum viable account at default config ≈ €250.
  */
-export function computeVolume(p: VolumeParams): number {
+export function computeVolumeUnits(p: VolumeParams): number {
   const riskEur = p.capital * (p.riskPct / 100) * (p.allocPct / 100);
   const riskPerLot = p.stopPoints * p.pointValue;
   if (riskPerLot <= 0) return 0;
-  return Math.floor(riskEur / riskPerLot);
+  return Math.floor((riskEur / riskPerLot) * 100);
+}
+
+/**
+ * Convenience wrapper that returns lots at 0.01 precision (= units / 100).
+ * Use for P&L calculations and logging. Use computeVolumeUnits() for the
+ * API call itself to avoid any float round-trip.
+ */
+export function computeVolume(p: VolumeParams): number {
+  return computeVolumeUnits(p) / 100;
 }

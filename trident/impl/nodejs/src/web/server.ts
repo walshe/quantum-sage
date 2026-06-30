@@ -33,6 +33,8 @@ export interface StartWebServerOpts {
   onEngineReset?: () => boolean;
   /** Dev-only: receives a synthetic price tick injected via /simulate/tick. */
   onSimulatedTick?: (price: number) => Promise<void>;
+  /** Dev-only: called when /simulate/account sets a new balance so index.ts can update latestAccount. */
+  onSimulatedBalance?: (balance: number) => void;
 }
 
 export interface WebServerHandle {
@@ -246,11 +248,13 @@ export async function startWebServer(opts: StartWebServerOpts): Promise<WebServe
       return res.status(400).json({ error: `currency must be one of: ${VALID_CURRENCIES.join(', ')}` });
     }
 
+    const resolvedBalance = typeof balance === 'number' && isFinite(balance as number) ? (balance as number) : 50000;
+    opts.onSimulatedBalance?.(resolvedBalance);
     // notifier is defined below — this closure captures it at call time, not definition time.
     notifier.notify({
       type: 'ACCOUNT_UPDATE',
-      balance:       typeof balance === 'number' && isFinite(balance as number) ? (balance as number) : 50000,
-      equity:        (typeof balance === 'number' && isFinite(balance as number) ? (balance as number) : 50000) + unrealizedPnl,
+      balance:       resolvedBalance,
+      equity:        resolvedBalance + unrealizedPnl,
       unrealizedPnl,
       currency:      typeof currency === 'string' && VALID_CURRENCIES.includes(currency as string) ? (currency as string) : 'USD',
       login:         0,

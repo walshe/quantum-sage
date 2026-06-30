@@ -77,8 +77,10 @@ position sizes later.
 - On startup, before the first balance poll returns, the executor is seeded with `CTRADER_ACCOUNT_BALANCE` env var value. If that's also absent and `auto_execute` fires, the order is skipped with a `warn` (no capital available).
 - **Breaking config change:** remove `starting_capital_eur` from any existing `config.yaml`. The loader will ignore the field if present but it is no longer used.
 
-**Formula:** `contracts = floor((equity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`.
+**Formula:** `lots = floor((equity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur) × 100) / 100`.
 
+- Rounded **down to 0.01 lot precision** (the minimum cTrader API unit for US500.cash at Pepperstone). Before this change it floored to whole integers, requiring ~€25k minimum account. Now ~€250 is enough to trade 0.01 lots/tranche ($0.01/point) — suitable for live testing with negligible real-money exposure.
+- API units sent to cTrader = `Math.round(lots × 100)` (i.e. lots × VOLUME_MULTIPLIER=100, rounded to avoid float drift).
 - Entry allocation splits (32.5/35/32.5%) divide the risk budget across three scale-in entries.
 - `size_adaptation` multipliers (0.5× after one losing day, 0.25× after two) are in config but **not yet implemented** in the engine.
 - `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print computed lot counts per tier for operator verification.
@@ -147,9 +149,9 @@ Only instantiated when `config.execution.auto_execute: true`.
 **C3 design** — owns its own `CTraderSession`, independent from the price feed (C1)
 and balance session (C2). A drop on the executor doesn't affect price or balance.
 
-**Volume formula**: `floor((liveEquity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur))`. Capital comes from the live broker equity (`setLiveBalance`), seeded by `CTRADER_ACCOUNT_BALANCE` env var at startup. `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print computed lot counts per tier for operator verification.
+**Volume formula**: `floor((liveEquity × daily_risk_pct/100 × alloc_pct/100) / (stop_loss_points × point_value_eur) × 100) / 100` — rounded down to 0.01 lot precision. Capital comes from the live broker equity (`setLiveBalance`), seeded by `CTRADER_ACCOUNT_BALANCE` env var at startup. `point_value_eur` is a required config field when `auto_execute: true`. Startup logs print computed lot counts per tier for operator verification.
 
-**Volume encoding**: lots × `VOLUME_MULTIPLIER` (currently 100) before sending to the API. Confirm the correct multiplier for US500.cash on the first real run — log `apiVolume` makes it easy to check.
+**Volume encoding**: `Math.round(lots × VOLUME_MULTIPLIER)` (VOLUME_MULTIPLIER = 100) before sending to the API — `Math.round` avoids float drift (e.g. `2.03 × 100 = 202.999…`). Confirm the correct multiplier for US500.cash on the first real run — log `apiVolume` makes it easy to check.
 
 **Event routing**:
 - `ENTRY_TRIGGERED` → `ProtoOANewOrderReq` (payloadType **2104**), MARKET order

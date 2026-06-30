@@ -21,7 +21,7 @@ import type { CTraderSessionConfig } from '../price-feed/CTraderSession.js';
 import type { IBrokerSession } from './IBrokerSession.js';
 import type { Notifier, NotificationEvent } from '../notifier/Notifier.js';
 import type { QSConfig } from '../config/types.js';
-import { computeVolume } from './volumeCalculator.js';
+import { computeVolume, computeVolumeUnits } from './volumeCalculator.js';
 import { getLogger } from '../logger.js';
 
 const log = getLogger('CTraderOrderExecutor');
@@ -132,21 +132,21 @@ export class CTraderOrderExecutor implements Notifier {
       return;
     }
 
-    const vol = computeVolume({
+    const params = {
       capital,
       riskPct:    this.qsConfig.capital.daily_risk_pct,
       allocPct:   event.allocationPct,
       stopPoints: this.qsConfig.trident.stop_loss_points,
       pointValue: exec.point_value_eur,
-    });
+    };
+    const apiVol = computeVolumeUnits(params); // integer API units — no float round-trip
+    const vol    = apiVol / VOLUME_MULTIPLIER;  // lots, for logging only
 
-    if (vol === 0) {
+    if (apiVol === 0) {
       log.error('Computed volume is 0 — skipping order', { allocPct: event.allocationPct });
       await this.emitOrderFailed('computed volume is zero');
       return;
     }
-
-    const apiVol = vol * VOLUME_MULTIPLIER;
     const side   = event.direction === 'long' ? 'BUY' : 'SELL';
 
     log.info('Placing market order', {
@@ -315,18 +315,19 @@ export class CTraderOrderExecutor implements Notifier {
 
     const capital = this.effectiveCapital();
     for (const tier of tiers) {
-      const vol = computeVolume({
+      const params = {
         capital,
         riskPct:    this.qsConfig.capital.daily_risk_pct,
         allocPct:   tier.alloc,
         stopPoints: this.qsConfig.trident.stop_loss_points,
         pointValue: exec.point_value_eur,
-      });
+      };
+      const apiUnits = computeVolumeUnits(params);
       log.info('Startup volume check', {
         tier: tier.label,
         allocPct: tier.alloc,
-        lots: vol,
-        apiVolume: vol * VOLUME_MULTIPLIER,
+        lots: apiUnits / VOLUME_MULTIPLIER,
+        apiVolume: apiUnits,
       });
     }
   }
