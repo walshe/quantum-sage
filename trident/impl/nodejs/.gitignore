@@ -5,3 +5,4 @@ logs/
 coverage/
 acceptance-results/
 !acceptance-results/latest/
+hetzner-backup/
