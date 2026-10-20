@@ -47,8 +47,10 @@ Key variables:
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | AI screenshot import, `npm run eval` | Get from platform.openai.com |
-| `OPENAI_MODEL` | AI screenshot import | Default: `gpt-4o-2024-11-20` |
+| `TRIDENT_AI_PROVIDER` | AI screenshot import, `npm run eval` | `anthropic` (default), `openrouter`, or `openai` |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | `anthropic` provider | Default model: `claude-sonnet-4-6` |
+| `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | `openrouter` provider | Key from openrouter.ai/keys. Default model: `anthropic/claude-sonnet-4.6` |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | `openai` provider | Default model: `gpt-4o-2024-11-20` |
 | `CTRADER_CLIENT_ID` / `_SECRET` | Live price feed | From openapi.ctrader.com/apps |
 | `CTRADER_ACCESS_TOKEN` / `_REFRESH_TOKEN` | Live price feed | Set by `npm run auth:ctrader` |
 | `TRIDENT_WEB_PORT` | Dashboard | Default: `3000` |
@@ -110,10 +112,12 @@ npm run eval
 ```
 
 Runs the [promptfoo](https://promptfoo.dev/) golden-dataset eval suite against
-real IV Smile screenshots. Makes real OpenAI API calls (~$0.01–0.05 per run) —
+real IV Smile screenshots. Makes real LLM API calls (~$0.01–0.05 per run) —
 **not run in CI**, execute deliberately.
 
-Requires `OPENAI_API_KEY` in `.env`. See [`evals/README.md`](evals/README.md)
+Uses the same provider selection as the app (`TRIDENT_AI_PROVIDER` + that
+provider's API key in `.env`). To compare models via OpenRouter:
+`TRIDENT_AI_PROVIDER=openrouter OPENROUTER_MODEL=openai/gpt-4o npm run eval`. See [`evals/README.md`](evals/README.md)
 for how to add fixtures and update expected values when the prompt changes.
 
 ---

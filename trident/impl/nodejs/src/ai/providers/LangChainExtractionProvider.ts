@@ -13,7 +13,7 @@ const log = getLogger('LangChainExtractionProvider');
  * Server-side normalisation stamps schema_version, execution_instrument,
  * update_seq, levels.additional, and vwap.source after the call.
  */
-const SIGNAL_TOOL_SCHEMA = {
+export const SIGNAL_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {

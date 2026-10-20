@@ -1,6 +1,7 @@
 import type { VisionProvider } from '../types.js';
 import { LangChainExtractionProvider } from './LangChainExtractionProvider.js';
 import { ClaudeExtractionProvider } from './ClaudeExtractionProvider.js';
+import { OpenRouterExtractionProvider } from './OpenRouterExtractionProvider.js';
 import { getLogger } from '../../logger.js';
 
 const log = getLogger('ai/providers');
@@ -9,7 +10,7 @@ const log = getLogger('ai/providers');
  * Build the vision provider from environment configuration.
  *
  * Selection order:
- *   1. `TRIDENT_AI_PROVIDER` env var ("anthropic" | "openai").
+ *   1. `TRIDENT_AI_PROVIDER` env var ("anthropic" | "openai" | "openrouter").
  *   2. Default = "anthropic" (better spatial chart reasoning; prompt caching).
  *
  * Returns `null` if the chosen provider is not configured (e.g. no API key).
@@ -57,6 +58,18 @@ export function buildVisionProvider(): VisionProvider | null {
         apiKey,
         model: process.env.OPENAI_MODEL,
         baseURL: process.env.OPENAI_BASE_URL,
+      });
+    }
+    case 'openrouter': {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) {
+        // Only reachable when explicitly selected, so always an error.
+        log.error('TRIDENT_AI_PROVIDER=openrouter but OPENROUTER_API_KEY is missing — AI extraction disabled');
+        return null;
+      }
+      return new OpenRouterExtractionProvider({
+        apiKey,
+        model: process.env.OPENROUTER_MODEL,
       });
     }
     default:

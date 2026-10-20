@@ -3,18 +3,18 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 
-import { ClaudeExtractionProvider } from '../src/ai/providers/ClaudeExtractionProvider.js';
+import { buildVisionProvider } from '../src/ai/providers/index.js';
 import { SignalExtractor, ExtractionBlockedError } from '../src/ai/signalExtractor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, '../.env') });
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
-if (!apiKey) {
-  throw new Error('ANTHROPIC_API_KEY is not set — add it to trident/impl/nodejs/.env before running evals');
+// Same provider selection as the app (TRIDENT_AI_PROVIDER, default anthropic),
+// so `TRIDENT_AI_PROVIDER=openrouter OPENROUTER_MODEL=... npm run eval` scores any model.
+const visionProvider = buildVisionProvider();
+if (!visionProvider) {
+  throw new Error('No AI provider configured — set the API key for TRIDENT_AI_PROVIDER in trident/impl/nodejs/.env before running evals');
 }
-
-const visionProvider = new ClaudeExtractionProvider({ apiKey });
 const extractor = new SignalExtractor(visionProvider);
 
 export default class SignalExtractorProvider {
