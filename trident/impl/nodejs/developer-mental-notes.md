@@ -677,7 +677,7 @@ whichever provider/model the env selects.
 
 **Forced `tool_choice` fallback.** Some models (Claude Sonnet 5.5) reject a forced
 `tool_choice` with a 400. The provider then retries once with `tool_choice: "auto"` and keeps
-that mode for the process (`OutputMode`). The mode is captured *per call*: promptfoo runs
+that mode on that provider instance (`OutputMode`). The app builds one at startup, so it is effectively once per process; a newly built instance (eval harness, tests) pays one unbilled rejected request again. The mode is captured *per call*: promptfoo runs
 fixtures in parallel, and checking `this.mode` in the catch made the 2nd and 3rd parallel calls
 re-throw instead of retrying. `response_format: json_schema` is not a usable fallback for
 Claude: nullable enums are rejected, and strict schemas are capped at 16 nullable/union params

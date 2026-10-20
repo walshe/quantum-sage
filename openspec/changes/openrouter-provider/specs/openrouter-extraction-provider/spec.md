@@ -35,7 +35,7 @@ The OpenRouter provider SHALL send requests to OpenRouter's OpenAI-compatible en
 - **THEN** it throws before making any network call
 
 ### Requirement: Fallback for models without forced tool_choice
-When a request fails with a 400 saying a forced `tool_choice` is not supported, the provider SHALL retry once with the same tool and `tool_choice: "auto"`, and SHALL use `"auto"` for later calls in the same process. Other errors SHALL NOT trigger the fallback.
+When a request fails with a 400 saying a forced `tool_choice` is not supported, the provider SHALL retry once with the same tool and `tool_choice: "auto"`, and SHALL use `"auto"` for later calls on the same provider instance (the app builds one instance per process at startup). Other errors SHALL NOT trigger the fallback.
 
 #### Scenario: Model rejects forced tool_choice
 - **WHEN** the first request returns 400 `tool_choice ... not supported for this model`

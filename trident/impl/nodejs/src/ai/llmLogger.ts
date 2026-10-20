@@ -35,6 +35,8 @@ const COST_RATES: Record<string, ModelRate> = {
   'claude-opus-4-7':   { inputPer1MTokens: 5.00,  outputPer1MTokens: 25.00 },
   'claude-haiku-4-5-20251001': { inputPer1MTokens: 1.00, outputPer1MTokens: 5.00 },
   // OpenRouter slugs (vendor/model) — pass-through pricing, same as the vendor's own rates.
+  // Source for the Anthropic 4.6/4.7/4.5/5.5 rates here and above: OpenRouter /api/v1/models
+  // pricing, checked 2026-10-20 (its Sonnet 4.6 and GPT-4o entries match the existing rows).
   'anthropic/claude-sonnet-4.6': { inputPer1MTokens: 3.00,  outputPer1MTokens: 15.00 },
   'anthropic/claude-opus-4.7':   { inputPer1MTokens: 5.00,  outputPer1MTokens: 25.00 },
   'anthropic/claude-haiku-4.5':  { inputPer1MTokens: 1.00,  outputPer1MTokens: 5.00 },
