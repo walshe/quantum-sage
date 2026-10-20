@@ -9,7 +9,9 @@ cd trident/impl/nodejs
 npm run eval
 ```
 
-Requires `OPENAI_API_KEY` in `trident/impl/nodejs/.env`. Each run makes real API calls
+Uses the app's provider selection (`TRIDENT_AI_PROVIDER`, default `anthropic`) and needs
+that provider's API key in `trident/impl/nodejs/.env`. With `TRIDENT_AI_PROVIDER=openrouter`
+you can score any model by setting `OPENROUTER_MODEL`. Each run makes real API calls
 (~1 call per active fixture). Not run in CI — execute deliberately.
 
 ## Add a new fixture

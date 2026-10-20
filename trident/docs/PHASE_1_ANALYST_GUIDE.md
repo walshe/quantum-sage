@@ -203,7 +203,15 @@ IV Smile chart and pre-fill the form. To enable it, add
 this line to `.env`:
 
 ```
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Or, to use OpenRouter (one key for every AI vendor), add these
+instead:
+
+```
+TRIDENT_AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
 ```
 
 Without a key, the Import button still uploads and stores the images on
@@ -259,7 +267,7 @@ in a modal by clicking one of the top buttons:
 - **Pre-fill from latest** — loads today's most recent setup file into
   the form so you can tweak only what's changed.
 - **Import from screenshot** *(AI)* — upload one IV Smile chart screenshot.
-  If `OPENAI_API_KEY` is set, Trident reads the chart's range panel
+  If an AI key is set (see step 5b), Trident reads the chart's range panel
   (Range 1/2 up/down) to extract BUY INNER/OUTER, SELL INNER/OUTER levels,
   ranges, DVS, and skew, then pre-fills the form. **When the chart shows two
   DVS columns (Morning and Opening Bell Range), the extraction prefers Opening

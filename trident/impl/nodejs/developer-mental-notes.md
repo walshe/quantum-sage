@@ -660,7 +660,36 @@ fixtures at 100% first-try. The cost difference is negligible for this workload
 (<1 call/day, ~2 500 tokens/call).
 
 `LangChainExtractionProvider` remains available (`TRIDENT_AI_PROVIDER=openai`) for
-rollback. The archived `OpenAIProvider.ts` lives in `providers/_archive/`.
+rollback.
+
+**`OpenRouterExtractionProvider`** (`TRIDENT_AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`,
+optional `OPENROUTER_MODEL`, default `anthropic/claude-sonnet-4.6`) — one key and one bill
+for every vendor; switching models is a config change. Uses the `openai` SDK pointed at
+`https://openrouter.ai/api/v1` and forces the `return_extracted_signal` tool via
+`tool_choice` (tool calling, not `response_format: json_schema`, because tool support is
+wider across OpenRouter vendors). It reuses `SIGNAL_TOOL_SCHEMA` exported from
+`LangChainExtractionProvider.ts` rather than keeping a third copy. Trade-offs vs. the
+direct Anthropic provider: no explicit `cache_control` prompt caching (irrelevant at
+<1 call/day) and model IDs are OpenRouter slugs (`vendor/model`, dotted versions like
+`claude-sonnet-4.6`) — add each slug to `COST_RATES` in `llmLogger.ts` or cost logs as null.
+The eval harness (`evals/provider.ts`) calls `buildVisionProvider()`, so it scores
+whichever provider/model the env selects.
+
+**Forced `tool_choice` fallback.** Some models (Claude Sonnet 5.5) reject a forced
+`tool_choice` with a 400. The provider then retries once with `tool_choice: "auto"` and keeps
+that mode for the process (`OutputMode`). The mode is captured *per call*: promptfoo runs
+fixtures in parallel, and checking `this.mode` in the catch made the 2nd and 3rd parallel calls
+re-throw instead of retrying. `response_format: json_schema` is not a usable fallback for
+Claude: nullable enums are rejected, and strict schemas are capped at 16 nullable/union params
+(ours has 29). Verified 2026-10-20: Sonnet 5.5 passes the golden fixtures (6/6) at ~$0.018/call,
+using ~5 500 input tokens vs ~4 850 on Sonnet 4.6 (different tokenizer).
+
+**OpenRouter workspace guardrails can silently block the model.** A `404 0 endpoints out of N
+requested are available matching your guardrail restrictions` error is an account setting, not
+a code bug: the default Workspace Guardrail can be in "Only Allow" mode with a model allow-list.
+Add the exact slug (non-"batch" variant) under openrouter.ai → Workspace → Guardrails. Blocked
+calls fail fast and are not billed. Verified 2026-10-20: `anthropic/claude-sonnet-4.6` via
+OpenRouter passes all golden fixtures (~$0.025/call, 11–14 s). The archived `OpenAIProvider.ts` lives in `providers/_archive/`.
 
 ### `extractionGraph.ts`
 LangGraph `StateGraph` that models the extraction pipeline as four nodes:
@@ -727,7 +756,8 @@ which was incorrect).
 Emits one structured `LLM_CALL` log entry per extraction attempt. The cost
 rate table (`COST_RATES`) is keyed by model ID — add new models here when a
 new provider is wired up. Known models: `gpt-4o-2024-11-20`, `gpt-4o-mini`,
-`deepseek-chat`, `deepseek-reasoner`. Unknown models log a `warn` and produce
+`deepseek-chat`, `deepseek-reasoner`, the Claude 4.x IDs, and the OpenRouter slugs
+(`anthropic/claude-sonnet-4.6`, `openai/gpt-4o`, …). Unknown models log a `warn` and produce
 `estimatedCostUsd: null` — operators will notice in Grafana and add the rate.
 
 ### `piiRedactor.ts`
